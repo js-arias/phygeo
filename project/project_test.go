@@ -10,22 +10,27 @@ import (
 	"testing"
 
 	"github.com/js-arias/phygeo/project"
+	"golang.org/x/exp/slices"
 )
+
+type setPath struct {
+	set  project.Dataset
+	path string
+}
 
 func TestProject(t *testing.T) {
 	p := project.New()
 
-	sets := []struct {
-		set  project.Dataset
-		path string
-	}{
+	sets := []setPath{
+		{project.GeoMod, "geo-model.tab"},
+		{project.TimePix, "pix-time.tab"},
 		{project.Trees, "trees.tab"},
 	}
 
 	for _, s := range sets {
 		p.Add(s.set, s.path)
 	}
-	testProject(t, p)
+	testProject(t, p, sets)
 
 	name := "tmp-project-for-test.tab"
 	defer os.Remove(name)
@@ -38,27 +43,23 @@ func TestProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error when reading data: %v", err)
 	}
-	testProject(t, np)
+	testProject(t, np, sets)
 }
 
-func testProject(t testing.TB, p *project.Project) {
+func testProject(t testing.TB, p *project.Project, sets []setPath) {
 	t.Helper()
-
-	sets := []struct {
-		set  project.Dataset
-		path string
-	}{
-		{project.Trees, "trees.tab"},
-	}
 
 	for _, s := range sets {
 		if path := p.Path(s.set); path != s.path {
 			t.Errorf("set %s: got path %q, want %q", s.set, path, s.path)
 		}
 	}
-	datasets := []project.Dataset{
-		project.Trees,
+	datasets := make([]project.Dataset, 0, len(sets))
+	for _, v := range sets {
+		datasets = append(datasets, v.set)
 	}
+	slices.Sort(datasets)
+
 	if ls := p.Sets(); !reflect.DeepEqual(ls, datasets) {
 		t.Errorf("sets: got %v, want %v", ls, datasets)
 	}

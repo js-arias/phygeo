@@ -29,6 +29,14 @@ type Dataset string
 
 // Valid dataset types.
 const (
+	// File for the rotation model
+	// of the paleogeographic reconstruction.
+	GeoMod Dataset = "geomod"
+
+	// File for the pixel values
+	// at different time stages.
+	TimePix Dataset = "timepix"
+
 	// File for phylogenetic trees.
 	Trees Dataset = "trees"
 )
@@ -62,6 +70,8 @@ var header = []string{
 //
 //	# phygeo project files
 //	dataset	path
+//	geomod	geo-model.tab
+//	timepix	pix-time.tab
 //	trees	trees.tab
 func Read(name string) (*Project, error) {
 	f, err := os.Open(name)
