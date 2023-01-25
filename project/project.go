@@ -33,6 +33,14 @@ const (
 	// of the paleogeographic reconstruction.
 	GeoMod Dataset = "geomod"
 
+	// File for presence-absence points
+	// of the taxa in the project.
+	Points Dataset = "points"
+
+	// File for geographic distribution ranges
+	// of the taxa in the project.
+	Ranges Dataset = "ranges"
+
 	// File for the pixel values
 	// at different time stages.
 	TimePix Dataset = "timepix"
@@ -71,6 +79,7 @@ var header = []string{
 //	# phygeo project files
 //	dataset	path
 //	geomod	geo-model.tab
+//	ranges	ranges.tab
 //	timepix	pix-time.tab
 //	trees	trees.tab
 func Read(name string) (*Project, error) {
