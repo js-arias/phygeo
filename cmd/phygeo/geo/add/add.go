@@ -71,9 +71,13 @@ func run(c *command.Command, args []string) error {
 	typeFlag = strings.ToLower(typeFlag)
 	switch d := project.Dataset(typeFlag); d {
 	case project.GeoMod:
-		addGeoMod(p, args[1])
+		if err := addGeoMod(p, args[1]); err != nil {
+			return err
+		}
 	case project.TimePix:
-		addTimePix(p, args[1])
+		if err := addTimePix(p, args[1]); err != nil {
+			return err
+		}
 	default:
 		msg := fmt.Sprintf("flag --type: unknown value %q", typeFlag)
 		return c.UsageError(msg)
@@ -137,7 +141,7 @@ func addTimePix(p *project.Project, path string) error {
 		return nil
 	}
 
-	tot, err := readTotal(path)
+	tot, err := readTotal(mPath)
 	if err != nil {
 		return fmt.Errorf("while reading GeoModel: %v", err)
 	}
