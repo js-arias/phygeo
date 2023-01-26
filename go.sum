@@ -2,6 +2,8 @@ github.com/js-arias/command v0.0.0-20220321160405-bad66700a180 h1:pE1RCqlGkRZTdw
 github.com/js-arias/command v0.0.0-20220321160405-bad66700a180/go.mod h1:ogKwQI2+xKu3CeddpPBks1UacMtHx40lkPcsP26Zyn0=
 github.com/js-arias/earth v0.0.0-20230120153327-d3f7d6e1b350 h1:aP0W15nXHEmYSR06RbacdLKPO0FjZN9jWDPPh7i/EgI=
 github.com/js-arias/earth v0.0.0-20230120153327-d3f7d6e1b350/go.mod h1:T2whg8R6iEgoRUVDSQDBAGWZ88xFW2SRaWomw8ImRSQ=
+github.com/js-arias/ranges v0.0.0-20230120145651-7ac90bf5a01f h1:ED1uXnTVjjWKbqtr8YcGIVboZAcFOFtbob+hlDRt/d0=
+github.com/js-arias/ranges v0.0.0-20230120145651-7ac90bf5a01f/go.mod h1:yAGs08JTfLuEn9j8KqpqqOPRVObMBuhzqLk3ced+BoY=
 github.com/js-arias/timetree v0.0.0-20221116215450-d630c9ae0776 h1:sBIkKBfxZuZs80McSgIZ5cgPrWpCSvnOpNPmYycaBxY=
 github.com/js-arias/timetree v0.0.0-20221116215450-d630c9ae0776/go.mod h1:fj0eyw5uZo4IlDtL3lMABnPJ9iJgIzd6X7u4rL/3Je0=
 golang.org/x/exp v0.0.0-20230118134722-a68e582fa157 h1:fiNkyhJPUvxbRPbCqY/D9qdjmPzfHcpK3P4bM4gioSY=

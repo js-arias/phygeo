@@ -8,6 +8,7 @@ package main
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo"
+	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree"
 )
 
@@ -18,6 +19,7 @@ var app = &command.Command{
 
 func init() {
 	app.Add(geo.Command)
+	app.Add(rangecmd.Command)
 	app.Add(tree.Command)
 }
 
