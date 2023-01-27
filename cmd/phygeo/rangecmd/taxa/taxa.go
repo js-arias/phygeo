@@ -17,7 +17,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: "taxa [--ranges] <project-file>",
+	Usage: "taxa [--count] [--ranges] <project-file>",
 	Short: "print a list of taxa with distribution ranges",
 	Long: `
 Command taxa reads the geographic ranges from a PhyGeo project and print the
@@ -28,14 +28,19 @@ The argument of the command is the name of the project file.
 By default the taxa of the points (presence-absence pixels) dataset will be
 printed. If the flag --ranges is set, it will print the taxa of the continuous
 distribution range file.
+
+If the flag --count is defined, the number of pixels in the range will be
+printed in front of each taxon name.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
+var countFlag bool
 var rangeFlag bool
 
 func setFlags(c *command.Command) {
+	c.Flags().BoolVar(&countFlag, "count", false, "")
 	c.Flags().BoolVar(&rangeFlag, "ranges", false, "")
 }
 
@@ -67,6 +72,11 @@ func run(c *command.Command, args []string) error {
 
 	ls := coll.Taxa()
 	for _, tax := range ls {
+		if countFlag {
+			rng := coll.Range(tax)
+			fmt.Fprintf(c.Stdout(), "%s\t%d\n", tax, len(rng))
+			continue
+		}
 		fmt.Fprintf(c.Stdout(), "%s\n", tax)
 	}
 
