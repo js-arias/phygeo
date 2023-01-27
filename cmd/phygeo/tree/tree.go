@@ -10,6 +10,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree/add"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree/list"
+	"github.com/js-arias/phygeo/cmd/phygeo/tree/terms"
 )
 
 var Command = &command.Command{
@@ -20,4 +21,5 @@ var Command = &command.Command{
 func init() {
 	Command.Add(add.Command)
 	Command.Add(list.Command)
+	Command.Add(terms.Command)
 }
