@@ -8,7 +8,10 @@
 package pruning
 
 import (
+	"math"
+
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
 
@@ -17,6 +20,9 @@ import (
 type Param struct {
 	// TimePixelation
 	TP *model.TimePix
+
+	// Ranges is the collection of terminal ranges
+	Ranges *ranges.Collection
 
 	// Length in years of the stem node
 	Stem int64
@@ -39,6 +45,26 @@ func New(t *timetree.Tree, p Param) *Tree {
 	}
 	nt.nodes[root.id] = root
 	root.copySource(nt, p.TP, p.Stem)
+
+	for _, n := range nt.nodes {
+		if !nt.t.IsTerm(n.id) {
+			continue
+		}
+
+		// last terminal stage
+		st := n.stages[len(n.stages)-1]
+
+		rng := p.Ranges.Range(nt.t.Taxon(n.id))
+		var sum float64
+		for _, p := range rng {
+			sum += p
+		}
+
+		st.logLike = make(map[int]float64, len(rng))
+		for px, p := range rng {
+			st.logLike[px] = math.Log(p) - math.Log(sum)
+		}
+	}
 
 	return nt
 }
@@ -106,4 +132,7 @@ type timeStage struct {
 
 	age      int64
 	duration float64
+
+	// likelihood at each pixel
+	logLike map[int]float64
 }
