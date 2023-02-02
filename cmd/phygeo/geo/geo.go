@@ -9,6 +9,7 @@ package geo
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/add"
+	"github.com/js-arias/phygeo/cmd/phygeo/geo/prior"
 )
 
 var Command = &command.Command{
@@ -18,4 +19,5 @@ var Command = &command.Command{
 
 func init() {
 	Command.Add(add.Command)
+	Command.Add(prior.Command)
 }

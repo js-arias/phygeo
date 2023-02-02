@@ -33,6 +33,9 @@ const (
 	// of the paleogeographic reconstruction.
 	GeoMod Dataset = "geomod"
 
+	// File for pixel prior probability values.
+	PixPrior Dataset ="pixprior"
+
 	// File for presence-absence points
 	// of the taxa in the project.
 	Points Dataset = "points"
@@ -79,6 +82,7 @@ var header = []string{
 //	# phygeo project files
 //	dataset	path
 //	geomod	geo-model.tab
+//	pixprior	pix-prior.tab
 //	ranges	ranges.tab
 //	timepix	pix-time.tab
 //	trees	trees.tab
