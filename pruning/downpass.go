@@ -103,25 +103,23 @@ func (n *node) conditional(t *Tree) {
 		}
 
 		ts := n.stages[len(n.stages)-1]
-		// Rotate the log likelihood
-		if t.tp.CloserStageAge(ts.age) != t.tp.CloserStageAge(ts.age-1) {
-			rot := t.rot.YoungToOld(t.tp.CloserStageAge(ts.age - 1))
-			logLike = rotate(rot, logLike)
-		}
 		ts.logLike = logLike
 	}
 
 	// internodes
 	for i := len(n.stages) - 2; i >= 0; i-- {
+		ts := n.stages[i]
+		age := t.rot.CloserStageAge(ts.age)
 		next := n.stages[i+1]
+		nextAge := t.rot.CloserStageAge(next.age)
 		logLike := next.conditional(t)
 
-		rot := t.rot.YoungToOld(next.age)
-		if rot != nil {
-			logLike = rotate(rot, logLike)
+		// Rotate if there is an stage change
+		if nextAge != age {
+			rot := t.rot.YoungToOld(nextAge)
+			logLike = rotate(rot.Rot, logLike)
 		}
 
-		ts := n.stages[i]
 		ts.logLike = logLike
 	}
 }
@@ -135,7 +133,7 @@ func (ts *timeStage) conditional(t *Tree) map[int]float64 {
 
 	var old map[int]int
 	if rot != nil {
-		old = t.tp.Stage(t.rot.OldAge(age))
+		old = t.tp.Stage(rot.From)
 	}
 
 	answer := make(chan answerChan, 100)
@@ -151,7 +149,7 @@ func (ts *timeStage) conditional(t *Tree) map[int]float64 {
 
 			// the pixel must be valid at oldest time stage
 			if rot != nil {
-				if _, ok := rot[px]; !ok {
+				if _, ok := rot.Rot[px]; !ok {
 					continue
 				}
 			}
@@ -179,7 +177,7 @@ func (ts *timeStage) conditional(t *Tree) map[int]float64 {
 		// It kept the lowest prior.
 		if rot != nil {
 			var max float64
-			for _, px := range rot[a.pixel] {
+			for _, px := range rot.Rot[a.pixel] {
 				pp := t.pp.Prior(old[px])
 				if pp > max {
 					max = pp
