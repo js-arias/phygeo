@@ -9,7 +9,9 @@ import (
 	"sync"
 
 	"github.com/js-arias/earth"
+	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
+	"github.com/js-arias/earth/stat/pixprob"
 )
 
 type likeChanType struct {
@@ -112,12 +114,15 @@ func (n *node) conditional(t *Tree) {
 		age := t.rot.CloserStageAge(ts.age)
 		next := n.stages[i+1]
 		nextAge := t.rot.CloserStageAge(next.age)
-		logLike := next.conditional(t)
+		logLike := next.conditional(t, age)
 
 		// Rotate if there is an stage change
 		if nextAge != age {
 			rot := t.rot.YoungToOld(nextAge)
 			logLike = rotate(rot.Rot, logLike)
+			logLike = addPrior(logLike, t.tp.Stage(age), t.tp.Stage(nextAge), t.rot.OldToYoung(age), t.pp)
+		} else {
+			logLike = addPrior(logLike, t.tp.Stage(age), nil, nil, t.pp)
 		}
 
 		ts.logLike = logLike
@@ -126,15 +131,13 @@ func (n *node) conditional(t *Tree) {
 
 // Conditional calculates the conditional likelihood
 // at a time stage.
-func (ts *timeStage) conditional(t *Tree) map[int]float64 {
+func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	age := t.tp.CloserStageAge(ts.age)
-	rot := t.rot.YoungToOld(age)
-	stage := t.tp.Stage(age)
-
-	var old map[int]int
-	if rot != nil {
-		old = t.tp.Stage(rot.From)
+	var rot *model.Rotation
+	if age != old {
+		rot = t.rot.YoungToOld(age)
 	}
+	stage := t.tp.Stage(age)
 
 	answer := make(chan answerChan, 100)
 	go func() {
@@ -170,30 +173,36 @@ func (ts *timeStage) conditional(t *Tree) map[int]float64 {
 
 	logLike := make(map[int]float64, len(stage))
 	for a := range answer {
-		prior := t.pp.Prior(stage[a.pixel])
+		logLike[a.pixel] = a.logLike
+	}
 
-		// calculate the prior using the current time pixelation
-		// and the oldest time pixelation.
-		// It kept the lowest prior.
+	return logLike
+}
+
+func addPrior(logLike map[int]float64, stage, young map[int]int, rot *model.Rotation, pp pixprob.Pixel) map[int]float64 {
+	for px := range logLike {
+		prior := pp.Prior(stage[px])
+
 		if rot != nil {
-			var max float64
-			for _, px := range rot.Rot[a.pixel] {
-				pp := t.pp.Prior(old[px])
-				if pp > max {
-					max = pp
-				}
+			// If there is a younger stage
+			// the minimum value of the prior
+			// (either at current or younger stage)
+			// will be taken as the prior
+			yPix := rot.Rot[px]
+			if len(yPix) == 0 {
+				prior = 0
 			}
-
-			if max < prior {
-				prior = max
+			for _, op := range yPix {
+				if pp.Prior(young[op]) < prior {
+					prior = pp.Prior(young[op])
+				}
 			}
 		}
 		if prior == 0 {
+			delete(logLike, px)
 			continue
 		}
-
-		logLike[a.pixel] = a.logLike + math.Log(prior)
+		logLike[px] += math.Log(prior)
 	}
-
 	return logLike
 }
