@@ -93,6 +93,26 @@ func New(t *timetree.Tree, p Param) *Tree {
 	return nt
 }
 
+// LogLike returns the logLikelihood of the whole reconstruction
+// in the most basal stem node.
+func (t *Tree) LogLike() float64 {
+	root := t.nodes[t.t.Root()]
+	ts := root.stages[0]
+
+	max := -math.MaxFloat64
+	for _, p := range ts.logLike {
+		if p > max {
+			max = p
+		}
+	}
+
+	var sum float64
+	for _, p := range ts.logLike {
+		sum += math.Exp(p - max)
+	}
+	return math.Log(sum) + max
+}
+
 // Name returns the name of the tree.
 func (t *Tree) Name() string {
 	return t.t.Name()
