@@ -20,17 +20,14 @@ type likeChanType struct {
 	logLike map[int]float64
 	pdf     dist.Normal
 	wg      *sync.WaitGroup
-	answer  chan answerChan
 }
-
-var likeChan chan likeChanType
 
 type answerChan struct {
 	pixel   int
 	logLike float64
 }
 
-func pixLike() {
+func pixLike(likeChan chan likeChanType, answer chan answerChan) {
 	for c := range likeChan {
 		pt1 := c.pix.ID(c.pixel).Point()
 		prob := make([]float64, 0, len(c.logLike))
@@ -54,7 +51,7 @@ func pixLike() {
 			div := math.Log(float64(len(c.logLike)))
 			pixLike = math.Log(sum) + max - div
 		}
-		c.answer <- answerChan{
+		answer <- answerChan{
 			pixel:   c.pixel,
 			logLike: pixLike,
 		}
@@ -62,19 +59,12 @@ func pixLike() {
 	}
 }
 
-func initChan(cpu int) {
-	likeChan = make(chan likeChanType, cpu*2)
-	for i := 0; i < cpu; i++ {
-		go pixLike()
-	}
-}
+var numCPU = 1
 
-var once sync.Once
-
-// Init initializes the number of process
+// SetCPU sets the number of process
 // used for the reconstruction.
-func Init(cpu int) {
-	once.Do(func() { initChan(cpu) })
+func SetCPU(cpu int) {
+	numCPU = cpu
 }
 
 func (n *node) fullDownPass(t *Tree) {
@@ -139,7 +129,12 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	}
 	stage := t.tp.Stage(age)
 
-	answer := make(chan answerChan, 100)
+	likeChan := make(chan likeChanType, numCPU*2)
+	answer := make(chan answerChan, numCPU*2)
+	for i := 0; i < numCPU; i++ {
+		go pixLike(likeChan, answer)
+	}
+
 	go func() {
 		// send the pixels
 
@@ -164,7 +159,6 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 				logLike: ts.logLike,
 				pdf:     ts.pdf,
 				wg:      &wg,
-				answer:  answer,
 			}
 		}
 		wg.Wait()
@@ -175,6 +169,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	for a := range answer {
 		logLike[a.pixel] = a.logLike
 	}
+	close(likeChan)
 
 	return logLike
 }
