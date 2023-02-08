@@ -2,10 +2,10 @@
 // All rights reserved.
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
-// Package pruning implements an approximation
-// of the Felsenstein's pruning algorithm
-// for biogeographic analysis.
-package pruning
+// Package diffusion implements an spherical diffusion
+// approximated using a discrete isolatitude pixelation
+// for a phylogenetic biogeography analysis.
+package diffusion
 
 import (
 	"math"

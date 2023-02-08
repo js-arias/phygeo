@@ -2,7 +2,7 @@
 // All rights reserved.
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
-package pruning
+package diffusion
 
 import (
 	"math"
