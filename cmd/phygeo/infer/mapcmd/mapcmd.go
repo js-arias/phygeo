@@ -1,0 +1,485 @@
+// Copyright © 2023 J. Salvador Arias <jsalarias@gmail.com>
+// All rights reserved.
+// Distributed under BSD2 license that can be found in the LICENSE file.
+
+// Package mapcmd implements a command to draw
+// the range reconstructions of a tree nodes.
+package mapcmd
+
+import (
+	"encoding/csv"
+	"errors"
+	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"io"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/js-arias/command"
+	"github.com/js-arias/earth"
+	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat"
+	"github.com/js-arias/earth/stat/dist"
+	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/phygeo/project"
+)
+
+var Command = &command.Command{
+	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
+	[--kde <value>] [--bound <value>] [-cpu <number>]
+	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
+	Short: "draw a map of a reconstruction",
+	Long: `
+Command map reads a file with a range reconstruction for the nodes of one or
+more trees in a project, and draws the reconstruction as an image map using a
+plate carrée (equirectangular) projection.
+
+The argument of the command is the name of the project file.
+
+The flag --input, or -i, is required an indicates the input file.
+
+By default the ranges will be taken as given. If the flag --kde is defined,
+a kernel density estimation using an spherical normal will be done using the
+indicated value as the concentration parameter (in 1/degrees). Only the pixels
+in the .95 of the maximum value will be used. Use the flag --bound to change
+this bound value.
+
+As the number of nodes might be large, and when calculating a KDE the number
+of computations can be large, the process is run in parallel using all
+available processors. Use the flag --cpu to change the number of processors.
+
+By default the output file image will have the input file name as prefix. To
+change the prefix use the flag --output, or -o. The suffix of the file will be
+the tree name, the node ID, and time stage, for example the suffix
+"-vireya-n4-10.000.png" will be produced for node 4 of the 'vireya' tree, at
+the time stage of 10 million years. By default the resulting image will be
+3600 pixels wide. Use the flag --columns, or -c, tp define a different number
+of columns.
+
+By default the output images will be plain gray background. Use the flag --key
+to define a set of colors for the image (using the project time pixelation).
+If the flag --gray is given, then a gray colors will be used. The key file is
+a tab-delimited file with the following required columns:
+
+	-key	the value used as identifier
+	-color	an RGB value separated by commas,
+		for example "125,132,148".
+
+Optionally it can contain the following columns:
+
+	-gray:  for a gray scale value
+
+Any other columns, will be ignored. Here is an example of a key file:
+
+	key	color	gray	comment
+	0	0, 26, 51	0	deep ocean
+	1	0, 84, 119	10	oceanic plateaus
+	2	68, 167, 196	20	continental shelf
+	3	251, 236, 93	90	lowlands
+	4	255, 165, 0	100	highlands
+	5	229, 229, 224	50	ice sheets
+	`,
+	SetFlags: setFlags,
+	Run:      run,
+}
+
+var grayFlag bool
+var colsFlag int
+var numCPU int
+var kdeLambda float64
+var bound float64
+var keyFile string
+var inputFile string
+var outputPre string
+
+func setFlags(c *command.Command) {
+	c.Flags().BoolVar(&grayFlag, "gray", false, "")
+	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
+	c.Flags().IntVar(&colsFlag, "c", 3600, "")
+	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
+	c.Flags().Float64Var(&kdeLambda, "kde", 0, "")
+	c.Flags().Float64Var(&bound, "bound", 0.95, "")
+	c.Flags().StringVar(&keyFile, "key", "", "")
+	c.Flags().StringVar(&inputFile, "input", "", "")
+	c.Flags().StringVar(&inputFile, "i", "", "")
+	c.Flags().StringVar(&outputPre, "output", "", "")
+	c.Flags().StringVar(&outputPre, "o", "", "")
+}
+
+func run(c *command.Command, args []string) error {
+	if len(args) < 1 {
+		return c.UsageError("expecting project file")
+	}
+	if inputFile == "" {
+		return c.UsageError("expecting input file, flag --input")
+	}
+
+	p, err := project.Read(args[0])
+	if err != nil {
+		return err
+	}
+
+	tpf := p.Path(project.TimePix)
+	if tpf == "" {
+		msg := fmt.Sprintf("time pixelation not defined in project %q", args[0])
+		return c.UsageError(msg)
+	}
+	tp, err := readTimePix(tpf)
+	if err != nil {
+		return err
+	}
+
+	rec, err := getRec(inputFile, tp)
+	if err != nil {
+		return err
+	}
+
+	var keys *pixKey
+	if keyFile != "" {
+		keys, err = readKeys(keyFile)
+		if err != nil {
+			return err
+		}
+	}
+
+	var pp pixprob.Pixel
+	var norm dist.Normal
+	if kdeLambda > 0 {
+		ppF := p.Path(project.PixPrior)
+		if ppF == "" {
+			msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
+			return c.UsageError(msg)
+		}
+		pp, err = readPriors(ppF)
+		if err != nil {
+			return err
+		}
+
+		invDegLambda := 1 / kdeLambda
+		lambda := 1 / earth.ToRad(invDegLambda)
+		norm = dist.NewNormal(lambda, tp.Pixelation())
+	}
+
+	if outputPre == "" {
+		outputPre = inputFile
+	}
+
+	sc := make(chan stageChan, numCPU*2)
+	for i := 0; i < numCPU; i++ {
+		go procStage(sc)
+	}
+
+	errChan := make(chan error)
+	doneChan := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, t := range rec {
+		for _, n := range t.nodes {
+			for _, s := range n.stages {
+				// the age is in million years
+				age := float64(s.age) / 1_000_000
+				suf := fmt.Sprintf("-%s-n%d-%.3f", t.name, n.id, age)
+
+				s.step = 360 / float64(colsFlag)
+				s.keys = keys
+				wg.Add(1)
+				sc <- stageChan{
+					rs:   s,
+					out:  outputPre + suf + ".png",
+					err:  errChan,
+					wg:   &wg,
+					norm: norm,
+					pp:   pp,
+					tp:   tp,
+				}
+			}
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-doneChan:
+	}
+
+	return nil
+}
+
+type stageChan struct {
+	rs  *recStage
+	out string
+	err chan error
+	wg  *sync.WaitGroup
+
+	norm dist.Normal
+	pp   pixprob.Pixel
+	tp   *model.TimePix
+}
+
+func procStage(c chan stageChan) {
+	for sc := range c {
+		s := sc.rs
+
+		if kdeLambda > 0 {
+			rng := stat.KDE(sc.norm, s.rec, sc.tp, s.cAge, sc.pp, bound)
+			s.rec = rng
+			var max float64
+			for _, p := range s.rec {
+				if p > max {
+					max = p
+				}
+			}
+			s.max = max
+		}
+
+		if err := writeImage(sc.out, s); err != nil {
+			sc.err <- err
+		}
+		sc.wg.Done()
+	}
+}
+
+func readTimePix(name string) (*model.TimePix, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	tp, err := model.ReadTimePix(f, nil)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+
+	return tp, nil
+}
+
+func readPriors(name string) (pixprob.Pixel, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	pp, err := pixprob.ReadTSV(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+
+	return pp, nil
+}
+
+func getRec(name string, tp *model.TimePix) (map[string]*recTree, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	rt, err := readRecon(f, tp)
+	if err != nil {
+		return nil, fmt.Errorf("on input file %q: %v", name, err)
+	}
+	return rt, nil
+}
+
+type recTree struct {
+	name  string
+	nodes map[int]*recNode
+}
+
+type recNode struct {
+	id     int
+	tree   *recTree
+	stages map[int64]*recStage
+}
+
+type recStage struct {
+	node *recNode
+	age  int64
+	cAge int64
+	rec  map[int]float64
+	max  float64
+	tp   *model.TimePix
+	step float64
+	keys *pixKey
+}
+
+var headerFields = []string{
+	"tree",
+	"node",
+	"age",
+	"to",
+}
+
+func readRecon(r io.Reader, tp *model.TimePix) (map[string]*recTree, error) {
+	tsv := csv.NewReader(r)
+	tsv.Comma = '\t'
+	tsv.Comment = '#'
+
+	head, err := tsv.Read()
+	if err != nil {
+		return nil, fmt.Errorf("while reading header: %v", err)
+	}
+	fields := make(map[string]int, len(head))
+	for i, h := range head {
+		h = strings.ToLower(h)
+		fields[h] = i
+	}
+	for _, h := range headerFields {
+		if _, ok := fields[h]; !ok {
+			return nil, fmt.Errorf("expecting field %q", h)
+		}
+	}
+
+	rt := make(map[string]*recTree)
+	for {
+		row, err := tsv.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		ln, _ := tsv.FieldPos(0)
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: %v", ln, err)
+		}
+
+		f := "tree"
+		tn := strings.Join(strings.Fields(row[fields[f]]), " ")
+		if tn == "" {
+			continue
+		}
+		tn = strings.ToLower(tn)
+		t, ok := rt[tn]
+		if !ok {
+			t = &recTree{
+				name:  tn,
+				nodes: make(map[int]*recNode),
+			}
+			rt[tn] = t
+		}
+
+		f = "node"
+		id, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		n, ok := t.nodes[id]
+		if !ok {
+			n = &recNode{
+				id:     id,
+				tree:   t,
+				stages: make(map[int64]*recStage),
+			}
+			t.nodes[id] = n
+		}
+
+		f = "age"
+		age, err := strconv.ParseInt(row[fields[f]], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		st, ok := n.stages[age]
+		if !ok {
+			st = &recStage{
+				node: n,
+				age:  age,
+				cAge: tp.CloserStageAge(age),
+				rec:  make(map[int]float64),
+				tp:   tp,
+			}
+			n.stages[age] = st
+		}
+
+		f = "to"
+		px, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		if px >= tp.Pixelation().Len() {
+			return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
+		}
+
+		st.rec[px]++
+		if v := st.rec[px]; v > st.max {
+			st.max = v
+		}
+	}
+	if len(rt) == 0 {
+		return nil, fmt.Errorf("while reading data: %v", io.EOF)
+	}
+
+	return rt, nil
+}
+
+func (rs *recStage) ColorModel() color.Model { return color.RGBAModel }
+func (rs *recStage) Bounds() image.Rectangle { return image.Rect(0, 0, colsFlag, colsFlag/2) }
+func (rs *recStage) At(x, y int) color.Color {
+	lat := 90 - float64(y)*rs.step
+	lon := float64(x)*rs.step - 180
+
+	pix := rs.tp.Pixelation().Pixel(lat, lon)
+	if p, ok := rs.rec[pix.ID()]; ok {
+		return scaleColor(p / rs.max)
+	}
+
+	if rs.keys == nil {
+		return color.RGBA{211, 211, 211, 255}
+	}
+
+	v, _ := rs.tp.At(rs.cAge, pix.ID())
+	if grayFlag {
+		if c, ok := rs.keys.Gray(v); ok {
+			return c
+		}
+	} else {
+		if c, ok := rs.keys.Color(v); ok {
+			return c
+		}
+	}
+
+	return color.RGBA{211, 211, 211, 255}
+}
+
+func writeImage(name string, rs *recStage) (err error) {
+	f, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := f.Close()
+		if err == nil && e != nil {
+			err = e
+		}
+	}()
+
+	if err := png.Encode(f, rs); err != nil {
+		return fmt.Errorf("when encoding image file %q: %v", name, err)
+	}
+
+	return nil
+}
+
+func scaleColor(scale float64) color.RGBA {
+	switch {
+	case scale < 0.25:
+		g := scale * 4 * 255
+		return color.RGBA{0, uint8(g), 255, 255}
+	case scale < 0.50:
+		b := (scale - 0.25) * 4 * 255
+		return color.RGBA{0, 255, 255 - uint8(b), 255}
+	case scale < 0.75:
+		r := (scale - 0.5) * 4 * 255
+		return color.RGBA{uint8(r), 255, 0, 255}
+	}
+	g := (scale - 0.75) * 4 * 255
+	return color.RGBA{255, 255 - uint8(g), 0, 255}
+}
