@@ -32,6 +32,7 @@ import (
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
 	[--kde <value>] [--bound <value>] [-cpu <number>]
+	[--unrot]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map of a reconstruction",
 	Long: `
@@ -52,6 +53,10 @@ this bound value.
 As the number of nodes might be large, and when calculating a KDE the number
 of computations can be large, the process is run in parallel using all
 available processors. Use the flag --cpu to change the number of processors.
+
+By default, the ranges will be produced using their respective time stage. If
+the flag --unrot is given, then the estimated ranges will be draw at the
+present time.
 
 By default the output file image will have the input file name as prefix. To
 change the prefix use the flag --output, or -o. The suffix of the file will be
@@ -89,6 +94,7 @@ Any other columns, will be ignored. Here is an example of a key file:
 }
 
 var grayFlag bool
+var unRot bool
 var colsFlag int
 var numCPU int
 var kdeLambda float64
@@ -99,6 +105,7 @@ var outputPre string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
+	c.Flags().BoolVar(&unRot, "unrot", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
@@ -132,6 +139,19 @@ func run(c *command.Command, args []string) error {
 	tp, err := readTimePix(tpf)
 	if err != nil {
 		return err
+	}
+
+	var tot *model.Total
+	if unRot {
+		rotF := p.Path(project.GeoMod)
+		if rotF == "" {
+			msg := fmt.Sprintf("paleogeographic model not defined in project %q", args[0])
+			return c.UsageError(msg)
+		}
+		tot, err = readRotation(rotF, tp.Pixelation())
+		if err != nil {
+			return err
+		}
 	}
 
 	rec, err := getRec(inputFile, tp)
@@ -195,6 +215,7 @@ func run(c *command.Command, args []string) error {
 					norm: norm,
 					pp:   pp,
 					tp:   tp,
+					tot:  tot,
 				}
 			}
 		}
@@ -223,6 +244,7 @@ type stageChan struct {
 	norm dist.Normal
 	pp   pixprob.Pixel
 	tp   *model.TimePix
+	tot  *model.Total
 }
 
 func procStage(c chan stageChan) {
@@ -239,6 +261,9 @@ func procStage(c chan stageChan) {
 				}
 			}
 			s.max = max
+		}
+		if unRot {
+			s.tot = sc.tot.Rotation(s.cAge)
 		}
 
 		if err := writeImage(sc.out, s); err != nil {
@@ -261,6 +286,21 @@ func readTimePix(name string) (*model.TimePix, error) {
 	}
 
 	return tp, nil
+}
+
+func readRotation(name string, pix *earth.Pixelation) (*model.Total, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	rot, err := model.ReadTotal(f, pix, false)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+
+	return rot, nil
 }
 
 func readPriors(name string) (pixprob.Pixel, error) {
@@ -310,6 +350,7 @@ type recStage struct {
 	rec  map[int]float64
 	max  float64
 	tp   *model.TimePix
+	tot  map[int][]int
 	step float64
 	keys *pixKey
 }
@@ -427,6 +468,50 @@ func (rs *recStage) At(x, y int) color.Color {
 	lon := float64(x)*rs.step - 180
 
 	pix := rs.tp.Pixelation().Pixel(lat, lon)
+
+	if unRot {
+		// Total rotation from present time
+		// to stage time
+		dst := rs.tot[pix.ID()]
+		if len(dst) == 0 {
+			return color.RGBA{211, 211, 211, 255}
+		}
+
+		// Check if the pixel is in the range
+		// of the stage time
+		var max float64
+		for _, px := range dst {
+			p := rs.rec[px]
+			if p > max {
+				max = p
+			}
+		}
+		if max > 0 {
+			return scaleColor(max / rs.max)
+		}
+
+		// Check the value of the pixel
+		// at the stage time
+		var v int
+		for _, px := range dst {
+			vv, _ := rs.tp.At(rs.cAge, px)
+			if vv > v {
+				v = vv
+			}
+		}
+		if grayFlag {
+			if c, ok := rs.keys.Gray(v); ok {
+				return c
+			}
+		} else {
+			if c, ok := rs.keys.Color(v); ok {
+				return c
+			}
+		}
+
+		return color.RGBA{211, 211, 211, 255}
+	}
+
 	if p, ok := rs.rec[pix.ID()]; ok {
 		return scaleColor(p / rs.max)
 	}
