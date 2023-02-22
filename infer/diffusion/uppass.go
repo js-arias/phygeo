@@ -60,7 +60,7 @@ func (t *Tree) Simulate() *Mapping {
 	// pick source at the root
 	root := t.nodes[t.t.Root()]
 	ts := root.stages[0]
-	// rotate if change in stage
+	// get a rotation if change in stage
 	age := t.rot.CloserStageAge(ts.age)
 	next := t.rot.CloserStageAge(ts.age - 1)
 	var rot *model.Rotation
@@ -69,6 +69,8 @@ func (t *Tree) Simulate() *Mapping {
 		rot = t.rot.OldToYoung(age)
 		tp = t.tp.Stage(rot.To)
 	}
+
+	// get the source pixel probabilities
 	pixels := make([]int, 0, len(ts.logLike))
 	max := -math.MaxFloat64
 	for px, p := range ts.logLike {
@@ -77,22 +79,14 @@ func (t *Tree) Simulate() *Mapping {
 			if len(pxs) == 0 {
 				continue
 			}
-			var prior float64
-			for _, vp := range pxs {
-				v := t.pp.Prior(tp[vp])
-				if v > prior {
-					prior = v
-				}
-			}
-			if prior == 0 {
-				continue
-			}
 		}
 		if p > max {
 			max = p
 		}
 		pixels = append(pixels, px)
 	}
+
+	// pick a source pixel
 	var source int
 	for {
 		px := pixels[rand.Intn(len(pixels))]
@@ -108,6 +102,8 @@ func (t *Tree) Simulate() *Mapping {
 		pxs := rot.Rot[source]
 		source = pxs[0]
 		if len(pxs) > 1 {
+			// pick one of the pixels at random
+			// based on the prior
 			var max float64
 			for _, px := range pxs {
 				prior := t.pp.Prior(tp[px])
@@ -165,6 +161,8 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 		pxs := rot.Rot[source]
 		source = pxs[0]
 		if len(pxs) > 1 {
+			// pick one of the pixels at random
+			// based on the prior
 			tp := t.tp.Stage(t.tp.CloserStageAge(rot.To))
 			var max float64
 			for _, px := range pxs {
@@ -194,10 +192,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 func (ts *timeStage) simulation(tp *model.TimePix, rot *model.Rotation, pp pixprob.Pixel, source int) SrcDest {
 	pix := tp.Pixelation()
 
-	var tpv map[int]int
-	if rot != nil {
-		tpv = tp.Stage(tp.CloserStageAge(rot.To))
-	}
+	tpv := tp.Stage(tp.CloserStageAge(ts.age))
 
 	pt1 := pix.ID(source).Point()
 	// calculates the density for the destination pixels
@@ -211,17 +206,12 @@ func (ts *timeStage) simulation(tp *model.TimePix, rot *model.Rotation, pp pixpr
 			if len(pxs) == 0 {
 				continue
 			}
-			var prior float64
-			for _, vp := range pxs {
-				v := pp.Prior(tpv[vp])
-				if v > prior {
-					prior = v
-				}
-			}
-			if prior == 0 {
-				continue
-			}
 		}
+		prior := tpv[px]
+		if prior == 0 {
+			continue
+		}
+
 		pt2 := pix.ID(px).Point()
 		dist := earth.Distance(pt1, pt2)
 		p += ts.pdf.LogProb(dist)

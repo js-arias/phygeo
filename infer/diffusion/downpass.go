@@ -110,12 +110,16 @@ func (n *node) conditional(t *Tree) {
 		if nextAge != age {
 			rot := t.rot.YoungToOld(nextAge)
 			logLike = rotate(rot.Rot, logLike)
-			logLike = addPrior(logLike, t.tp.Stage(age), t.tp.Stage(nextAge), t.rot.OldToYoung(age), t.pp)
-		} else {
-			logLike = addPrior(logLike, t.tp.Stage(age), nil, nil, t.pp)
 		}
 
 		ts.logLike = logLike
+	}
+
+	if t.t.IsRoot(n.id) {
+		// set the pixels priors at the root
+		rs := n.stages[0]
+		tp := t.tp.Stage(t.tp.CloserStageAge(rs.age))
+		rs.logLike = addPrior(rs.logLike, tp, t.pp)
 	}
 }
 
@@ -134,6 +138,10 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	for i := 0; i < numCPU; i++ {
 		go pixLike(likeChan, answer)
 	}
+
+	// update descendant log like
+	// with the arrival priors
+	endLike := addPrior(ts.logLike, stage, t.pp)
 
 	go func() {
 		// send the pixels
@@ -156,7 +164,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 			likeChan <- likeChanType{
 				pixel:   px,
 				pix:     t.tp.Pixelation(),
-				logLike: ts.logLike,
+				logLike: endLike,
 				pdf:     ts.pdf,
 				wg:      &wg,
 			}
@@ -174,30 +182,24 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	return logLike
 }
 
-func addPrior(logLike map[int]float64, stage, young map[int]int, rot *model.Rotation, pp pixprob.Pixel) map[int]float64 {
-	for px := range logLike {
-		prior := pp.Prior(stage[px])
-
-		if rot != nil {
-			// If there is a younger stage
-			// the minimum value of the prior
-			// (either at current or younger stage)
-			// will be taken as the prior
-			yPix := rot.Rot[px]
-			if len(yPix) == 0 {
-				prior = 0
-			}
-			for _, op := range yPix {
-				if pp.Prior(young[op]) < prior {
-					prior = pp.Prior(young[op])
-				}
-			}
-		}
-		if prior == 0 {
-			delete(logLike, px)
+func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int]float64 {
+	add := make(map[int]float64, len(logLike))
+	logPrior := make(map[int]float64)
+	for _, v := range pp.Values() {
+		p := pp.Prior(v)
+		if p == 0 {
 			continue
 		}
-		logLike[px] += math.Log(prior)
+		logPrior[v] = math.Log(p)
 	}
-	return logLike
+
+	for px, p := range logLike {
+		prior, ok := logPrior[tp[px]]
+		if !ok {
+			continue
+		}
+		add[px] = p + prior
+	}
+
+	return add
 }
