@@ -28,7 +28,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `diff.like [--ranges] [--stem <age>] [--lambda <value>]
-	[-p|--particles <number>]
+	[--top <number>] [-p|--particles <number>]
 	[-o|--output <file>]
 	[--cpu <number>] <project-file>`,
 	Short: "perform a likelihood reconstruction",
@@ -50,6 +50,11 @@ The flag --lambda defines the concentration parameter of the spherical normal
 diffusion process on a million year using 1/degree units. If no value is
 defined, it will use 1. As the kappa parameter, lager values indicate low
 diffusivity while smaller values indicate high diffusivity.
+
+By default, all pixels will be used in the likelihood estimation, while this
+provide an exact answer, it will be slow. To speed up the reconstruction the
+flag --top allows to select only the indicated top pixels (and add the same
+number of random pixels) to approximate the value of the likelihood.
 
 By default, 1000 particles will be simulated for the stochastic mapping. The
 number of particles can be changed with the flag -p, or --particles.
@@ -73,6 +78,7 @@ var lambdaFlag float64
 var stemAge float64
 var numCPU int
 var particles int
+var topFlag int
 var output string
 var useRanges bool
 
@@ -82,6 +88,7 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 	c.Flags().IntVar(&particles, "p", 1000, "")
 	c.Flags().IntVar(&particles, "particles", 1000, "")
+	c.Flags().IntVar(&topFlag, "top", 0, "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
@@ -164,6 +171,7 @@ func run(c *command.Command, args []string) error {
 		PP:     pp,
 		Ranges: rc,
 		Lambda: lambda,
+		Top:    topFlag,
 	}
 
 	// Set the number of parallel processors
@@ -303,6 +311,10 @@ func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, 
 	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t, p)
 	fmt.Fprintf(w, "# lambda: %.6f degree^(-1)\n", lambda)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
+	if topFlag > 0 {
+		fmt.Fprintf(w, "# \ttop pixels: %d\n", topFlag)
+	}
+	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
 
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'

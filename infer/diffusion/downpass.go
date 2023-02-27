@@ -12,6 +12,8 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
+	"golang.org/x/exp/rand"
+	"golang.org/x/exp/slices"
 )
 
 type likeChanType struct {
@@ -67,16 +69,16 @@ func SetCPU(cpu int) {
 	numCPU = cpu
 }
 
-func (n *node) fullDownPass(t *Tree) {
+func (n *node) fullDownPass(t *Tree, top int) {
 	for _, c := range t.t.Children(n.id) {
 		nc := t.nodes[c]
-		nc.fullDownPass(t)
+		nc.fullDownPass(t, top)
 	}
 
-	n.conditional(t)
+	n.conditional(t, top)
 }
 
-func (n *node) conditional(t *Tree) {
+func (n *node) conditional(t *Tree, top int) {
 	if !t.t.IsTerm(n.id) {
 		// In an split node
 		// the conditional likelihood is the product of the
@@ -104,7 +106,7 @@ func (n *node) conditional(t *Tree) {
 		age := t.rot.CloserStageAge(ts.age)
 		next := n.stages[i+1]
 		nextAge := t.rot.CloserStageAge(next.age)
-		logLike := next.conditional(t, age)
+		logLike := next.conditional(t, age, top)
 
 		// Rotate if there is an stage change
 		if nextAge != age {
@@ -119,13 +121,13 @@ func (n *node) conditional(t *Tree) {
 		// set the pixels priors at the root
 		rs := n.stages[0]
 		tp := t.tp.Stage(t.tp.CloserStageAge(rs.age))
-		rs.logLike = addPrior(rs.logLike, tp, t.pp)
+		rs.logLike = addPrior(rs.logLike, tp, t.pp, 0)
 	}
 }
 
 // Conditional calculates the conditional likelihood
 // at a time stage.
-func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
+func (ts *timeStage) conditional(t *Tree, old int64, top int) map[int]float64 {
 	age := t.tp.CloserStageAge(ts.age)
 	var rot *model.Rotation
 	if age != old {
@@ -141,7 +143,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 
 	// update descendant log like
 	// with the arrival priors
-	endLike := addPrior(ts.logLike, stage, t.pp)
+	endLike := addPrior(ts.logLike, stage, t.pp, top)
 
 	go func() {
 		// send the pixels
@@ -182,8 +184,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	return logLike
 }
 
-func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int]float64 {
-	add := make(map[int]float64, len(logLike))
+func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel, top int) map[int]float64 {
 	logPrior := make(map[int]float64)
 	for _, v := range pp.Values() {
 		p := pp.Prior(v)
@@ -193,6 +194,11 @@ func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int
 		logPrior[v] = math.Log(p)
 	}
 
+	if top > 0 && top*2 < len(logLike) {
+		return selPixels(logLike, logPrior, tp, top)
+	}
+
+	add := make(map[int]float64, len(logLike))
 	for px, p := range logLike {
 		prior, ok := logPrior[tp[px]]
 		if !ok {
@@ -202,4 +208,43 @@ func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int
 	}
 
 	return add
+}
+
+func selPixels(logLike, pp map[int]float64, tp map[int]int, top int) map[int]float64 {
+	bound := boundLike(logLike, pp, tp, top+1)
+
+	add := make(map[int]float64, 5*top/2)
+	sel := float64(top) / float64(len(logLike)-top)
+	for px, p := range logLike {
+		prior, ok := pp[tp[px]]
+		if !ok {
+			continue
+		}
+		p += prior
+		if p >= bound {
+			add[px] = p
+			continue
+		}
+		if rand.Float64() < sel {
+			add[px] = p
+		}
+	}
+	return add
+}
+
+func boundLike(logLike, pp map[int]float64, tp map[int]int, top int) float64 {
+	lk := make([]float64, 0, len(logLike))
+	for px, p := range logLike {
+		prior, ok := pp[tp[px]]
+		if !ok {
+			continue
+		}
+		lk = append(lk, p+prior)
+	}
+
+	slices.Sort(lk)
+	if top > len(lk) {
+		top = len(lk)
+	}
+	return lk[len(lk)-top]
 }
