@@ -12,7 +12,6 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
-	"golang.org/x/exp/rand"
 	"golang.org/x/exp/slices"
 )
 
@@ -213,8 +212,7 @@ func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel, top int
 func selPixels(logLike, pp map[int]float64, tp map[int]int, top int) map[int]float64 {
 	bound := boundLike(logLike, pp, tp, top+1)
 
-	add := make(map[int]float64, 5*top/2)
-	sel := float64(top) / float64(len(logLike)-top)
+	add := make(map[int]float64, top)
 	for px, p := range logLike {
 		prior, ok := pp[tp[px]]
 		if !ok {
@@ -224,9 +222,6 @@ func selPixels(logLike, pp map[int]float64, tp map[int]int, top int) map[int]flo
 		if p >= bound {
 			add[px] = p
 			continue
-		}
-		if rand.Float64() < sel {
-			add[px] = p
 		}
 	}
 	return add

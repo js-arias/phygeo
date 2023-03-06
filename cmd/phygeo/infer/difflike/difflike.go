@@ -53,8 +53,8 @@ diffusivity while smaller values indicate high diffusivity.
 
 By default, all pixels will be used in the likelihood estimation, while this
 provide an exact answer, it will be slow. To speed up the reconstruction the
-flag --top allows to select only the indicated top pixels (and add the same
-number of random pixels) to approximate the value of the likelihood.
+flag --top allows to select only the indicated top pixels to approximate the
+value of the likelihood.
 
 By default, 1000 particles will be simulated for the stochastic mapping. The
 number of particles can be changed with the flag -p, or --particles.
