@@ -49,8 +49,7 @@ func pixLike(likeChan chan likeChanType, answer chan answerChan) {
 		}
 		pixLike := -math.MaxFloat64
 		if sum > 0 {
-			div := math.Log(float64(len(c.logLike)))
-			pixLike = math.Log(sum) + max - div
+			pixLike = math.Log(sum) + max
 		}
 		answer <- answerChan{
 			pixel:   c.pixel,
