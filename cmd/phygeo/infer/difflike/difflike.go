@@ -327,14 +327,10 @@ func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, 
 }
 
 func writeUpPass(tsv *csv.Writer, m *diffusion.Mapping) error {
-	nodes := make([]int, 0, len(m.Nodes))
-	for _, n := range m.Nodes {
-		nodes = append(nodes, n.ID)
-	}
-	slices.Sort(nodes)
+	nodes := m.Nodes()
 
 	for _, id := range nodes {
-		n := m.Nodes[id]
+		n := m.Node(id)
 		stages := make([]int64, 0, len(n.Stages))
 		for a := range n.Stages {
 			stages = append(stages, a)

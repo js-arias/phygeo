@@ -6,12 +6,14 @@ package diffusion
 
 import (
 	"math"
+	"sync"
 	"time"
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/pixprob"
 	"golang.org/x/exp/rand"
+	"golang.org/x/exp/slices"
 )
 
 func init() {
@@ -25,7 +27,28 @@ type Mapping struct {
 	Name string
 
 	// A map of node IDs to a node reconstruction
-	Nodes map[int]*NodeMap
+	mu    sync.Mutex
+	nodes map[int]*NodeMap
+}
+
+func (m *Mapping) Node(id int) *NodeMap {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.nodes[id]
+}
+
+func (m *Mapping) Nodes() []int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	nodes := make([]int, 0, len(m.nodes))
+	for _, n := range m.nodes {
+		nodes = append(nodes, n.ID)
+	}
+	slices.Sort(nodes)
+
+	return nodes
 }
 
 // NodeMap contains the results of an stochastic mapping
@@ -54,7 +77,7 @@ type SrcDest struct {
 func (t *Tree) Simulate() *Mapping {
 	m := &Mapping{
 		Name:  t.Name(),
-		Nodes: make(map[int]*NodeMap, len(t.nodes)),
+		nodes: make(map[int]*NodeMap, len(t.nodes)),
 	}
 
 	// pick source at the root
@@ -181,12 +204,25 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 			}
 		}
 	}
-	m.Nodes[n.id] = nm
+	m.mu.Lock()
+	m.nodes[n.id] = nm
+	m.mu.Unlock()
 
-	for _, cID := range t.t.Children(n.id) {
-		c := t.nodes[cID]
-		c.simulate(t, m, source)
+	children := t.t.Children(n.id)
+	if len(children) == 0 {
+		return
 	}
+
+	var wg sync.WaitGroup
+	for _, cID := range children {
+		c := t.nodes[cID]
+		wg.Add(1)
+		go func(c *node) {
+			c.simulate(t, m, source)
+			wg.Done()
+		}(c)
+	}
+	wg.Wait()
 }
 
 func (ts *timeStage) simulation(tp *model.TimePix, rot *model.Rotation, pp pixprob.Pixel, source int) SrcDest {
