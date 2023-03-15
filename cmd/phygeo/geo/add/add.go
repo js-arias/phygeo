@@ -121,8 +121,8 @@ func addGeoMod(p *project.Project, path string) error {
 	if eq1, eq2 := tot.Pixelation().Equator(), tp.Pixelation().Equator(); eq1 != eq2 {
 		return fmt.Errorf("geomod file %q: got %d equatorial pixels, want %d", path, eq1, eq2)
 	}
-	if st1, st2 := tot.Stages(), tp.Stages(); !reflect.DeepEqual(st1, st2) {
-		return fmt.Errorf("geomod file %q: got %v stages, want %v", path, st1, st2)
+	if err := cmpStages(tot.Stages(), tp.Stages()); err != nil {
+		return fmt.Errorf("geomod file %q: %v", path, err)
 	}
 
 	p.Add(project.GeoMod, path)
@@ -149,8 +149,8 @@ func addTimePix(p *project.Project, path string) error {
 	if eq1, eq2 := tp.Pixelation().Equator(), tot.Pixelation().Equator(); eq1 != eq2 {
 		return fmt.Errorf("timepix file %q: got %d equatorial pixels, want %d", path, eq1, eq2)
 	}
-	if st1, st2 := tp.Stages(), tot.Stages(); !reflect.DeepEqual(st1, st2) {
-		return fmt.Errorf("timepix file %q: got %v stages, want %v", path, st1, st2)
+	if err := cmpStages(tp.Stages(), tot.Stages()); err != nil {
+		return fmt.Errorf("timepix file %q: %v", path, err)
 	}
 
 	p.Add(project.TimePix, path)
@@ -185,4 +185,18 @@ func readTotal(name string) (*model.Total, error) {
 	}
 
 	return tot, nil
+}
+
+func cmpStages(st1, st2 []int64) error {
+	if len(st1) > len(st2) {
+		st1 = st1[:len(st2)]
+	}
+	if len(st2) > len(st1) {
+		st2 = st2[:len(st1)]
+	}
+
+	if !reflect.DeepEqual(st1, st2) {
+		return fmt.Errorf("got %v stages, want %v", st1, st2)
+	}
+	return nil
 }
