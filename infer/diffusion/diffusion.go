@@ -39,11 +39,6 @@ type Param struct {
 	// Lambda is the concentration parameter per million years
 	// in 1/radian units
 	Lambda float64
-
-	// Top is the number of top pixels used.
-	// By default,
-	// all pixels will be used.
-	Top int
 }
 
 // A Tree os a phylogenetic tree for biogeography.
@@ -93,7 +88,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 			st.logLike[px] = math.Log(p) - math.Log(sum)
 		}
 	}
-	root.fullDownPass(nt, p.Top)
+	root.fullDownPass(nt)
 
 	return nt
 }
