@@ -101,9 +101,9 @@ func (n *node) conditional(t *Tree, top int) {
 	// internodes
 	for i := len(n.stages) - 2; i >= 0; i-- {
 		ts := n.stages[i]
-		age := t.rot.CloserStageAge(ts.age)
+		age := t.rot.ClosestStageAge(ts.age)
 		next := n.stages[i+1]
-		nextAge := t.rot.CloserStageAge(next.age)
+		nextAge := t.rot.ClosestStageAge(next.age)
 		logLike := next.conditional(t, age, top)
 
 		// Rotate if there is an stage change
@@ -118,7 +118,7 @@ func (n *node) conditional(t *Tree, top int) {
 	if t.t.IsRoot(n.id) {
 		// set the pixels priors at the root
 		rs := n.stages[0]
-		tp := t.tp.Stage(t.tp.CloserStageAge(rs.age))
+		tp := t.tp.Stage(t.tp.ClosestStageAge(rs.age))
 		rs.logLike = addPrior(rs.logLike, tp, t.pp, 0)
 	}
 }
@@ -126,7 +126,7 @@ func (n *node) conditional(t *Tree, top int) {
 // Conditional calculates the conditional likelihood
 // at a time stage.
 func (ts *timeStage) conditional(t *Tree, old int64, top int) map[int]float64 {
-	age := t.tp.CloserStageAge(ts.age)
+	age := t.tp.ClosestStageAge(ts.age)
 	var rot *model.Rotation
 	if age != old {
 		rot = t.rot.YoungToOld(age)

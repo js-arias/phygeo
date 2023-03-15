@@ -156,7 +156,7 @@ func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64) {
 	})
 
 	// add time stage
-	for a := tp.CloserStageAge(prev - 1); a > nAge; a = tp.CloserStageAge(a - 1) {
+	for a := tp.ClosestStageAge(prev - 1); a > nAge; a = tp.ClosestStageAge(a - 1) {
 		ts := &timeStage{
 			node:     n,
 			age:      a,

@@ -84,8 +84,8 @@ func (t *Tree) Simulate() *Mapping {
 	root := t.nodes[t.t.Root()]
 	ts := root.stages[0]
 	// get a rotation if change in stage
-	age := t.rot.CloserStageAge(ts.age)
-	next := t.rot.CloserStageAge(ts.age - 1)
+	age := t.rot.ClosestStageAge(ts.age)
+	next := t.rot.ClosestStageAge(ts.age - 1)
 	var rot *model.Rotation
 	var tp map[int]int
 	if age != next {
@@ -162,8 +162,8 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 
 		var rot *model.Rotation
 		if !ts.isTerm {
-			age := t.rot.CloserStageAge(ts.age)
-			next := t.rot.CloserStageAge(ts.age - 1)
+			age := t.rot.ClosestStageAge(ts.age)
+			next := t.rot.ClosestStageAge(ts.age - 1)
 			if age != next {
 				rot = t.rot.OldToYoung(age)
 			}
@@ -186,7 +186,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 		if len(pxs) > 1 {
 			// pick one of the pixels at random
 			// based on the prior
-			tp := t.tp.Stage(t.tp.CloserStageAge(rot.To))
+			tp := t.tp.Stage(t.tp.ClosestStageAge(rot.To))
 			var max float64
 			for _, px := range pxs {
 				prior := t.pp.Prior(tp[px])
@@ -228,7 +228,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 func (ts *timeStage) simulation(tp *model.TimePix, rot *model.Rotation, pp pixprob.Pixel, source int) SrcDest {
 	pix := tp.Pixelation()
 
-	tpv := tp.Stage(tp.CloserStageAge(ts.age))
+	tpv := tp.Stage(tp.ClosestStageAge(ts.age))
 
 	pt1 := pix.ID(source).Point()
 	// calculates the density for the destination pixels

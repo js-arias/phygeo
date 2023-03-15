@@ -433,7 +433,7 @@ func readRecon(r io.Reader, tp *model.TimePix) (map[string]*recTree, error) {
 			st = &recStage{
 				node: n,
 				age:  age,
-				cAge: tp.CloserStageAge(age),
+				cAge: tp.ClosestStageAge(age),
 				rec:  make(map[int]float64),
 				tp:   tp,
 			}
