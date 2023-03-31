@@ -46,9 +46,9 @@ The flag --input, or -i, is required an indicates the input file.
 
 By default the ranges will be taken as given. If the flag --kde is defined,
 a kernel density estimation using an spherical normal will be done using the
-indicated value as the concentration parameter (in 1/degrees). Only the pixels
-in the .95 of the maximum value will be used. Use the flag --bound to change
-this bound value.
+indicated value as the concentration parameter (in 1/radians^2). Only the
+pixels in the .95 of the maximum value will be used. Use the flag --bound to
+change this bound value.
 
 As the number of nodes might be large, and when calculating a KDE the number
 of computations can be large, the process is run in parallel using all
@@ -180,9 +180,7 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 
-		invDegLambda := 1 / kdeLambda
-		lambda := 1 / earth.ToRad(invDegLambda)
-		norm = dist.NewNormal(lambda, tp.Pixelation())
+		norm = dist.NewNormal(kdeLambda, tp.Pixelation())
 	}
 
 	if outputPre == "" {

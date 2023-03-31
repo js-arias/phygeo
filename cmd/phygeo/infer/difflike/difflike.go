@@ -47,8 +47,8 @@ million years.
 
 The flag --lambda defines the concentration parameter of the spherical normal
 (equivalent to kappa parameter of the von Mises-Fisher distribution) for a
-diffusion process on a million year using 1/degree units. If no value is
-defined, it will use 1. As the kappa parameter, lager values indicate low
+diffusion process on a million year using 1/radian^2 units. If no value is
+defined, it will use 50. As the kappa parameter, lager values indicate low
 diffusivity while smaller values indicate high diffusivity.
 
 By default, 1000 particles will be simulated for the stochastic mapping. The
@@ -77,7 +77,7 @@ var output string
 var useRanges bool
 
 func setFlags(c *command.Command) {
-	c.Flags().Float64Var(&lambdaFlag, "lambda", 1, "")
+	c.Flags().Float64Var(&lambdaFlag, "lambda", 50, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 	c.Flags().IntVar(&particles, "p", 1000, "")
@@ -155,15 +155,12 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
-	invDegLambda := 1 / lambdaFlag
-	lambda := 1 / earth.ToRad(invDegLambda)
-
 	param := diffusion.Param{
 		TP:     tp,
 		Rot:    rot,
 		PP:     pp,
 		Ranges: rc,
-		Lambda: lambda,
+		Lambda: lambdaFlag,
 	}
 
 	// Set the number of parallel processors
@@ -301,7 +298,7 @@ func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (e
 
 func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, error) {
 	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t, p)
-	fmt.Fprintf(w, "# lambda: %.6f degree^(-1)\n", lambda)
+	fmt.Fprintf(w, "# lambda: %.6f 1/radian^2\n", lambda)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
 	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
 
