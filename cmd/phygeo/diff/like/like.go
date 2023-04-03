@@ -2,9 +2,9 @@
 // All rights reserved.
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
-// Package difflike implements a command to perform
+// Package like implements a command to perform
 // a biogeographic reconstruction using likelihood.
-package difflike
+package like
 
 import (
 	"bufio"
@@ -27,7 +27,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `diff.like [--ranges] [--stem <age>] [--lambda <value>]
+	Usage: `like [--ranges] [--stem <age>] [--lambda <value>]
 	[-p|--particles <number>]
 	[-o|--output <file>]
 	[--cpu <number>] <project-file>`,
