@@ -48,7 +48,7 @@ million years.
 The flag --lambda defines the concentration parameter of the spherical normal
 (equivalent to kappa parameter of the von Mises-Fisher distribution) for a
 diffusion process on a million year using 1/radian^2 units. If no value is
-defined, it will use 50. As the kappa parameter, lager values indicate low
+defined, it will use 100. As the kappa parameter, lager values indicate low
 diffusivity while smaller values indicate high diffusivity.
 
 By default, 1000 particles will be simulated for the stochastic mapping. The
@@ -77,7 +77,7 @@ var output string
 var useRanges bool
 
 func setFlags(c *command.Command) {
-	c.Flags().Float64Var(&lambdaFlag, "lambda", 50, "")
+	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 	c.Flags().IntVar(&particles, "p", 1000, "")
