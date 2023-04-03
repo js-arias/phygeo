@@ -9,6 +9,7 @@ package diff
 
 import (
 	"github.com/js-arias/command"
+	"github.com/js-arias/phygeo/cmd/phygeo/diff/integrate"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/like"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/mapcmd"
 )
@@ -19,6 +20,7 @@ var Command = &command.Command{
 }
 
 func init() {
+	Command.Add(integrate.Command)
 	Command.Add(like.Command)
 	Command.Add(mapcmd.Command)
 }
