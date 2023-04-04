@@ -281,7 +281,7 @@ func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (e
 
 	for i := 0; i < particles; i++ {
 		m := t.Simulate()
-		if err := writeUpPass(tsv, m); err != nil {
+		if err := writeUpPass(tsv, i, m); err != nil {
 			return fmt.Errorf("while writing data on %q: %v", name, err)
 		}
 	}
@@ -298,21 +298,21 @@ func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (e
 
 func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, error) {
 	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t, p)
-	fmt.Fprintf(w, "# lambda: %.6f 1/radian^2\n", lambda)
+	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
 	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
 
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
 	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "node", "age", "from", "to"}); err != nil {
+	if err := tsv.Write([]string{"tree", "particle", "node", "age", "from", "to"}); err != nil {
 		return nil, err
 	}
 
 	return tsv, nil
 }
 
-func writeUpPass(tsv *csv.Writer, m *diffusion.Mapping) error {
+func writeUpPass(tsv *csv.Writer, p int, m *diffusion.Mapping) error {
 	nodes := m.Nodes()
 
 	for _, id := range nodes {
@@ -327,6 +327,7 @@ func writeUpPass(tsv *csv.Writer, m *diffusion.Mapping) error {
 			st := n.Stages[a]
 			row := []string{
 				m.Name,
+				strconv.Itoa(p),
 				strconv.Itoa(n.ID),
 				strconv.FormatInt(a, 10),
 				strconv.Itoa(st.From),
