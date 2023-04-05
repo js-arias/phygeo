@@ -2,6 +2,8 @@ github.com/js-arias/command v0.0.0-20220321160405-bad66700a180 h1:pE1RCqlGkRZTdw
 github.com/js-arias/command v0.0.0-20220321160405-bad66700a180/go.mod h1:ogKwQI2+xKu3CeddpPBks1UacMtHx40lkPcsP26Zyn0=
 github.com/js-arias/earth v0.0.0-20230331203211-2f8c8304a748 h1:41n29O0a0BITPZWmeeLzmZ1W3Wv6j+2J2d9zR/EulRY=
 github.com/js-arias/earth v0.0.0-20230331203211-2f8c8304a748/go.mod h1:k+QEv5Y/Efq+ts0+22etwwTBcn5eN811eVgaUAK5A0M=
+github.com/js-arias/earth v0.0.0-20230405170224-103075b4af76 h1:S7+GTpaLMGk+osW6O1a71E3wPXTC1wSSnztL1kEvJPQ=
+github.com/js-arias/earth v0.0.0-20230405170224-103075b4af76/go.mod h1:k+QEv5Y/Efq+ts0+22etwwTBcn5eN811eVgaUAK5A0M=
 github.com/js-arias/ranges v0.0.0-20230315153405-51289052acc1 h1:I6gOhc5SnJYr/18CTjeGq8wqw/4yMhMr59lDHrGKltE=
 github.com/js-arias/ranges v0.0.0-20230315153405-51289052acc1/go.mod h1:Xpn4vLhghh3uLGp3K7lK5ZvowgpE5BA7WyfRQEzzVQU=
 github.com/js-arias/timetree v0.0.0-20230201184644-47b9ed3b4c45 h1:3rKz/PUUIlMRwoZgFm6NmPioO1w3Ow2/tJjNxlnSjlY=

@@ -25,7 +25,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `speed [--tree <file-prefix>]
+	Usage: `speed [--tree <file-prefix>] [--time]
 	-i|--input <file> [-o|--output <file>] <project-file>`,
 	Short: "calculates speed and distance for a reconstruction",
 	Long: `
@@ -65,17 +65,33 @@ kilometers per million year. The tree will be stored using the indicated file
 prefix and the tree name. By default, 10 pixels units will be used per million
 year, use the flag --step to define a different value (it can have decimal
 points).
+
+IF the flag --time is used, instead of calculating the speed per branch, the
+speed will be calculated for each time slice. In this case the speed of each
+branch segment that pass trough a time slice will be averaged. In the case of
+splits or terminals that became extinct in the time slice, they will be
+counted as lineages in the time slice. The output file will be a tab-delimited
+file with the following columns:
+
+	tree	  the name of the tree
+	particle  the number of the particle
+	age	  the age of the time slice
+	avg-speed the average speed in the time slice in radians per million
+		years
+	lineages  the number of lineages that are included in the time slice
 	`,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
+var useTime bool
 var stepX float64
 var treePrefix string
 var inputFile string
 var outputFile string
 
 func setFlags(c *command.Command) {
+	c.Flags().BoolVar(&useTime, "time", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
@@ -115,6 +131,18 @@ func run(c *command.Command, args []string) error {
 	tc, err := readTreeFile(tf)
 	if err != nil {
 		return err
+	}
+
+	if useTime {
+		tSlice, err := getTimeSlice(inputFile, tc, tp)
+		if err != nil {
+			return err
+		}
+
+		if err := timeSliceFile(c.Stdout(), tSlice); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	tBranch, err := getBranches(inputFile, tc, tp)
