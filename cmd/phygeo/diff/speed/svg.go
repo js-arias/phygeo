@@ -10,7 +10,6 @@ import (
 	"image/color"
 	"io"
 	"math"
-	"os"
 	"strconv"
 
 	"github.com/js-arias/earth"
@@ -137,11 +136,7 @@ func (s *svgTree) setColor(t *timetree.Tree, rec *recTree) {
 		if avg < min {
 			min = avg
 		}
-
-		fmt.Fprintf(os.Stderr, "%d -> %.6f\n", id, avg)
 	}
-	fmt.Fprintf(os.Stderr, "[%.6f - %.6f]\n", min, max)
-
 	s.root.setColor(nSp, min, max)
 }
 
