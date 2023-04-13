@@ -32,7 +32,7 @@ import (
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
 	[--kde <value>] [--bound <value>] [-cpu <number>]
-	[--unrot]
+	[--unrot] [--present]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map of a reconstruction",
 	Long: `
@@ -56,7 +56,9 @@ available processors. Use the flag --cpu to change the number of processors.
 
 By default, the ranges will be produced using their respective time stage. If
 the flag --unrot is given, then the estimated ranges will be draw at the
-present time.
+present time. By default, the paleogeography of the time stage will be used.
+If --present flag is defined, the present time pixelation will be used for the
+background.
 
 By default the output file image will have the input file name as prefix. To
 change the prefix use the flag --output, or -o. The suffix of the file will be
@@ -95,6 +97,7 @@ Any other columns, will be ignored. Here is an example of a key file:
 
 var grayFlag bool
 var unRot bool
+var present bool
 var colsFlag int
 var numCPU int
 var kdeLambda float64
@@ -106,6 +109,7 @@ var outputPre string
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
 	c.Flags().BoolVar(&unRot, "unrot", false, "")
+	c.Flags().BoolVar(&present, "present", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
@@ -472,6 +476,18 @@ func (rs *recStage) At(x, y int) color.Color {
 		// to stage time
 		dst := rs.tot[pix.ID()]
 		if len(dst) == 0 {
+			if present {
+				v, _ := rs.tp.At(0, pix.ID())
+				if grayFlag {
+					if c, ok := rs.keys.Gray(v); ok {
+						return c
+					}
+				} else {
+					if c, ok := rs.keys.Color(v); ok {
+						return c
+					}
+				}
+			}
 			return color.RGBA{211, 211, 211, 255}
 		}
 
@@ -491,10 +507,14 @@ func (rs *recStage) At(x, y int) color.Color {
 		// Check the value of the pixel
 		// at the stage time
 		var v int
-		for _, px := range dst {
-			vv, _ := rs.tp.At(rs.cAge, px)
-			if vv > v {
-				v = vv
+		if present {
+			v, _ = rs.tp.At(0, pix.ID())
+		} else {
+			for _, px := range dst {
+				vv, _ := rs.tp.At(rs.cAge, px)
+				if vv > v {
+					v = vv
+				}
 			}
 		}
 		if grayFlag {
@@ -519,6 +539,9 @@ func (rs *recStage) At(x, y int) color.Color {
 	}
 
 	v, _ := rs.tp.At(rs.cAge, pix.ID())
+	if present {
+		v, _ = rs.tp.At(0, pix.ID())
+	}
 	if grayFlag {
 		if c, ok := rs.keys.Gray(v); ok {
 			return c
