@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/jpeg"
 	"image/png"
 	"io"
 	"os"
@@ -32,7 +33,7 @@ import (
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
 	[--kde <value>] [--bound <value>] [-cpu <number>]
-	[--unrot] [--present]
+	[--unrot] [--present] [--contour <image-file>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map of a reconstruction",
 	Long: `
@@ -59,6 +60,11 @@ the flag --unrot is given, then the estimated ranges will be draw at the
 present time. By default, the paleogeography of the time stage will be used.
 If --present flag is defined, the present time pixelation will be used for the
 background.
+
+If --contour is defined with a file, the given image will be used as a contour
+of the output map. The contour image should have the same size of the output
+image, and fully transparent, except for the contour, that will be always draw
+in black. 
 
 By default the output file image will have the input file name as prefix. To
 change the prefix use the flag --output, or -o. The suffix of the file will be
@@ -105,6 +111,7 @@ var bound float64
 var keyFile string
 var inputFile string
 var outputPre string
+var contourFile string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
@@ -120,6 +127,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&outputPre, "output", "", "")
 	c.Flags().StringVar(&outputPre, "o", "", "")
+	c.Flags().StringVar(&contourFile, "contour", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -143,6 +151,14 @@ func run(c *command.Command, args []string) error {
 	tp, err := readTimePix(tpf)
 	if err != nil {
 		return err
+	}
+
+	var contour image.Image
+	if contourFile != "" {
+		contour, err = readContour(contourFile)
+		if err != nil {
+			return err
+		}
 	}
 
 	var tot *model.Total
@@ -208,6 +224,7 @@ func run(c *command.Command, args []string) error {
 
 				s.step = 360 / float64(colsFlag)
 				s.keys = keys
+				s.contour = contour
 				wg.Add(1)
 				sc <- stageChan{
 					rs:   s,
@@ -334,6 +351,20 @@ func getRec(name string, tp *model.TimePix) (map[string]*recTree, error) {
 	return rt, nil
 }
 
+func readContour(name string) (image.Image, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("on image file %q: %v", name, err)
+	}
+	return img, nil
+}
+
 type recTree struct {
 	name  string
 	nodes map[int]*recNode
@@ -355,6 +386,8 @@ type recStage struct {
 	tot  map[int][]int
 	step float64
 	keys *pixKey
+
+	contour image.Image
 }
 
 var headerFields = []string{
@@ -466,6 +499,13 @@ func readRecon(r io.Reader, tp *model.TimePix) (map[string]*recTree, error) {
 func (rs *recStage) ColorModel() color.Model { return color.RGBAModel }
 func (rs *recStage) Bounds() image.Rectangle { return image.Rect(0, 0, colsFlag, colsFlag/2) }
 func (rs *recStage) At(x, y int) color.Color {
+	if rs.contour != nil {
+		_, _, _, a := rs.contour.At(x, y).RGBA()
+		if a > 100 {
+			return color.RGBA{A: 255}
+		}
+	}
+
 	lat := 90 - float64(y)*rs.step
 	lon := float64(x)*rs.step - 180
 
@@ -476,16 +516,14 @@ func (rs *recStage) At(x, y int) color.Color {
 		// to stage time
 		dst := rs.tot[pix.ID()]
 		if len(dst) == 0 {
-			if present {
-				v, _ := rs.tp.At(0, pix.ID())
-				if grayFlag {
-					if c, ok := rs.keys.Gray(v); ok {
-						return c
-					}
-				} else {
-					if c, ok := rs.keys.Color(v); ok {
-						return c
-					}
+			v, _ := rs.tp.At(0, pix.ID())
+			if grayFlag {
+				if c, ok := rs.keys.Gray(v); ok {
+					return c
+				}
+			} else {
+				if c, ok := rs.keys.Color(v); ok {
+					return c
 				}
 			}
 			return color.RGBA{211, 211, 211, 255}
