@@ -25,7 +25,8 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `speed [--tree <file-prefix>] [--time]
+	Usage: `speed [--time]
+	[--tree <file-prefix>] [--step <number>] [--box <number>]
 	-i|--input <file> [-o|--output <file>] <project-file>`,
 	Short: "calculates speed and distance for a reconstruction",
 	Long: `
@@ -64,7 +65,8 @@ blue(=slow), scale. The scale was made using the log10 of the speed in
 kilometers per million year. The tree will be stored using the indicated file
 prefix and the tree name. By default, 10 pixels units will be used per million
 year, use the flag --step to define a different value (it can have decimal
-points).
+points). The flag --box defines shaded boxes each indicated time steps. The
+size of the box is in million years.
 
 IF the flag --time is used, instead of calculating the speed per branch, the
 speed will be calculated for each time slice. In this case the speed of each
@@ -86,6 +88,7 @@ file with the following columns:
 
 var useTime bool
 var stepX float64
+var timeBox float64
 var treePrefix string
 var inputFile string
 var outputFile string
@@ -93,6 +96,7 @@ var outputFile string
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
+	c.Flags().Float64Var(&timeBox, "box", 0, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&outputFile, "output", "", "")

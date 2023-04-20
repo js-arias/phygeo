@@ -34,16 +34,19 @@ type node struct {
 }
 
 type svgTree struct {
-	y     int
-	x     float64
-	taxSz int
-	root  *node
+	y      int
+	x      float64
+	minAge float64
+	xStep  float64
+	taxSz  int
+	root   *node
 }
 
 func copyTree(t *timetree.Tree, xStep float64) svgTree {
 	maxSz := 0
 	var root *node
 	ids := make(map[int]*node)
+	minAge := float64(t.Age(t.Root())) / millionYears
 	for _, id := range t.Nodes() {
 		var anc *node
 		p := t.Parent(id)
@@ -66,18 +69,25 @@ func copyTree(t *timetree.Tree, xStep float64) svgTree {
 		if len(n.tax) > maxSz {
 			maxSz = len(n.tax)
 		}
+		if n.age < minAge {
+			minAge = n.age
+		}
 	}
 
-	s := svgTree{root: root}
-	s.prepare(root, xStep)
+	s := svgTree{
+		xStep:  xStep,
+		minAge: minAge,
+		root:   root,
+		taxSz:  maxSz,
+	}
+	s.prepare(root)
 	s.y = s.y * yStep
-	s.taxSz = maxSz
 
 	return s
 }
 
-func (s *svgTree) prepare(n *node, xStep float64) {
-	n.x = (s.root.age-n.age)*xStep + 10
+func (s *svgTree) prepare(n *node) {
+	n.x = (s.root.age-n.age)*s.xStep + 10
 	if s.x < n.x {
 		s.x = n.x
 	}
@@ -91,7 +101,7 @@ func (s *svgTree) prepare(n *node, xStep float64) {
 	botY := 0
 	topY := math.MaxInt
 	for _, d := range n.desc {
-		s.prepare(d, xStep)
+		s.prepare(d)
 		if d.y < topY {
 			topY = d.y
 		}
@@ -178,6 +188,8 @@ func (s *svgTree) draw(w io.Writer) error {
 	}
 	e.EncodeToken(g)
 
+	s.drawTimeRecs(e)
+
 	s.root.draw(e)
 	s.root.label(e)
 
@@ -187,6 +199,41 @@ func (s *svgTree) draw(w io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+func (s svgTree) drawTimeRecs(e *xml.Encoder) {
+	if timeBox == 0 {
+		return
+	}
+
+	height := s.y
+	for a := 0.0; ; a += timeBox * 2 {
+		if a+timeBox < s.minAge {
+			continue
+		}
+		maxX := (s.root.age-a)*s.xStep + 10
+		if maxX > s.x {
+			maxX = s.x
+		}
+		minX := (s.root.age-(a+timeBox))*s.xStep + 10
+
+		if maxX < s.root.x {
+			break
+		}
+
+		// rectangle
+		rect := xml.StartElement{
+			Name: xml.Name{Local: "rect"},
+			Attr: []xml.Attr{
+				{Name: xml.Name{Local: "x"}, Value: strconv.Itoa(int(minX))},
+				{Name: xml.Name{Local: "width"}, Value: strconv.Itoa(int(maxX - minX))},
+				{Name: xml.Name{Local: "height"}, Value: strconv.Itoa(int(height))},
+				{Name: xml.Name{Local: "style"}, Value: "fill:rgb(200,200,200); stroke-width:0"},
+			},
+		}
+		e.EncodeToken(rect)
+		e.EncodeToken(rect.End())
+	}
 }
 
 func (n node) draw(e *xml.Encoder) {
