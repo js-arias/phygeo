@@ -34,7 +34,7 @@ project exists, a new project will be created.
 
 One or more range files can be given as arguments. If no file is given the
 ranges will be read from the standard input. A pixelation model must be
-already defined for the project, either a rotation model, or a time pixelation
+already defined for the project, either a rotation model, or a paleolandscape
 model, and the pixelation of the input files must be consistent with that
 pixelation model.
 
@@ -236,7 +236,7 @@ func addRanges(r io.Reader, p *project.Project, files []string) error {
 }
 
 func openPixelation(p *project.Project) (*earth.Pixelation, error) {
-	if path := p.Path(project.TimePix); path != "" {
+	if path := p.Path(project.Landscape); path != "" {
 		f, err := os.Open(path)
 		if err != nil {
 			return nil, err

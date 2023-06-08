@@ -76,7 +76,7 @@ the time stage of 10 million years. By default the resulting image will be
 of columns.
 
 By default the output images will be plain gray background. Use the flag --key
-to define a set of colors for the image (using the project time pixelation).
+to define a set of colors for the image (using the project landscape).
 If the flag --gray is given, then a gray colors will be used. The key file is
 a tab-delimited file with the following required columns:
 
@@ -144,12 +144,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	tpf := p.Path(project.TimePix)
-	if tpf == "" {
-		msg := fmt.Sprintf("time pixelation not defined in project %q", args[0])
+	lsf := p.Path(project.Landscape)
+	if lsf == "" {
+		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
 		return c.UsageError(msg)
 	}
-	tp, err := readTimePix(tpf)
+	landscape, err := readLandscape(lsf)
 	if err != nil {
 		return err
 	}
@@ -169,13 +169,13 @@ func run(c *command.Command, args []string) error {
 			msg := fmt.Sprintf("paleogeographic model not defined in project %q", args[0])
 			return c.UsageError(msg)
 		}
-		tot, err = readRotation(rotF, tp.Pixelation())
+		tot, err = readRotation(rotF, landscape.Pixelation())
 		if err != nil {
 			return err
 		}
 	}
 
-	rec, err := getRec(inputFile, tp)
+	rec, err := getRec(inputFile, landscape)
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 
-		norm = dist.NewNormal(kdeLambda, tp.Pixelation())
+		norm = dist.NewNormal(kdeLambda, landscape.Pixelation())
 	}
 
 	if outputPre == "" {
@@ -228,14 +228,14 @@ func run(c *command.Command, args []string) error {
 				s.contour = contour
 				wg.Add(1)
 				sc <- stageChan{
-					rs:   s,
-					out:  outputPre + suf + ".png",
-					err:  errChan,
-					wg:   &wg,
-					norm: norm,
-					pp:   pp,
-					tp:   tp,
-					tot:  tot,
+					rs:        s,
+					out:       outputPre + suf + ".png",
+					err:       errChan,
+					wg:        &wg,
+					norm:      norm,
+					pp:        pp,
+					landscape: landscape,
+					tot:       tot,
 				}
 			}
 		}
@@ -261,10 +261,10 @@ type stageChan struct {
 	err chan error
 	wg  *sync.WaitGroup
 
-	norm dist.Normal
-	pp   pixprob.Pixel
-	tp   *model.TimePix
-	tot  *model.Total
+	norm      dist.Normal
+	pp        pixprob.Pixel
+	landscape *model.TimePix
+	tot       *model.Total
 }
 
 func procStage(c chan stageChan) {
@@ -272,7 +272,7 @@ func procStage(c chan stageChan) {
 		s := sc.rs
 
 		if kdeLambda > 0 {
-			rng := stat.KDE(sc.norm, s.rec, sc.tp, s.cAge, sc.pp, bound)
+			rng := stat.KDE(sc.norm, s.rec, sc.landscape, s.cAge, sc.pp, bound)
 			s.rec = rng
 			var max float64
 			for _, p := range s.rec {
@@ -293,7 +293,7 @@ func procStage(c chan stageChan) {
 	}
 }
 
-func readTimePix(name string) (*model.TimePix, error) {
+func readLandscape(name string) (*model.TimePix, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
@@ -338,14 +338,14 @@ func readPriors(name string) (pixprob.Pixel, error) {
 	return pp, nil
 }
 
-func getRec(name string, tp *model.TimePix) (map[string]*recTree, error) {
+func getRec(name string, landscape *model.TimePix) (map[string]*recTree, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	rt, err := readRecon(f, tp)
+	rt, err := readRecon(f, landscape)
 	if err != nil {
 		return nil, fmt.Errorf("on input file %q: %v", name, err)
 	}
@@ -378,15 +378,15 @@ type recNode struct {
 }
 
 type recStage struct {
-	node *recNode
-	age  int64
-	cAge int64
-	rec  map[int]float64
-	max  float64
-	tp   *model.TimePix
-	tot  map[int][]int
-	step float64
-	keys *pixKey
+	node      *recNode
+	age       int64
+	cAge      int64
+	rec       map[int]float64
+	max       float64
+	landscape *model.TimePix
+	tot       map[int][]int
+	step      float64
+	keys      *pixKey
 
 	contour image.Image
 }
@@ -398,7 +398,7 @@ var headerFields = []string{
 	"to",
 }
 
-func readRecon(r io.Reader, tp *model.TimePix) (map[string]*recTree, error) {
+func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, error) {
 	tsv := csv.NewReader(r)
 	tsv.Comma = '\t'
 	tsv.Comment = '#'
@@ -467,11 +467,11 @@ func readRecon(r io.Reader, tp *model.TimePix) (map[string]*recTree, error) {
 		st, ok := n.stages[age]
 		if !ok {
 			st = &recStage{
-				node: n,
-				age:  age,
-				cAge: tp.ClosestStageAge(age),
-				rec:  make(map[int]float64),
-				tp:   tp,
+				node:      n,
+				age:       age,
+				cAge:      landscape.ClosestStageAge(age),
+				rec:       make(map[int]float64),
+				landscape: landscape,
 			}
 			n.stages[age] = st
 		}
@@ -481,7 +481,7 @@ func readRecon(r io.Reader, tp *model.TimePix) (map[string]*recTree, error) {
 		if err != nil {
 			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 		}
-		if px >= tp.Pixelation().Len() {
+		if px >= landscape.Pixelation().Len() {
 			return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
 		}
 
@@ -510,14 +510,14 @@ func (rs *recStage) At(x, y int) color.Color {
 	lat := 90 - float64(y)*rs.step
 	lon := float64(x)*rs.step - 180
 
-	pix := rs.tp.Pixelation().Pixel(lat, lon)
+	pix := rs.landscape.Pixelation().Pixel(lat, lon)
 
 	if unRot {
 		// Total rotation from present time
 		// to stage time
 		dst := rs.tot[pix.ID()]
 		if len(dst) == 0 {
-			v, _ := rs.tp.At(0, pix.ID())
+			v, _ := rs.landscape.At(0, pix.ID())
 			if grayFlag {
 				if c, ok := rs.keys.Gray(v); ok {
 					return c
@@ -547,10 +547,10 @@ func (rs *recStage) At(x, y int) color.Color {
 		// at the stage time
 		var v int
 		if present {
-			v, _ = rs.tp.At(0, pix.ID())
+			v, _ = rs.landscape.At(0, pix.ID())
 		} else {
 			for _, px := range dst {
-				vv, _ := rs.tp.At(rs.cAge, px)
+				vv, _ := rs.landscape.At(rs.cAge, px)
 				if vv > v {
 					v = vv
 				}
@@ -577,9 +577,9 @@ func (rs *recStage) At(x, y int) color.Color {
 		return color.RGBA{211, 211, 211, 255}
 	}
 
-	v, _ := rs.tp.At(rs.cAge, pix.ID())
+	v, _ := rs.landscape.At(rs.cAge, pix.ID())
 	if present {
-		v, _ = rs.tp.At(0, pix.ID())
+		v, _ = rs.landscape.At(0, pix.ID())
 	}
 	if grayFlag {
 		if c, ok := rs.keys.Gray(v); ok {

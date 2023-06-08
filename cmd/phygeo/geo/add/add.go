@@ -23,7 +23,7 @@ var Command = &command.Command{
 	Short: "add a paleogeographic reconstruction model",
 	Long: `
 Command add adds the path of a paleogeographic reconstruction model to a
-PhyGeo project. The model can be a rotation model, or a time pixelation.
+PhyGeo project. The model can be a rotation model, or a paleolandscape.
 
 The first argument of the command is the name of the project file. If no
 project exists, a new project will be created.
@@ -31,15 +31,15 @@ project exists, a new project will be created.
 The second argument is the valid path of a model file. If there is a model
 already defined in the project, its path will be replaced by the path of the
 added file. The model can be either a rotation model (pixels locations in
-time), or a time pixelation (pixel values on time). Both kind of models must
-be compatible, i.e. based on the same underlying pixelation, and have the same
-time stages.
+time), or a paleolandscape pixelation (pixel values on time). Both kind of
+models must be compatible, i.e. based on the same underlying pixelation, and
+have the same time stages.
 
 The type of the added model must be explicitly defined using the flag --type
 with one of the following values:
 
-	geomod	for a rotation model
-	timepix	for a time pixelation
+	geomod		for a rotation model
+	landscape	for a paleolandscape
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -74,8 +74,8 @@ func run(c *command.Command, args []string) error {
 		if err := addGeoMod(p, args[1]); err != nil {
 			return err
 		}
-	case project.TimePix:
-		if err := addTimePix(p, args[1]); err != nil {
+	case project.Landscape:
+		if err := addLandscape(p, args[1]); err != nil {
 			return err
 		}
 	default:
@@ -107,15 +107,15 @@ func addGeoMod(p *project.Project, path string) error {
 		return err
 	}
 
-	tpPath := p.Path(project.TimePix)
+	tpPath := p.Path(project.Landscape)
 	if tpPath == "" {
 		p.Add(project.GeoMod, path)
 		return nil
 	}
 
-	tp, err := readTimePix(tpPath)
+	tp, err := readLandscape(tpPath)
 	if err != nil {
-		return fmt.Errorf("while reading TimePix: %v", err)
+		return fmt.Errorf("while reading Landscape: %v", err)
 	}
 
 	if eq1, eq2 := tot.Pixelation().Equator(), tp.Pixelation().Equator(); eq1 != eq2 {
@@ -129,15 +129,15 @@ func addGeoMod(p *project.Project, path string) error {
 	return nil
 }
 
-func addTimePix(p *project.Project, path string) error {
-	tp, err := readTimePix(path)
+func addLandscape(p *project.Project, path string) error {
+	tp, err := readLandscape(path)
 	if err != nil {
 		return err
 	}
 
 	mPath := p.Path(project.GeoMod)
 	if mPath == "" {
-		p.Add(project.TimePix, path)
+		p.Add(project.Landscape, path)
 		return nil
 	}
 
@@ -147,17 +147,17 @@ func addTimePix(p *project.Project, path string) error {
 	}
 
 	if eq1, eq2 := tp.Pixelation().Equator(), tot.Pixelation().Equator(); eq1 != eq2 {
-		return fmt.Errorf("timepix file %q: got %d equatorial pixels, want %d", path, eq1, eq2)
+		return fmt.Errorf("landscape file %q: got %d equatorial pixels, want %d", path, eq1, eq2)
 	}
 	if err := cmpStages(tp.Stages(), tot.Stages()); err != nil {
-		return fmt.Errorf("timepix file %q: %v", path, err)
+		return fmt.Errorf("landscape file %q: %v", path, err)
 	}
 
-	p.Add(project.TimePix, path)
+	p.Add(project.Landscape, path)
 	return nil
 }
 
-func readTimePix(name string) (*model.TimePix, error) {
+func readLandscape(name string) (*model.TimePix, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err

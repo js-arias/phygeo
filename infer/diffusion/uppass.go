@@ -90,7 +90,7 @@ func (t *Tree) Simulate() *Mapping {
 	var tp map[int]int
 	if age != next {
 		rot = t.rot.OldToYoung(age)
-		tp = t.tp.Stage(rot.To)
+		tp = t.landscape.Stage(rot.To)
 	}
 
 	// get the source pixel probabilities
@@ -169,7 +169,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 			}
 		}
 
-		sd := ts.simulation(t.tp, rot, t.pp, source)
+		sd := ts.simulation(t.landscape, rot, t.pp, source)
 		nm.Stages[ts.age] = sd
 		source = sd.To
 
@@ -186,7 +186,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 		if len(pxs) > 1 {
 			// pick one of the pixels at random
 			// based on the prior
-			tp := t.tp.Stage(t.tp.ClosestStageAge(rot.To))
+			tp := t.landscape.Stage(t.landscape.ClosestStageAge(rot.To))
 			var max float64
 			for _, px := range pxs {
 				prior := t.pp.Prior(tp[px])

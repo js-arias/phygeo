@@ -117,7 +117,7 @@ func (n *node) conditional(t *Tree) {
 	if t.t.IsRoot(n.id) {
 		// set the pixels priors at the root
 		rs := n.stages[0]
-		tp := t.tp.Stage(t.tp.ClosestStageAge(rs.age))
+		tp := t.landscape.Stage(t.landscape.ClosestStageAge(rs.age))
 		rs.logLike = addPrior(rs.logLike, tp, t.pp)
 	}
 }
@@ -125,12 +125,12 @@ func (n *node) conditional(t *Tree) {
 // Conditional calculates the conditional likelihood
 // at a time stage.
 func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
-	age := t.tp.ClosestStageAge(ts.age)
+	age := t.landscape.ClosestStageAge(ts.age)
 	var rot *model.Rotation
 	if age != old {
 		rot = t.rot.YoungToOld(age)
 	}
-	stage := t.tp.Stage(age)
+	stage := t.landscape.Stage(age)
 
 	likeChan := make(chan likeChanType, numCPU*2)
 	answer := make(chan answerChan, numCPU*2)
@@ -162,7 +162,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 			wg.Add(1)
 			likeChan <- likeChanType{
 				pixel:   px,
-				pix:     t.tp.Pixelation(),
+				pix:     t.landscape.Pixelation(),
 				logLike: endLike,
 				pdf:     ts.pdf,
 				wg:      &wg,

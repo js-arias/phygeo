@@ -100,12 +100,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	tpf := p.Path(project.TimePix)
-	if tpf == "" {
-		msg := fmt.Sprintf("time pixelation not defined in project %q", args[0])
+	lsf := p.Path(project.Landscape)
+	if lsf == "" {
+		msg := fmt.Sprintf("paleolandscape not defined in project %q", args[0])
 		return c.UsageError(msg)
 	}
-	tp, err := readTimePix(tpf)
+	landscape, err := readLandscape(lsf)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func run(c *command.Command, args []string) error {
 		msg := fmt.Sprintf("paleogeographic model not defined in project %q", args[0])
 		return c.UsageError(msg)
 	}
-	rot, err := readRotation(rotF, tp.Pixelation())
+	rot, err := readRotation(rotF, landscape.Pixelation())
 	if err != nil {
 		return err
 	}
@@ -155,10 +155,10 @@ func run(c *command.Command, args []string) error {
 	diffusion.SetCPU(numCPU)
 
 	param := diffusion.Param{
-		TP:     tp,
-		Rot:    rot,
-		PP:     pp,
-		Ranges: rc,
+		Landscape: landscape,
+		Rot:       rot,
+		PP:        pp,
+		Ranges:    rc,
 	}
 
 	fmt.Fprintf(c.Stdout(), "tree\tlambda\tlogLike\n")
@@ -201,7 +201,7 @@ func readTreeFile(name string) (*timetree.Collection, error) {
 	return c, nil
 }
 
-func readTimePix(name string) (*model.TimePix, error) {
+func readLandscape(name string) (*model.TimePix, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err

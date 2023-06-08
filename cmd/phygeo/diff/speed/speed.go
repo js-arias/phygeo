@@ -117,12 +117,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	tpf := p.Path(project.TimePix)
-	if tpf == "" {
-		msg := fmt.Sprintf("time pixelation not defined in project %q", args[0])
+	lsf := p.Path(project.Landscape)
+	if lsf == "" {
+		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
 		return c.UsageError(msg)
 	}
-	tp, err := readTimePix(tpf)
+	landscape, err := readLandscape(lsf)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	if useTime {
-		tSlice, err := getTimeSlice(inputFile, tc, tp)
+		tSlice, err := getTimeSlice(inputFile, tc, landscape)
 		if err != nil {
 			return err
 		}
@@ -149,7 +149,7 @@ func run(c *command.Command, args []string) error {
 		return nil
 	}
 
-	tBranch, err := getBranches(inputFile, tc, tp)
+	tBranch, err := getBranches(inputFile, tc, landscape)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func readTimePix(name string) (*model.TimePix, error) {
+func readLandscape(name string) (*model.TimePix, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
@@ -196,14 +196,14 @@ func readTreeFile(name string) (*timetree.Collection, error) {
 	return c, nil
 }
 
-func getBranches(name string, tc *timetree.Collection, tp *model.TimePix) (map[string]*recTree, error) {
+func getBranches(name string, tc *timetree.Collection, landscape *model.TimePix) (map[string]*recTree, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	rt, err := readRecBranches(f, tc, tp)
+	rt, err := readRecBranches(f, tc, landscape)
 	if err != nil {
 		return nil, fmt.Errorf("on input file %q: %v", name, err)
 	}

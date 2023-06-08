@@ -21,8 +21,8 @@ import (
 // Param is a collection of parameters
 // for the initialization of a tree.
 type Param struct {
-	// Time pixelation model
-	TP *model.TimePix
+	// Paleolandscape model
+	Landscape *model.TimePix
 
 	// Stage rotation model
 	Rot *model.StageRot
@@ -46,29 +46,29 @@ type Tree struct {
 	t     *timetree.Tree
 	nodes map[int]*node
 
-	tp  *model.TimePix
-	rot *model.StageRot
-	pp  pixprob.Pixel
+	landscape *model.TimePix
+	rot       *model.StageRot
+	pp        pixprob.Pixel
 }
 
 // New creates a new tree by copying the indicated source tree.
 func New(t *timetree.Tree, p Param) *Tree {
 	nt := &Tree{
-		t:     t,
-		nodes: make(map[int]*node, len(t.Nodes())),
-		tp:    p.TP,
-		rot:   p.Rot,
-		pp:    p.PP,
+		t:         t,
+		nodes:     make(map[int]*node, len(t.Nodes())),
+		landscape: p.Landscape,
+		rot:       p.Rot,
+		pp:        p.PP,
 	}
 	root := &node{
 		id: t.Root(),
 	}
 	nt.nodes[root.id] = root
-	root.copySource(nt, p.TP, p.Stem)
+	root.copySource(nt, p.Landscape, p.Stem)
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {
-		n.setPDF(p.TP.Pixelation(), p.Lambda)
+		n.setPDF(p.Landscape.Pixelation(), p.Lambda)
 
 		if !nt.t.IsTerm(n.id) {
 			continue

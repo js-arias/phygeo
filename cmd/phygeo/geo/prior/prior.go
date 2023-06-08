@@ -70,8 +70,8 @@ func run(c *command.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if tp := p.Path(project.TimePix); tp != "" {
-		if err := reportWithTimePixelation(c.Stdout(), tp, pp); err != nil {
+	if tp := p.Path(project.Landscape); tp != "" {
+		if err := reportWithLandscape(c.Stdout(), tp, pp); err != nil {
 			return err
 		}
 		return nil
@@ -84,8 +84,8 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func reportWithTimePixelation(w io.Writer, name string, pp pixprob.Pixel) error {
-	tp, err := readTimePix(name)
+func reportWithLandscape(w io.Writer, name string, pp pixprob.Pixel) error {
+	tp, err := readLandscape(name)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func readPriorFile(name string) (pixprob.Pixel, error) {
 	return pp, nil
 }
 
-func readTimePix(name string) (*model.TimePix, error) {
+func readLandscape(name string) (*model.TimePix, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err

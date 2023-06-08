@@ -26,7 +26,7 @@ func TestProject(t *testing.T) {
 		{project.PixPrior, "pix-prior.tab"},
 		{project.Points, "points.tab"},
 		{project.Ranges, "ranges.tab"},
-		{project.TimePix, "pix-time.tab"},
+		{project.Landscape, "landscape.tab"},
 		{project.Trees, "trees.tab"},
 	}
 

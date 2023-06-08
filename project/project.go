@@ -34,7 +34,7 @@ const (
 	GeoMod Dataset = "geomod"
 
 	// File for pixel prior probability values.
-	PixPrior Dataset ="pixprior"
+	PixPrior Dataset = "pixprior"
 
 	// File for presence-absence points
 	// of the taxa in the project.
@@ -44,9 +44,9 @@ const (
 	// of the taxa in the project.
 	Ranges Dataset = "ranges"
 
-	// File for the pixel values
+	// File for the landscape pixel values
 	// at different time stages.
-	TimePix Dataset = "timepix"
+	Landscape Dataset = "landscape"
 
 	// File for phylogenetic trees.
 	Trees Dataset = "trees"
@@ -84,7 +84,7 @@ var header = []string{
 //	geomod	geo-model.tab
 //	pixprior	pix-prior.tab
 //	ranges	ranges.tab
-//	timepix	pix-time.tab
+//	landscape	landscape.tab
 //	trees	trees.tab
 func Read(name string) (*Project, error) {
 	f, err := os.Open(name)
