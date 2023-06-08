@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/js-arias/blind"
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
@@ -539,7 +540,7 @@ func (rs *recStage) At(x, y int) color.Color {
 			}
 		}
 		if max > 0 {
-			return scaleColor(max / rs.max)
+			return blind.Gradient(max / rs.max)
 		}
 
 		// Check the value of the pixel
@@ -569,7 +570,7 @@ func (rs *recStage) At(x, y int) color.Color {
 	}
 
 	if p, ok := rs.rec[pix.ID()]; ok {
-		return scaleColor(p / rs.max)
+		return blind.Gradient(p / rs.max)
 	}
 
 	if rs.keys == nil {
@@ -610,20 +611,4 @@ func writeImage(name string, rs *recStage) (err error) {
 	}
 
 	return nil
-}
-
-func scaleColor(scale float64) color.RGBA {
-	switch {
-	case scale < 0.25:
-		g := scale * 4 * 255
-		return color.RGBA{0, uint8(g), 255, 255}
-	case scale < 0.50:
-		b := (scale - 0.25) * 4 * 255
-		return color.RGBA{0, 255, 255 - uint8(b), 255}
-	case scale < 0.75:
-		r := (scale - 0.5) * 4 * 255
-		return color.RGBA{uint8(r), 255, 0, 255}
-	}
-	g := (scale - 0.75) * 4 * 255
-	return color.RGBA{255, 255 - uint8(g), 0, 255}
 }

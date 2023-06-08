@@ -12,6 +12,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/js-arias/blind"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/timetree"
 )
@@ -153,7 +154,7 @@ func (s *svgTree) setColor(t *timetree.Tree, rec *recTree) {
 func (n *node) setColor(sp map[int]float64, min, max float64) {
 	n.color = color.RGBA{0, 0, 255, 255}
 	if v, ok := sp[n.id]; ok {
-		n.color = scaleColor((v - min) / (max - min))
+		n.color = blind.Gradient((v - min) / (max - min))
 	}
 
 	for _, d := range n.desc {
@@ -179,7 +180,7 @@ func (s *svgTree) draw(w io.Writer) error {
 	g := xml.StartElement{
 		Name: xml.Name{Local: "g"},
 		Attr: []xml.Attr{
-			{Name: xml.Name{Local: "stroke-width"}, Value: "2"},
+			{Name: xml.Name{Local: "stroke-width"}, Value: "4"},
 			{Name: xml.Name{Local: "stroke"}, Value: "black"},
 			{Name: xml.Name{Local: "stroke-linecap"}, Value: "round"},
 			{Name: xml.Name{Local: "font-family"}, Value: "Verdana"},
@@ -293,20 +294,4 @@ func (n node) label(e *xml.Encoder) {
 	for _, d := range n.desc {
 		d.label(e)
 	}
-}
-
-func scaleColor(scale float64) color.RGBA {
-	switch {
-	case scale < 0.25:
-		g := scale * 4 * 255
-		return color.RGBA{0, uint8(g), 255, 255}
-	case scale < 0.50:
-		b := (scale - 0.25) * 4 * 255
-		return color.RGBA{0, 255, 255 - uint8(b), 255}
-	case scale < 0.75:
-		r := (scale - 0.5) * 4 * 255
-		return color.RGBA{uint8(r), 255, 0, 255}
-	}
-	g := (scale - 0.75) * 4 * 255
-	return color.RGBA{255, 255 - uint8(g), 0, 255}
 }

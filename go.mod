@@ -3,6 +3,7 @@ module github.com/js-arias/phygeo
 go 1.19
 
 require (
+	github.com/js-arias/blind v0.0.0-20230607202616-c09e20b1e5fc
 	github.com/js-arias/command v0.0.0-20220321160405-bad66700a180
 	github.com/js-arias/earth v0.0.0-20230405170224-103075b4af76
 	github.com/js-arias/ranges v0.0.0-20230315153405-51289052acc1
