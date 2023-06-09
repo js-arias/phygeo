@@ -22,7 +22,7 @@ func TestProject(t *testing.T) {
 	p := project.New()
 
 	sets := []setPath{
-		{project.GeoMod, "geo-model.tab"},
+		{project.GeoMotion, "geo-model.tab"},
 		{project.PixPrior, "pix-prior.tab"},
 		{project.Points, "points.tab"},
 		{project.Ranges, "ranges.tab"},

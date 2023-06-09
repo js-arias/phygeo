@@ -164,9 +164,9 @@ func run(c *command.Command, args []string) error {
 
 	var tot *model.Total
 	if unRot {
-		rotF := p.Path(project.GeoMod)
+		rotF := p.Path(project.GeoMotion)
 		if rotF == "" {
-			msg := fmt.Sprintf("paleogeographic model not defined in project %q", args[0])
+			msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
 			return c.UsageError(msg)
 		}
 		tot, err = readRotation(rotF, landscape.Pixelation())

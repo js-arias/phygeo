@@ -29,9 +29,9 @@ type Dataset string
 
 // Valid dataset types.
 const (
-	// File for the rotation model
+	// File for the plate motion model
 	// of the paleogeographic reconstruction.
-	GeoMod Dataset = "geomod"
+	GeoMotion Dataset = "geomotion"
 
 	// File for pixel prior probability values.
 	PixPrior Dataset = "pixprior"
@@ -81,7 +81,7 @@ var header = []string{
 //
 //	# phygeo project files
 //	dataset	path
-//	geomod	geo-model.tab
+//	geomotion	geo-motion.tab
 //	pixprior	pix-prior.tab
 //	ranges	ranges.tab
 //	landscape	landscape.tab

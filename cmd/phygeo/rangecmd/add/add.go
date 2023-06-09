@@ -248,7 +248,7 @@ func openPixelation(p *project.Project) (*earth.Pixelation, error) {
 		}
 		return tp.Pixelation(), nil
 	}
-	if path := p.Path(project.GeoMod); path != "" {
+	if path := p.Path(project.GeoMotion); path != "" {
 		f, err := os.Open(path)
 		if err != nil {
 			return nil, err

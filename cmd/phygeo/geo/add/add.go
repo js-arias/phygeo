@@ -23,14 +23,14 @@ var Command = &command.Command{
 	Short: "add a paleogeographic reconstruction model",
 	Long: `
 Command add adds the path of a paleogeographic reconstruction model to a
-PhyGeo project. The model can be a rotation model, or a paleolandscape.
+PhyGeo project. The model can be a plate motion model, or a paleolandscape.
 
 The first argument of the command is the name of the project file. If no
 project exists, a new project will be created.
 
 The second argument is the valid path of a model file. If there is a model
 already defined in the project, its path will be replaced by the path of the
-added file. The model can be either a rotation model (pixels locations in
+added file. The model can be either a plate motion model (pixels locations in
 time), or a paleolandscape pixelation (pixel values on time). Both kind of
 models must be compatible, i.e. based on the same underlying pixelation, and
 have the same time stages.
@@ -38,7 +38,7 @@ have the same time stages.
 The type of the added model must be explicitly defined using the flag --type
 with one of the following values:
 
-	geomod		for a rotation model
+	geomotion	for a plate motion model
 	landscape	for a paleolandscape
 	`,
 	SetFlags: setFlags,
@@ -70,8 +70,8 @@ func run(c *command.Command, args []string) error {
 
 	typeFlag = strings.ToLower(typeFlag)
 	switch d := project.Dataset(typeFlag); d {
-	case project.GeoMod:
-		if err := addGeoMod(p, args[1]); err != nil {
+	case project.GeoMotion:
+		if err := addGeoMotion(p, args[1]); err != nil {
 			return err
 		}
 	case project.Landscape:
@@ -101,7 +101,7 @@ func openProject(name string) (*project.Project, error) {
 	return p, nil
 }
 
-func addGeoMod(p *project.Project, path string) error {
+func addGeoMotion(p *project.Project, path string) error {
 	tot, err := readTotal(path)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func addGeoMod(p *project.Project, path string) error {
 
 	tpPath := p.Path(project.Landscape)
 	if tpPath == "" {
-		p.Add(project.GeoMod, path)
+		p.Add(project.GeoMotion, path)
 		return nil
 	}
 
@@ -119,13 +119,13 @@ func addGeoMod(p *project.Project, path string) error {
 	}
 
 	if eq1, eq2 := tot.Pixelation().Equator(), tp.Pixelation().Equator(); eq1 != eq2 {
-		return fmt.Errorf("geomod file %q: got %d equatorial pixels, want %d", path, eq1, eq2)
+		return fmt.Errorf("geomotion file %q: got %d equatorial pixels, want %d", path, eq1, eq2)
 	}
 	if err := cmpStages(tot.Stages(), tp.Stages()); err != nil {
-		return fmt.Errorf("geomod file %q: %v", path, err)
+		return fmt.Errorf("geomotion file %q: %v", path, err)
 	}
 
-	p.Add(project.GeoMod, path)
+	p.Add(project.GeoMotion, path)
 	return nil
 }
 
@@ -135,7 +135,7 @@ func addLandscape(p *project.Project, path string) error {
 		return err
 	}
 
-	mPath := p.Path(project.GeoMod)
+	mPath := p.Path(project.GeoMotion)
 	if mPath == "" {
 		p.Add(project.Landscape, path)
 		return nil
@@ -143,7 +143,7 @@ func addLandscape(p *project.Project, path string) error {
 
 	tot, err := readTotal(mPath)
 	if err != nil {
-		return fmt.Errorf("while reading GeoModel: %v", err)
+		return fmt.Errorf("while reading GeoMotion: %v", err)
 	}
 
 	if eq1, eq2 := tp.Pixelation().Equator(), tot.Pixelation().Equator(); eq1 != eq2 {
