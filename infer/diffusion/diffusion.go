@@ -27,6 +27,9 @@ type Param struct {
 	// Stage rotation model
 	Rot *model.StageRot
 
+	// Distance matrix
+	DM *earth.DistMat
+
 	// Pixel priors
 	PP pixprob.Pixel
 
@@ -48,6 +51,7 @@ type Tree struct {
 
 	landscape *model.TimePix
 	rot       *model.StageRot
+	dm        *earth.DistMat
 	pp        pixprob.Pixel
 }
 
@@ -58,6 +62,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		nodes:     make(map[int]*node, len(t.Nodes())),
 		landscape: p.Landscape,
 		rot:       p.Rot,
+		dm:        p.DM,
 		pp:        p.PP,
 	}
 	root := &node{

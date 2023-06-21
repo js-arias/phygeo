@@ -30,7 +30,7 @@ var Command = &command.Command{
 	Usage: `like [--ranges] [--stem <age>] [--lambda <value>]
 	[-p|--particles <number>]
 	[-o|--output <file>]
-	[--cpu <number>] <project-file>`,
+	[--cpu <number>] [--nomat] <project-file>`,
 	Short: "perform a likelihood reconstruction",
 	Long: `
 Command like reads a PhyGeo project, perform a likelihood reconstruction for
@@ -64,6 +64,11 @@ resulting file will be: 'out-rhododendron.tab-vireya-1.000000x1000.tab'.
 
 By default, all available CPUs will be used in the processing. Set --cpu flag
 to use a different number of CPUs.
+
+By default, if the base pixelation is smaller than 500 pixels at the equator,
+it will build a distance matrix to speed up the search. As this matrix
+consumes a lot of memory, this procedure can be disabled using the flag
+--nomat.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -75,6 +80,7 @@ var numCPU int
 var particles int
 var output string
 var useRanges bool
+var noDMatrix bool
 
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
@@ -85,6 +91,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
+	c.Flags().BoolVar(&noDMatrix, "nomat", false, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -155,9 +162,15 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
+	var dm *earth.DistMat
+	if !noDMatrix {
+		dm, _ = earth.NewDistMat(landscape.Pixelation())
+	}
+
 	param := diffusion.Param{
 		Landscape: landscape,
 		Rot:       rot,
+		DM:        dm,
 		PP:        pp,
 		Ranges:    rc,
 		Lambda:    lambdaFlag,
