@@ -26,7 +26,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `integrate [--ranges] [--stem <age>]
-	[--min <float>] [--max <float>] [--parts <number>]
+	[--min <float>] [--max <float>] [--mc <number>] [--parts <number>]
 	[--cpu <number>] [--nomat] <project-file>`,
 	Short: "integrate numerically the likelihood curve",
 	Long: `
@@ -47,8 +47,10 @@ The flags --min and --max defines the bounds for the values of the lambda
 parameter of von Mises-Fisher distribution). The units of the lambda parameter
 are in 1/radians^2. The default values are 0 and 1000.
 
-The flag --parts indicates the number of segments using for the integration.
-The default value is 1000.
+By default the command performs an stepwise integration, the flag --parts
+indicates the number of segments using for the integration. The default value
+is 1000. If the flag --mc is defined, it will perform a Monte Carlo
+integration using the indicated number of samples.
 
 Results will be written in the standard output, as a TSV table with the
 following columns:
@@ -71,6 +73,7 @@ consumes a lot of memory, this procedure can be disabled using the flag
 
 var minFlag float64
 var maxFlag float64
+var mcParts int
 var parts int
 var numCPU int
 var stemAge float64
@@ -82,6 +85,7 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&maxFlag, "max", 1000, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
+	c.Flags().IntVar(&mcParts, "mc", 0, "")
 	c.Flags().IntVar(&parts, "parts", 1000, "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
 	c.Flags().BoolVar(&noDMatrix, "nomat", false, "")
@@ -175,6 +179,10 @@ func run(c *command.Command, args []string) error {
 	}
 
 	fmt.Fprintf(c.Stdout(), "tree\tlambda\tlogLike\n")
+	fnInt := integrate
+	if mcParts > 0 {
+		fnInt = monteCarlo
+	}
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		stem := int64(stemAge * 1_000_000)
@@ -182,7 +190,7 @@ func run(c *command.Command, args []string) error {
 			stem = t.Age(t.Root()) / 10
 		}
 		param.Stem = stem
-		integrate(c.Stdout(), t, param)
+		fnInt(c.Stdout(), t, param)
 	}
 
 	return nil
@@ -197,6 +205,18 @@ func integrate(w io.Writer, t *timetree.Tree, p diffusion.Param) {
 		like := df.LogLike()
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\n", name, i, like)
+	}
+}
+
+func monteCarlo(w io.Writer, t *timetree.Tree, p diffusion.Param) {
+	name := t.Name()
+	size := maxFlag - minFlag
+	for i := 0; i < mcParts; i++ {
+		p.Lambda = rand.Float64()*size + minFlag
+		df := diffusion.New(t, p)
+		like := df.LogLike()
+
+		fmt.Fprintf(w, "%s\t%.6f\t%.6f\n", name, p.Lambda, like)
 	}
 }
 
