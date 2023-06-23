@@ -198,7 +198,7 @@ func run(c *command.Command, args []string) error {
 			df := diffusion.New(t, param)
 			like := df.LogLike()
 			b.logLike = like
-			b.t = df
+			fmt.Fprintf(c.Stderr(), "%s\t%.6f\t%.6f\t%.6f\n", tn, lambdaFlag, like, stepFlag)
 		}
 		b.first(c.Stdout(), t, param, stepFlag)
 		for step := stepFlag / 2; step > stopFlag; step = step / 2 {
@@ -209,11 +209,13 @@ func run(c *command.Command, args []string) error {
 		if particles < 1 {
 			continue
 		}
+		param.Lambda = b.lambda
+		df := diffusion.New(t, param)
 		name := fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
 		if output != "" {
 			name = output + "-" + name
 		}
-		if err := b.upPass(name, args[0]); err != nil {
+		if err := b.upPass(name, args[0], df); err != nil {
 			return err
 		}
 	}
@@ -225,7 +227,6 @@ func run(c *command.Command, args []string) error {
 type bestRec struct {
 	lambda  float64
 	logLike float64
-	t       *diffusion.Tree
 }
 
 func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step float64) {
@@ -244,7 +245,6 @@ func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step f
 		}
 		b.lambda = l
 		b.logLike = like
-		b.t = df
 		upOK = true
 	}
 	// we found an improvement
@@ -264,7 +264,6 @@ func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step f
 		}
 		b.lambda = l
 		b.logLike = like
-		b.t = df
 	}
 }
 
@@ -286,12 +285,11 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 		// we found an improvement
 		b.lambda = p.Lambda
 		b.logLike = like
-		b.t = df
 		return
 	}
 
 	// go down
-	if b.lambda < step {
+	if b.lambda <= step {
 		return
 	}
 	p.Lambda = b.lambda - step
@@ -302,7 +300,6 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 		// we found an improvement
 		b.lambda = p.Lambda
 		b.logLike = like
-		b.t = df
 		return
 	}
 }
@@ -381,7 +378,7 @@ func readRanges(name string) (*ranges.Collection, error) {
 	return coll, nil
 }
 
-func (b *bestRec) upPass(name, p string) (err error) {
+func (b *bestRec) upPass(name, p string, t *diffusion.Tree) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -395,13 +392,13 @@ func (b *bestRec) upPass(name, p string) (err error) {
 
 	w := bufio.NewWriter(f)
 
-	tsv, err := outHeader(w, b.t.Name(), p, b.lambda, b.logLike)
+	tsv, err := outHeader(w, t.Name(), p, b.lambda, b.logLike)
 	if err != nil {
 		return fmt.Errorf("while writing header on %q: %v", name, err)
 	}
 
 	for i := 0; i < particles; i++ {
-		m := b.t.Simulate()
+		m := t.Simulate()
 		if err := writeUpPass(tsv, i, m); err != nil {
 			return fmt.Errorf("while writing data on %q: %v", name, err)
 		}
