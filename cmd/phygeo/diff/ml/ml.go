@@ -8,14 +8,11 @@
 package ml
 
 import (
-	"bufio"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"runtime"
-	"strconv"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
@@ -25,14 +22,11 @@ import (
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
-	"golang.org/x/exp/slices"
 )
 
 var Command = &command.Command{
 	Usage: `ml [--ranges] [--stem <age>]
 	[--lambda <value>] [--step <value>] [--stop <value>]
-	[-p|--particles <number>]
-	[-o|--output <file>]
 	[--cpu <number>] [--nomat] <project-file>`,
 	Short: "search the maximum likelihood estimate",
 	Long: `
@@ -53,13 +47,6 @@ By default, an stem branch will be added to each tree using the 10% of the root
 age. To set a different stem age use the flag --stem, the value should be in
 million years.
 
-By default, only performs the search for the lambda value. Use the flag
---particles, or -p, to set the number of particles using a stochastic mapping
-to retrieve also the estimation of the ancestral pixels. In this case the
-results will be writing on a TSV file using the project name, the lambda
-value, and the number of particles. If the flag -o, or --output is defined,
-the indicated string will be used as a prefix for the file.
-
 By default, all available CPUs will be used in the processing. Set --cpu flag
 to use a different number of CPUs.
 
@@ -77,8 +64,6 @@ var stemAge float64
 var stepFlag float64
 var stopFlag float64
 var numCPU int
-var particles int
-var output string
 var useRanges bool
 var noDMatrix bool
 
@@ -88,10 +73,6 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&stepFlag, "step", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.NumCPU(), "")
-	c.Flags().IntVar(&particles, "particles", 0, "")
-	c.Flags().IntVar(&particles, "p", 0, "")
-	c.Flags().StringVar(&output, "output", "", "")
-	c.Flags().StringVar(&output, "o", "", "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
 	c.Flags().BoolVar(&noDMatrix, "nomat", false, "")
 }
@@ -205,19 +186,6 @@ func run(c *command.Command, args []string) error {
 			b.search(c.Stdout(), t, param, step)
 		}
 		fmt.Fprintf(c.Stdout(), "# %s\t%.6f\t%.6f\t<--- best value\n", tn, b.lambda, b.logLike)
-
-		if particles < 1 {
-			continue
-		}
-		param.Lambda = b.lambda
-		df := diffusion.New(t, param)
-		name := fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
-		if output != "" {
-			name = output + "-" + name
-		}
-		if err := b.upPass(name, args[0], df); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -376,85 +344,4 @@ func readRanges(name string) (*ranges.Collection, error) {
 	}
 
 	return coll, nil
-}
-
-func (b *bestRec) upPass(name, p string, t *diffusion.Tree) (err error) {
-	f, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		e := f.Close()
-		if err == nil && e != nil {
-			err = e
-		}
-	}()
-
-	w := bufio.NewWriter(f)
-
-	tsv, err := outHeader(w, t.Name(), p, b.lambda, b.logLike)
-	if err != nil {
-		return fmt.Errorf("while writing header on %q: %v", name, err)
-	}
-
-	for i := 0; i < particles; i++ {
-		m := t.Simulate()
-		if err := writeUpPass(tsv, i, m); err != nil {
-			return fmt.Errorf("while writing data on %q: %v", name, err)
-		}
-	}
-
-	tsv.Flush()
-	if err := tsv.Error(); err != nil {
-		return fmt.Errorf("while writing data on %q: %v", name, err)
-	}
-	if err := w.Flush(); err != nil {
-		return fmt.Errorf("while writing data on %q: %v", name, err)
-	}
-	return nil
-}
-
-func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, error) {
-	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t, p)
-	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
-	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
-	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
-
-	tsv := csv.NewWriter(w)
-	tsv.Comma = '\t'
-	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "particle", "node", "age", "from", "to"}); err != nil {
-		return nil, err
-	}
-
-	return tsv, nil
-}
-
-func writeUpPass(tsv *csv.Writer, p int, m *diffusion.Mapping) error {
-	nodes := m.Nodes()
-
-	for _, id := range nodes {
-		n := m.Node(id)
-		stages := make([]int64, 0, len(n.Stages))
-		for a := range n.Stages {
-			stages = append(stages, a)
-		}
-		slices.Sort(stages)
-
-		for _, a := range stages {
-			st := n.Stages[a]
-			row := []string{
-				m.Name,
-				strconv.Itoa(p),
-				strconv.Itoa(n.ID),
-				strconv.FormatInt(a, 10),
-				strconv.Itoa(st.From),
-				strconv.Itoa(st.To),
-			}
-			if err := tsv.Write(row); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
