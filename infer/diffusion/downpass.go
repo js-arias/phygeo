@@ -28,9 +28,10 @@ type answerChan struct {
 	logLike float64
 }
 
-func pixLike(likeChan chan likeChanType, answer chan answerChan) {
+func pixLike(likeChan chan likeChanType, answer chan answerChan, size int) {
+	prob := make([]float64, 0, size)
 	for c := range likeChan {
-		prob := make([]float64, 0, len(c.logLike))
+		prob = prob[:0]
 		max := -math.MaxFloat64
 
 		if c.dm != nil {
@@ -155,7 +156,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 	likeChan := make(chan likeChanType, numCPU*2)
 	answer := make(chan answerChan, numCPU*2)
 	for i := 0; i < numCPU; i++ {
-		go pixLike(likeChan, answer)
+		go pixLike(likeChan, answer, t.landscape.Pixelation().Len())
 	}
 
 	// update descendant log like
@@ -203,7 +204,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 }
 
 func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int]float64 {
-	logPrior := make(map[int]float64)
+	logPrior := make(map[int]float64, len(pp.Values()))
 	for _, v := range pp.Values() {
 		p := pp.Prior(v)
 		if p == 0 {
@@ -228,7 +229,7 @@ func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int
 // add the prior of each pixel
 // and return an array with the pixels and its updated conditional likelihoods.
 func prepareLogLikePix(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) []logLikePix {
-	logPrior := make(map[int]float64)
+	logPrior := make(map[int]float64, len(pp.Values()))
 	for _, v := range pp.Values() {
 		p := pp.Prior(v)
 		if p == 0 {
