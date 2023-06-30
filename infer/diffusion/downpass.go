@@ -161,7 +161,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 
 	// update descendant log like
 	// with the arrival priors
-	endLike := prepareLogLikePix(ts.logLike, stage, t.pp)
+	endLike := prepareLogLikePix(ts.logLike, stage, t.pp, ts.node.pixTmp)
 
 	go func() {
 		// send the pixels
@@ -228,7 +228,7 @@ func addPrior(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) map[int
 // PrepareLogLikePix takes a map of pixels and conditional likelihoods,
 // add the prior of each pixel
 // and return an array with the pixels and its updated conditional likelihoods.
-func prepareLogLikePix(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel) []logLikePix {
+func prepareLogLikePix(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel, lp []logLikePix) []logLikePix {
 	logPrior := make(map[int]float64, len(pp.Values()))
 	for _, v := range pp.Values() {
 		p := pp.Prior(v)
@@ -238,7 +238,7 @@ func prepareLogLikePix(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel
 		logPrior[v] = math.Log(p)
 	}
 
-	lp := make([]logLikePix, 0, len(logLike))
+	lp = lp[:0]
 	for px, p := range logLike {
 		prior, ok := logPrior[tp[px]]
 		if !ok {
@@ -249,6 +249,5 @@ func prepareLogLikePix(logLike map[int]float64, tp map[int]int, pp pixprob.Pixel
 			logLike: p + prior,
 		})
 	}
-
 	return lp
 }

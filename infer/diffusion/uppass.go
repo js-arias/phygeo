@@ -11,7 +11,6 @@ import (
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixprob"
 	"golang.org/x/exp/rand"
 	"golang.org/x/exp/slices"
 )
@@ -169,7 +168,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 			}
 		}
 
-		sd := ts.simulation(t.landscape, rot, t.pp, source)
+		sd := ts.simulation(t, rot, source, n.pixTmp)
 		nm.Stages[ts.age] = sd
 		source = sd.To
 
@@ -216,57 +215,87 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 	var wg sync.WaitGroup
 	for _, cID := range children {
 		c := t.nodes[cID]
+		var d []logLikePix
 		wg.Add(1)
-		go func(c *node) {
+		go func(c *node, d []logLikePix) {
 			c.simulate(t, m, source)
 			wg.Done()
-		}(c)
+		}(c, d)
 	}
 	wg.Wait()
 }
 
-func (ts *timeStage) simulation(tp *model.TimePix, rot *model.Rotation, pp pixprob.Pixel, source int) SrcDest {
+func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, density []logLikePix) SrcDest {
+	tp := t.landscape
+	pp := t.pp
 	pix := tp.Pixelation()
 
 	tpv := tp.Stage(tp.ClosestStageAge(ts.age))
 
-	pt1 := pix.ID(source).Point()
 	// calculates the density for the destination pixels
-	density := make(map[int]float64, len(ts.logLike))
-	pixels := make([]int, 0, len(ts.logLike))
+	density = density[:0]
 	max := -math.MaxFloat64
-	for px, p := range ts.logLike {
-		if rot != nil {
-			// skip pixels that are invalid in the next stage rotation
-			pxs := rot.Rot[px]
-			if len(pxs) == 0 {
+
+	if t.dm != nil {
+		// use distance matrix
+		for px, p := range ts.logLike {
+			if rot != nil {
+				// skip pixels that are invalid in the next stage rotation
+				pxs := rot.Rot[px]
+				if len(pxs) == 0 {
+					continue
+				}
+			}
+			prior := pp.Prior(tpv[px])
+			if prior == 0 {
 				continue
 			}
+			p += ts.pdf.LogProbRingDist(t.dm.At(source, px)) + math.Log(prior)
+			density = append(density, logLikePix{
+				px:      px,
+				logLike: p,
+			})
+			if p > max {
+				max = p
+			}
 		}
-		prior := tpv[px]
-		if prior == 0 {
-			continue
-		}
+	} else {
+		pt1 := pix.ID(source).Point()
+		for px, p := range ts.logLike {
+			if rot != nil {
+				// skip pixels that are invalid in the next stage rotation
+				pxs := rot.Rot[px]
+				if len(pxs) == 0 {
+					continue
+				}
+			}
+			prior := pp.Prior(tpv[px])
+			if prior == 0 {
+				continue
+			}
 
-		pt2 := pix.ID(px).Point()
-		dist := earth.Distance(pt1, pt2)
-		p += ts.pdf.LogProb(dist)
-		density[px] = p
-		if p > max {
-			max = p
+			pt2 := pix.ID(px).Point()
+			dist := earth.Distance(pt1, pt2)
+			p += ts.pdf.LogProb(dist) + math.Log(prior)
+			density = append(density, logLikePix{
+				px:      px,
+				logLike: p,
+			})
+			if p > max {
+				max = p
+			}
 		}
-		pixels = append(pixels, px)
 	}
 
 	// Pick a random pixel taking into account
 	// the density for the destination.
 	for {
-		px := pixels[rand.Intn(len(pixels))]
-		accept := math.Exp(density[px] - max)
+		i := rand.Intn(len(density))
+		accept := math.Exp(density[i].logLike - max)
 		if rand.Float64() < accept {
 			return SrcDest{
 				From: source,
-				To:   px,
+				To:   density[i].px,
 			}
 		}
 	}
