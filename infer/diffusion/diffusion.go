@@ -53,6 +53,7 @@ type Tree struct {
 	rot       *model.StageRot
 	dm        *earth.DistMat
 	pp        pixprob.Pixel
+	logPrior  map[int]float64
 }
 
 // New creates a new tree by copying the indicated source tree.
@@ -64,7 +65,16 @@ func New(t *timetree.Tree, p Param) *Tree {
 		rot:       p.Rot,
 		dm:        p.DM,
 		pp:        p.PP,
+		logPrior:  make(map[int]float64, len(p.PP.Values())),
 	}
+	for _, v := range p.PP.Values() {
+		p := p.PP.Prior(v)
+		if p == 0 {
+			continue
+		}
+		nt.logPrior[v] = math.Log(p)
+	}
+
 	root := &node{
 		id:     t.Root(),
 		pixTmp: make([]logLikePix, 0, p.Landscape.Pixelation().Len()),

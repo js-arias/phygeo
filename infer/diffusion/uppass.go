@@ -227,7 +227,6 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 
 func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, density []logLikePix) SrcDest {
 	tp := t.landscape
-	pp := t.pp
 	pix := tp.Pixelation()
 
 	tpv := tp.Stage(tp.ClosestStageAge(ts.age))
@@ -246,11 +245,11 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 					continue
 				}
 			}
-			prior := pp.Prior(tpv[px])
-			if prior == 0 {
+			prior, ok := t.logPrior[tpv[px]]
+			if !ok {
 				continue
 			}
-			p += ts.pdf.LogProbRingDist(t.dm.At(source, px)) + math.Log(prior)
+			p += ts.pdf.LogProbRingDist(t.dm.At(source, px)) + prior
 			density = append(density, logLikePix{
 				px:      px,
 				logLike: p,
@@ -269,14 +268,14 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 					continue
 				}
 			}
-			prior := pp.Prior(tpv[px])
-			if prior == 0 {
+			prior, ok := t.logPrior[tpv[px]]
+			if !ok {
 				continue
 			}
 
 			pt2 := pix.ID(px).Point()
 			dist := earth.Distance(pt1, pt2)
-			p += ts.pdf.LogProb(dist) + math.Log(prior)
+			p += ts.pdf.LogProb(dist) + prior
 			density = append(density, logLikePix{
 				px:      px,
 				logLike: p,
