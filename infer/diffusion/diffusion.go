@@ -77,7 +77,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 
 	root := &node{
 		id:     t.Root(),
-		pixTmp: make([]logLikePix, 0, p.Landscape.Pixelation().Len()),
+		pixTmp: make([]likePix, 0, p.Landscape.Pixelation().Len()),
 	}
 	nt.nodes[root.id] = root
 	root.copySource(nt, p.Landscape, p.Stem)
@@ -141,7 +141,7 @@ type node struct {
 
 	lambda float64
 
-	pixTmp []logLikePix
+	pixTmp []likePix
 }
 
 const millionYears = 1_000_000
@@ -151,7 +151,7 @@ func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64) {
 	for _, c := range children {
 		nc := &node{
 			id:     c,
-			pixTmp: make([]logLikePix, 0, tp.Pixelation().Len()),
+			pixTmp: make([]likePix, 0, tp.Pixelation().Len()),
 		}
 		nc.copySource(t, tp, stem)
 		t.nodes[nc.id] = nc

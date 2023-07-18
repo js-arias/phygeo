@@ -215,9 +215,9 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 	var wg sync.WaitGroup
 	for _, cID := range children {
 		c := t.nodes[cID]
-		var d []logLikePix
+		var d []likePix
 		wg.Add(1)
-		go func(c *node, d []logLikePix) {
+		go func(c *node, d []likePix) {
 			c.simulate(t, m, source)
 			wg.Done()
 		}(c, d)
@@ -225,7 +225,7 @@ func (n *node) simulate(t *Tree, m *Mapping, source int) {
 	wg.Wait()
 }
 
-func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, density []logLikePix) SrcDest {
+func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, density []likePix) SrcDest {
 	tp := t.landscape
 	pix := tp.Pixelation()
 
@@ -250,9 +250,9 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 				continue
 			}
 			p += ts.pdf.LogProbRingDist(t.dm.At(source, px)) + prior
-			density = append(density, logLikePix{
-				px:      px,
-				logLike: p,
+			density = append(density, likePix{
+				px:   px,
+				like: p,
 			})
 			if p > max {
 				max = p
@@ -276,9 +276,9 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 			pt2 := pix.ID(px).Point()
 			dist := earth.Distance(pt1, pt2)
 			p += ts.pdf.LogProb(dist) + prior
-			density = append(density, logLikePix{
-				px:      px,
-				logLike: p,
+			density = append(density, likePix{
+				px:   px,
+				like: p,
 			})
 			if p > max {
 				max = p
@@ -290,7 +290,7 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 	// the density for the destination.
 	for {
 		i := rand.Intn(len(density))
-		accept := math.Exp(density[i].logLike - max)
+		accept := math.Exp(density[i].like - max)
 		if rand.Float64() < accept {
 			return SrcDest{
 				From: source,

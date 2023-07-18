@@ -14,12 +14,13 @@ import (
 )
 
 type likeChanType struct {
-	pixel   int
-	pix     *earth.Pixelation
-	dm      *earth.DistMat
-	logLike []logLikePix
-	pdf     dist.Normal
-	wg      *sync.WaitGroup
+	pixel int
+	pix   *earth.Pixelation
+	dm    *earth.DistMat
+	like  []likePix
+	max   float64
+	pdf   dist.Normal
+	wg    *sync.WaitGroup
 }
 
 type answerChan struct {
@@ -28,44 +29,33 @@ type answerChan struct {
 }
 
 func pixLike(likeChan chan likeChanType, answer chan answerChan, size int) {
-	prob := make([]float64, 0, size)
 	for c := range likeChan {
-		prob = prob[:0]
-		max := -math.MaxFloat64
-
+		var sum, pdfSum float64
 		if c.dm != nil {
 			// use the distance matrix
-			for _, pL := range c.logLike {
-				p := c.pdf.LogProbRingDist(c.dm.At(c.pixel, pL.px)) + pL.logLike
-				prob = append(prob, p)
-				if p > max {
-					max = p
-				}
+			for _, cL := range c.like {
+				sum += c.pdf.ProbRingDist(c.dm.At(c.pixel, cL.px)) * cL.like
+				pdfSum += c.pdf.ProbRingDist(c.dm.At(c.pixel, cL.px))
 			}
 		} else {
 			// use raw distance
 			pt1 := c.pix.ID(c.pixel).Point()
-			for _, pL := range c.logLike {
-				pt2 := c.pix.ID(pL.px).Point()
+			for _, cL := range c.like {
+				pt2 := c.pix.ID(cL.px).Point()
 				dist := earth.Distance(pt1, pt2)
-				p := c.pdf.LogProb(dist) + pL.logLike
-				prob = append(prob, p)
-				if p > max {
-					max = p
-				}
+				sum += c.pdf.Prob(dist) * cL.like
 			}
 		}
 
-		var sum float64
-		for _, p := range prob {
-			sum += math.Exp(p - max)
-		}
-		pixLike := -math.MaxFloat64
+		pixID := -1
+		var pixLike float64
 		if sum > 0 {
-			pixLike = math.Log(sum) + max
+			pixID = c.pixel
+			pixLike = math.Log(sum) + c.max
 		}
+
 		answer <- answerChan{
-			pixel:   c.pixel,
+			pixel:   pixID,
 			logLike: pixLike,
 		}
 		c.wg.Done()
@@ -136,10 +126,10 @@ func (n *node) conditional(t *Tree) {
 	}
 }
 
-// LogLikePix stores the conditional likelihood of a pixel.
-type logLikePix struct {
-	px      int     // Pixel ID
-	logLike float64 // conditional likelihood
+// LikePix stores the conditional likelihood of a pixel.
+type likePix struct {
+	px   int     // Pixel ID
+	like float64 // conditional likelihood
 }
 
 // Conditional calculates the conditional likelihood
@@ -160,7 +150,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 
 	// update descendant log like
 	// with the arrival priors
-	endLike := prepareLogLikePix(ts.logLike, t.logPrior, stage, ts.node.pixTmp)
+	endLike, max := prepareLogLikePix(ts.logLike, t.logPrior, stage, ts.node.pixTmp)
 
 	go func() {
 		// send the pixels
@@ -181,12 +171,13 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 
 			wg.Add(1)
 			likeChan <- likeChanType{
-				pixel:   px,
-				pix:     t.landscape.Pixelation(),
-				dm:      t.dm,
-				logLike: endLike,
-				pdf:     ts.pdf,
-				wg:      &wg,
+				pixel: px,
+				pix:   t.landscape.Pixelation(),
+				dm:    t.dm,
+				like:  endLike,
+				max:   max,
+				pdf:   ts.pdf,
+				wg:    &wg,
 			}
 		}
 		wg.Wait()
@@ -195,6 +186,10 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 
 	logLike := make(map[int]float64, len(stage))
 	for a := range answer {
+		// skip invalid pixels
+		if a.pixel < 0 {
+			continue
+		}
 		logLike[a.pixel] = a.logLike
 	}
 	close(likeChan)
@@ -217,18 +212,30 @@ func addPrior(logLike, logPrior map[int]float64, tp map[int]int) map[int]float64
 
 // PrepareLogLikePix takes a map of pixels and conditional likelihoods,
 // add the prior of each pixel
-// and return an array with the pixels and its updated conditional likelihoods.
-func prepareLogLikePix(logLike, logPrior map[int]float64, tp map[int]int, lp []logLikePix) []logLikePix {
+// and return an array with the pixels and its normalized (non-log) conditional likelihoods,
+// and the normalization factor (in log form).
+func prepareLogLikePix(logLike, logPrior map[int]float64, tp map[int]int, lp []likePix) ([]likePix, float64) {
+	max := -math.MaxFloat64
 	lp = lp[:0]
 	for px, p := range logLike {
 		prior, ok := logPrior[tp[px]]
 		if !ok {
 			continue
 		}
-		lp = append(lp, logLikePix{
-			px:      px,
-			logLike: p + prior,
+		p += prior
+		lp = append(lp, likePix{
+			px:   px,
+			like: p,
 		})
+		if p > max {
+			max = p
+		}
 	}
-	return lp
+
+	// likelihood standardization
+	for i, pv := range lp {
+		lp[i].like = math.Exp(pv.like - max)
+	}
+
+	return lp, max
 }
