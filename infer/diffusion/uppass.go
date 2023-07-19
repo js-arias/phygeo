@@ -10,56 +10,26 @@ import (
 	"time"
 
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/model"
 	"golang.org/x/exp/rand"
-	"golang.org/x/exp/slices"
 )
 
 func init() {
 	rand.Seed(uint64(time.Now().UnixNano()))
 }
 
-// Mapping stores the result of an stochastic mapping
-// simulation.
-type Mapping struct {
-	// Name of the tree
-	Name string
-
-	// A map of node IDs to a node reconstruction
-	mu    sync.Mutex
-	nodes map[int]*NodeMap
+type simChan struct {
+	particle int
+	answer   chan struct{}
 }
 
-func (m *Mapping) Node(id int) *NodeMap {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.nodes[id]
-}
-
-func (m *Mapping) Nodes() []int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	nodes := make([]int, 0, len(m.nodes))
-	for _, n := range m.nodes {
-		nodes = append(nodes, n.ID)
+func doSim(pc chan simChan, t *Tree, size int) {
+	density := make([]likePix, 0, size)
+	for c := range pc {
+		root := t.nodes[t.t.Root()]
+		source := t.simulateRoot(c.particle, density)
+		root.simulate(t, c.particle, source, density)
+		c.answer <- struct{}{}
 	}
-	slices.Sort(nodes)
-
-	return nodes
-}
-
-// NodeMap contains the results of an stochastic mapping
-// in a particular node.
-type NodeMap struct {
-	// ID of the node
-	ID int
-
-	// Stages is a map of age stages
-	// to the pixels at that particular stage age
-	// (in million years)
-	Stages map[int64]SrcDest
 }
 
 // SrcDest contains the pixels of a particle simulation.
@@ -71,185 +41,124 @@ type SrcDest struct {
 	To int
 }
 
-// Simulate performs an stochastic mapping
-// simulation.
-func (t *Tree) Simulate() *Mapping {
-	m := &Mapping{
-		Name:  t.Name(),
-		nodes: make(map[int]*NodeMap, len(t.nodes)),
-	}
-
-	// pick source at the root
+// Simulate performs stochastic mappings
+// for the given number of particles.
+func (t *Tree) Simulate(particles int) {
 	root := t.nodes[t.t.Root()]
-	ts := root.stages[0]
-	// get a rotation if change in stage
-	age := t.rot.ClosestStageAge(ts.age)
-	next := t.rot.ClosestStageAge(ts.age - 1)
-	var rot *model.Rotation
-	var tp map[int]int
-	if age != next {
-		rot = t.rot.OldToYoung(age)
-		tp = t.landscape.Stage(rot.To)
-	}
+	root.scaleLike(t, particles)
 
-	// get the source pixel probabilities
-	pixels := make([]int, 0, len(ts.logLike))
-	max := -math.MaxFloat64
-	for px, p := range ts.logLike {
-		if rot != nil {
-			pxs := rot.Rot[px]
-			if len(pxs) == 0 {
-				continue
-			}
-		}
-		if p > max {
-			max = p
-		}
-		pixels = append(pixels, px)
-	}
-
-	// pick a source pixel
-	var source int
-	for {
-		px := pixels[rand.Intn(len(pixels))]
-		accept := math.Exp(ts.logLike[px] - max)
-		if rand.Float64() < accept {
-			source = px
-			break
-		}
-	}
-
-	// rotate if change in stage
-	if rot != nil {
-		pxs := rot.Rot[source]
-		source = pxs[0]
-		if len(pxs) > 1 {
-			// pick one of the pixels at random
-			// based on the prior
-			var max float64
-			for _, px := range pxs {
-				prior := t.pp.Prior(tp[px])
-				if prior > max {
-					max = prior
-				}
-			}
-			for {
-				px := pxs[rand.Intn(len(pxs))]
-				accept := t.pp.Prior(tp[px]) / max
-				if rand.Float64() < accept {
-					source = px
-					break
-				}
-			}
-		}
-	}
-
-	// make simulation
-	root.simulate(t, m, source)
-
-	return m
-}
-
-func (n *node) simulate(t *Tree, m *Mapping, source int) {
-	nm := &NodeMap{
-		ID:     n.id,
-		Stages: make(map[int64]SrcDest, len(n.stages)-1),
-	}
-
-	for i := 1; i < len(n.stages); i++ {
-		ts := n.stages[i]
-
-		var rot *model.Rotation
-		if !ts.isTerm {
-			age := t.rot.ClosestStageAge(ts.age)
-			next := t.rot.ClosestStageAge(ts.age - 1)
-			if age != next {
-				rot = t.rot.OldToYoung(age)
-			}
-		}
-
-		sd := ts.simulation(t, rot, source, n.pixTmp)
-		nm.Stages[ts.age] = sd
-		source = sd.To
-
-		if ts.isTerm {
-			continue
-		}
-		if rot == nil {
-			continue
-		}
-
-		// rotate if change in stage
-		pxs := rot.Rot[source]
-		source = pxs[0]
-		if len(pxs) > 1 {
-			// pick one of the pixels at random
-			// based on the prior
-			tp := t.landscape.Stage(t.landscape.ClosestStageAge(rot.To))
-			var max float64
-			for _, px := range pxs {
-				prior := t.pp.Prior(tp[px])
-				if prior > max {
-					max = prior
-				}
-			}
-			for {
-				px := pxs[rand.Intn(len(pxs))]
-				accept := t.pp.Prior(tp[px]) / max
-				if rand.Float64() < accept {
-					source = px
-					break
-				}
-			}
-		}
-	}
-	m.mu.Lock()
-	m.nodes[n.id] = nm
-	m.mu.Unlock()
-
-	children := t.t.Children(n.id)
-	if len(children) == 0 {
-		return
+	sChan := make(chan simChan, numCPU*2)
+	for i := 0; i < numCPU; i++ {
+		go doSim(sChan, t, t.landscape.Pixelation().Len())
 	}
 
 	var wg sync.WaitGroup
-	for _, cID := range children {
-		c := t.nodes[cID]
-		var d []likePix
+	for p := 0; p < particles; p++ {
 		wg.Add(1)
-		go func(c *node, d []likePix) {
-			c.simulate(t, m, source)
+		go func(p int) {
+			a := make(chan struct{})
+			sChan <- simChan{
+				particle: p,
+				answer:   a,
+			}
+			<-a
 			wg.Done()
-		}(c, d)
+		}(p)
 	}
 	wg.Wait()
 }
 
-func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, density []likePix) SrcDest {
-	tp := t.landscape
-	pix := tp.Pixelation()
+func (n *node) scaleLike(t *Tree, p int) {
+	for _, st := range n.stages {
+		st.particles = make([]SrcDest, p)
+		st.scaled = make(map[int]float64, len(st.logLike))
 
-	tpv := tp.Stage(tp.ClosestStageAge(ts.age))
+		tp := t.landscape.Stage(t.landscape.ClosestStageAge(st.age))
+		rot := t.rot.OldToYoung(st.age)
 
-	// calculates the density for the destination pixels
-	density = density[:0]
-	max := -math.MaxFloat64
-
-	if t.dm != nil {
-		// use distance matrix
-		for px, p := range ts.logLike {
-			if rot != nil {
-				// skip pixels that are invalid in the next stage rotation
-				pxs := rot.Rot[px]
-				if len(pxs) == 0 {
-					continue
-				}
-			}
-			prior, ok := t.logPrior[tpv[px]]
+		max := -math.MaxFloat64
+		for px, p := range st.logLike {
+			// skip pixels with 0 prior
+			prior, ok := t.logPrior[tp[px]]
 			if !ok {
 				continue
 			}
-			p += ts.pdf.LogProbRingDist(t.dm.At(source, px)) + prior
+
+			if rot != nil {
+				// skip pixels that are invalid in the next stage rotation
+				if pxs := rot.Rot[px]; len(pxs) == 0 {
+					continue
+				}
+			}
+
+			p += prior
+			st.scaled[px] = p
+			if p > max {
+				max = p
+			}
+		}
+
+		// scale
+		for px, p := range st.scaled {
+			st.scaled[px] = math.Exp(p - max)
+		}
+	}
+
+	for _, c := range t.t.Children(n.id) {
+		nc := t.nodes[c]
+		nc.scaleLike(t, p)
+	}
+}
+
+// SimulateRoot get the first pixel at the root,
+// and return it.
+func (t *Tree) simulateRoot(p int, density []likePix) int {
+	root := t.nodes[t.t.Root()]
+	rs := root.stages[0]
+
+	// set density
+	var max float64
+	density = density[:0]
+	for px, p := range rs.scaled {
+		density = append(density, likePix{
+			px:   px,
+			like: p,
+		})
+		if p > max {
+			max = p
+		}
+	}
+
+	dest := rs.pick(p, -1, max, density)
+	return rotPix(t.rot, t.landscape, dest, rs.age, t.pp)
+}
+
+func (n *node) simulate(t *Tree, p, source int, density []likePix) {
+	n.stages[0].particles[p] = SrcDest{
+		From: source,
+		To:   source,
+	}
+
+	for i := 1; i < len(n.stages); i++ {
+		ts := n.stages[i]
+		source = ts.simulate(t, p, source, density)
+	}
+
+	for _, cID := range t.t.Children(n.id) {
+		c := t.nodes[cID]
+		c.simulate(t, p, source, density)
+	}
+}
+
+func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
+	var max float64
+
+	// calculate density
+	density = density[:0]
+	// use distance matrix
+	if t.dm != nil {
+		for px, p := range ts.scaled {
+			p *= ts.pdf.ProbRingDist(t.dm.At(source, px))
 			density = append(density, likePix{
 				px:   px,
 				like: p,
@@ -259,23 +168,12 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 			}
 		}
 	} else {
+		pix := t.landscape.Pixelation()
 		pt1 := pix.ID(source).Point()
-		for px, p := range ts.logLike {
-			if rot != nil {
-				// skip pixels that are invalid in the next stage rotation
-				pxs := rot.Rot[px]
-				if len(pxs) == 0 {
-					continue
-				}
-			}
-			prior, ok := t.logPrior[tpv[px]]
-			if !ok {
-				continue
-			}
-
+		for px, p := range ts.scaled {
 			pt2 := pix.ID(px).Point()
 			dist := earth.Distance(pt1, pt2)
-			p += ts.pdf.LogProb(dist) + prior
+			p *= ts.pdf.Prob(dist)
 			density = append(density, likePix{
 				px:   px,
 				like: p,
@@ -286,16 +184,27 @@ func (ts *timeStage) simulation(t *Tree, rot *model.Rotation, source int, densit
 		}
 	}
 
-	// Pick a random pixel taking into account
-	// the density for the destination.
+	dest := ts.pick(p, source, max, density)
+	return rotPix(t.rot, t.landscape, dest, ts.age, t.pp)
+}
+
+// Pick pixel picks a pixel from a destination density
+// at the scale of the density,
+// store it,
+// and return the destination pixel.
+func (ts *timeStage) pick(p, source int, scale float64, density []likePix) int {
+	var dest int
 	for {
 		i := rand.Intn(len(density))
-		accept := math.Exp(density[i].like - max)
+		accept := density[i].like / scale
 		if rand.Float64() < accept {
-			return SrcDest{
+			dest = density[i].px
+			ts.particles[p] = SrcDest{
 				From: source,
-				To:   density[i].px,
+				To:   dest,
 			}
+			break
 		}
 	}
+	return dest
 }

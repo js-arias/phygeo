@@ -16,6 +16,7 @@ import (
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
+	"golang.org/x/exp/slices"
 )
 
 // Param is a collection of parameters
@@ -134,6 +135,58 @@ func (t *Tree) Name() string {
 	return t.t.Name()
 }
 
+// Nodes return an slice with IDs
+// of the nodes of the tree.
+func (t *Tree) Nodes() []int {
+	return t.t.Nodes()
+}
+
+// SrcDest return the source and destination pixel
+// for a given node,
+// at a given age stage
+// (in years),
+// for a particular simulation.
+func (t *Tree) SrcDest(n, p int, age int64) SrcDest {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return SrcDest{From: -1, To: -1}
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return SrcDest{From: -1, To: -1}
+	}
+
+	if p >= len(nn.stages[i].particles) {
+		return SrcDest{From: -1, To: -1}
+	}
+	return nn.stages[i].particles[p]
+}
+
+// Stages return age of the stages of a node
+// (i.e., internodes)
+// in years.
+func (t *Tree) Stages(n int) []int64 {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return nil
+	}
+
+	ages := make([]int64, 0, len(nn.stages))
+	for _, st := range nn.stages {
+		ages = append(ages, st.age)
+	}
+	return ages
+}
+
 // A Node is a node in a phylogenetic tree.
 type node struct {
 	id     int
@@ -211,6 +264,13 @@ type timeStage struct {
 
 	// likelihood at each pixel
 	logLike map[int]float64
+
+	// scaled likelihood (not in log-form)
+	// updated with the destination prior
+	scaled map[int]float64
+
+	// store particle locations
+	particles []SrcDest
 
 	pdf dist.Normal
 }

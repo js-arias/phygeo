@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"time"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
@@ -23,7 +24,6 @@ import (
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
-	"golang.org/x/exp/slices"
 )
 
 var Command = &command.Command{
@@ -192,6 +192,7 @@ func run(c *command.Command, args []string) error {
 		if output != "" {
 			name = output + "-" + name
 		}
+
 		if err := upPass(dt, name, args[0], lambdaFlag, particles); err != nil {
 			return err
 		}
@@ -274,6 +275,8 @@ func readRanges(name string) (*ranges.Collection, error) {
 }
 
 func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (err error) {
+	t.Simulate(particles)
+
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -286,15 +289,13 @@ func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (e
 	}()
 
 	w := bufio.NewWriter(f)
-
 	tsv, err := outHeader(w, t.Name(), p, lambda, t.LogLike())
 	if err != nil {
 		return fmt.Errorf("while writing header on %q: %v", name, err)
 	}
 
 	for i := 0; i < particles; i++ {
-		m := t.Simulate()
-		if err := writeUpPass(tsv, i, m); err != nil {
+		if err := writeUpPass(tsv, i, t); err != nil {
 			return fmt.Errorf("while writing data on %q: %v", name, err)
 		}
 	}
@@ -314,6 +315,7 @@ func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, 
 	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
 	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
+	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
 
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
@@ -325,23 +327,23 @@ func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, 
 	return tsv, nil
 }
 
-func writeUpPass(tsv *csv.Writer, p int, m *diffusion.Mapping) error {
-	nodes := m.Nodes()
+func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree) error {
+	nodes := t.Nodes()
 
-	for _, id := range nodes {
-		n := m.Node(id)
-		stages := make([]int64, 0, len(n.Stages))
-		for a := range n.Stages {
-			stages = append(stages, a)
-		}
-		slices.Sort(stages)
-
-		for _, a := range stages {
-			st := n.Stages[a]
+	for _, n := range nodes {
+		stages := t.Stages(n)
+		// skip the first stage
+		// (i.e. the post-split stage)
+		for i := 1; i < len(stages); i++ {
+			a := stages[i]
+			st := t.SrcDest(n, p, a)
+			if st.From == -1 {
+				continue
+			}
 			row := []string{
-				m.Name,
+				t.Name(),
 				strconv.Itoa(p),
-				strconv.Itoa(n.ID),
+				strconv.Itoa(n),
 				strconv.FormatInt(a, 10),
 				strconv.Itoa(st.From),
 				strconv.Itoa(st.To),
