@@ -76,10 +76,11 @@ func (n *node) fullDownPass(t *Tree) {
 		nc.fullDownPass(t)
 	}
 
-	n.conditional(t)
+	pixTmp := make([]likePix, 0, t.landscape.Pixelation().Len())
+	n.conditional(t, pixTmp)
 }
 
-func (n *node) conditional(t *Tree) {
+func (n *node) conditional(t *Tree, pixTmp []likePix) {
 	if !t.t.IsTerm(n.id) {
 		// In an split node
 		// the conditional likelihood is the product of the
@@ -107,7 +108,7 @@ func (n *node) conditional(t *Tree) {
 		age := t.rot.ClosestStageAge(ts.age)
 		next := n.stages[i+1]
 		nextAge := t.rot.ClosestStageAge(next.age)
-		logLike := next.conditional(t, age)
+		logLike := next.conditional(t, age, pixTmp)
 
 		// Rotate if there is an stage change
 		if nextAge != age {
@@ -134,7 +135,7 @@ type likePix struct {
 
 // Conditional calculates the conditional likelihood
 // at a time stage.
-func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
+func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix) map[int]float64 {
 	age := t.landscape.ClosestStageAge(ts.age)
 	var rot *model.Rotation
 	if age != old {
@@ -150,7 +151,7 @@ func (ts *timeStage) conditional(t *Tree, old int64) map[int]float64 {
 
 	// update descendant log like
 	// with the arrival priors
-	endLike, max := prepareLogLikePix(ts.logLike, t.logPrior, stage, ts.node.pixTmp)
+	endLike, max := prepareLogLikePix(ts.logLike, t.logPrior, stage, pixTmp)
 
 	go func() {
 		// send the pixels
