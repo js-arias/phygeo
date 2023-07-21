@@ -34,7 +34,7 @@ import (
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
 	[--kde <value>] [--bound <value>] [-cpu <number>]
-	[--richness]
+	[--richness] [--divtime]
 	[--unrot] [--present] [--contour <image-file>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map of a reconstruction",
@@ -59,7 +59,9 @@ available processors. Use the flag --cpu to change the number of processors.
 
 By default, it will output the results of each node. If the flag --richness is
 defined, then it will output the richness on time, at each time stage (i.e.,
-lineages alive at a given time stage).
+lineages alive at a given time stage). If the flag --divtime is defined, then
+it will output the location of node splits (i.e., diversification points) at
+each time stage.
 
 By default, the ranges will be produced using their respective time stage. If
 the flag --unrot is given, then the estimated ranges will be draw at the
@@ -111,6 +113,7 @@ var grayFlag bool
 var unRot bool
 var present bool
 var richnessFlag bool
+var divTimeFlag bool
 var colsFlag int
 var numCPU int
 var kdeLambda float64
@@ -125,6 +128,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&unRot, "unrot", false, "")
 	c.Flags().BoolVar(&present, "present", false, "")
 	c.Flags().BoolVar(&richnessFlag, "richness", false, "")
+	c.Flags().BoolVar(&divTimeFlag, "divtime", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
@@ -212,6 +216,9 @@ func run(c *command.Command, args []string) error {
 
 	if richnessFlag {
 		return richnessOnTime(inputFile, tot, landscape, keys, norm, pp, contour)
+	}
+	if divTimeFlag {
+		return diversificationOnTime(inputFile, p.Path(project.Trees), tot, landscape, keys, norm, pp, contour)
 	}
 
 	rec, err := getRec(inputFile, landscape)
