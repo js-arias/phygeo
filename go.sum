@@ -8,6 +8,8 @@ github.com/js-arias/earth v0.0.0-20230620203428-664cdbf4ede2 h1:7wy0zP7fMSDY3oxa
 github.com/js-arias/earth v0.0.0-20230620203428-664cdbf4ede2/go.mod h1:wRNxqf4EEx5dS9eB05/nItRy0iFQ21RCSfTNqYYLiTo=
 github.com/js-arias/earth v0.0.0-20230621211535-1de37d530ae4 h1:hLepk8T1vrKNUWPCjlnDXW0v4KrtukOvyYjazRqXtBc=
 github.com/js-arias/earth v0.0.0-20230621211535-1de37d530ae4/go.mod h1:wRNxqf4EEx5dS9eB05/nItRy0iFQ21RCSfTNqYYLiTo=
+github.com/js-arias/earth v0.0.0-20230721175500-9cc2b13a3b4f h1:tayVtRNI6GoLF+BKINa9g98UZ+63GZpsCoLyM+yZM70=
+github.com/js-arias/earth v0.0.0-20230721175500-9cc2b13a3b4f/go.mod h1:wRNxqf4EEx5dS9eB05/nItRy0iFQ21RCSfTNqYYLiTo=
 github.com/js-arias/ranges v0.0.0-20230315153405-51289052acc1 h1:I6gOhc5SnJYr/18CTjeGq8wqw/4yMhMr59lDHrGKltE=
 github.com/js-arias/ranges v0.0.0-20230315153405-51289052acc1/go.mod h1:Xpn4vLhghh3uLGp3K7lK5ZvowgpE5BA7WyfRQEzzVQU=
 github.com/js-arias/ranges v0.0.0-20230613202757-e638a333ee53 h1:M0NjE16duceSM3094f+Q1dfQMImEudbYtK+tBDffg2U=
@@ -18,5 +20,7 @@ github.com/js-arias/timetree v0.0.0-20230613165223-2706da3f245b h1:FyuSSdLcxXgni
 github.com/js-arias/timetree v0.0.0-20230613165223-2706da3f245b/go.mod h1:fj0eyw5uZo4IlDtL3lMABnPJ9iJgIzd6X7u4rL/3Je0=
 golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 h1:k/i9J1pBpvlfR+9QsetwPyERsqu1GIbi967PQMq3Ivc=
 golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1/go.mod h1:V1LtkGg67GoY2N1AnLN78QLrzxkLyJw7RJb1gzOOz9w=
+golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 h1:MGwJjxBy0HJshjDNfLsYO8xppfqWlA5ZT9OhtUUhTNw=
+golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1/go.mod h1:FXUEEKJgO7OQYeo8N01OfiKP8RXMtf6e8aTskBGqWdc=
 gonum.org/v1/gonum v0.13.0 h1:a0T3bh+7fhRyqeNbiC3qVHYmkiQgit3wnNan/2c0HMM=
 gonum.org/v1/gonum v0.13.0/go.mod h1:/WPYRckkfWrhWefxyYTfrTtQR0KH4iyHNuzxqXAKyAU=

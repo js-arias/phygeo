@@ -48,9 +48,9 @@ The flag --input, or -i, is required an indicates the input file.
 
 By default the ranges will be taken as given. If the flag --kde is defined,
 a kernel density estimation using an spherical normal will be done using the
-indicated value as the concentration parameter (in 1/radians^2). Only the
-pixels in the .95 of the maximum value will be used. Use the flag --bound to
-change this bound value.
+indicated value as the concentration parameter (in 1/radians^2). By default,
+only the pixels in the top of the .95 of the CDF will be used. Use the flag
+--bound to change this bound value.
 
 As the number of nodes might be large, and when calculating a KDE the number
 of computations can be large, the process is run in parallel using all
@@ -272,15 +272,8 @@ func procStage(c chan stageChan) {
 		s := sc.rs
 
 		if kdeLambda > 0 {
-			rng := stat.KDE(sc.norm, s.rec, sc.landscape, s.cAge, sc.pp, bound)
+			rng := stat.KDE(sc.norm, s.rec, sc.landscape, s.cAge, sc.pp)
 			s.rec = rng
-			var max float64
-			for _, p := range s.rec {
-				if p > max {
-					max = p
-				}
-			}
-			s.max = max
 		}
 		if unRot {
 			s.tot = sc.tot.Rotation(s.cAge)
@@ -540,7 +533,12 @@ func (rs *recStage) At(x, y int) color.Color {
 			}
 		}
 		if max > 0 {
-			return blind.Gradient(max / rs.max)
+			if kdeLambda <= 0 {
+				return blind.Gradient(max / rs.max)
+			}
+			if max > 1-bound {
+				return blind.Gradient(max)
+			}
 		}
 
 		// Check the value of the pixel
@@ -570,7 +568,12 @@ func (rs *recStage) At(x, y int) color.Color {
 	}
 
 	if p, ok := rs.rec[pix.ID()]; ok {
-		return blind.Gradient(p / rs.max)
+		if kdeLambda <= 0 {
+			return blind.Gradient(p / rs.max)
+		}
+		if p > 1-bound {
+			return blind.Gradient(p)
+		}
 	}
 
 	if rs.keys == nil {
