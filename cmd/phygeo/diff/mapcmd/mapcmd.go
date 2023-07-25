@@ -34,7 +34,7 @@ import (
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
 	[--kde <value>] [--bound <value>] [-cpu <number>]
-	[--richness] [--divtime]
+	[--richness] [--divtime] [--divage <mode>]
 	[--unrot] [--present] [--contour <image-file>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map of a reconstruction",
@@ -61,7 +61,14 @@ By default, it will output the results of each node. If the flag --richness is
 defined, then it will output the richness on time, at each time stage (i.e.,
 lineages alive at a given time stage). If the flag --divtime is defined, then
 it will output the location of node splits (i.e., diversification points) at
-each time stage.
+each time stage. If the flag --divage is defined, with the values "recent",
+"recent-all", "ancient", or "ancient-all", then it will output a map using
+present locations by its age (as done in Bouckaert et al. 2012, Science
+337:957). If "recent" is set, it will use splits, and prefer most recent
+splits over ancient splits. If "recent-all" is set, it will use all locations,
+and prefer most recent locations. If "ancient" is set, it will prefer ancients
+splits over recent splits. If "ancient-all" is set, it will use all locations,
+and prefer most ancient locations.
 
 By default, the ranges will be produced using their respective time stage. If
 the flag --unrot is given, then the estimated ranges will be draw at the
@@ -122,6 +129,7 @@ var keyFile string
 var inputFile string
 var outputPre string
 var contourFile string
+var divAgeFlag string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
@@ -140,6 +148,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outputPre, "output", "", "")
 	c.Flags().StringVar(&outputPre, "o", "", "")
 	c.Flags().StringVar(&contourFile, "contour", "", "")
+	c.Flags().StringVar(&divAgeFlag, "divage", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -148,6 +157,18 @@ func run(c *command.Command, args []string) error {
 	}
 	if inputFile == "" {
 		return c.UsageError("expecting input file, flag --input")
+	}
+	if divAgeFlag != "" {
+		divAgeFlag = strings.ToLower(divAgeFlag)
+		switch divAgeFlag {
+		case "ancient":
+		case "ancient-all":
+		case "recent":
+		case "recent-all":
+		default:
+			msg := fmt.Sprintf("invalid --divage flag value %q", divAgeFlag)
+			return c.UsageError(msg)
+		}
 	}
 
 	p, err := project.Read(args[0])
@@ -174,7 +195,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	var tot *model.Total
-	if unRot {
+	if unRot || divAgeFlag != "" {
 		rotF := p.Path(project.GeoMotion)
 		if rotF == "" {
 			msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
@@ -219,6 +240,10 @@ func run(c *command.Command, args []string) error {
 	}
 	if divTimeFlag {
 		return diversificationOnTime(inputFile, p.Path(project.Trees), tot, landscape, keys, norm, pp, contour)
+	}
+	if divAgeFlag != "" {
+		out := outputPre + "-divage-" + divAgeFlag + ".png"
+		return diversificationAges(inputFile, p.Path(project.Trees), out, tot, landscape, keys, contour)
 	}
 
 	rec, err := getRec(inputFile, landscape)
@@ -615,7 +640,7 @@ func (rs *recStage) At(x, y int) color.Color {
 	return color.RGBA{211, 211, 211, 255}
 }
 
-func writeImage(name string, rs *recStage) (err error) {
+func writeImage(name string, i image.Image) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -627,7 +652,7 @@ func writeImage(name string, rs *recStage) (err error) {
 		}
 	}()
 
-	if err := png.Encode(f, rs); err != nil {
+	if err := png.Encode(f, i); err != nil {
 		return fmt.Errorf("when encoding image file %q: %v", name, err)
 	}
 
