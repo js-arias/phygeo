@@ -11,4 +11,4 @@ require (
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 )
 
-require gonum.org/v1/gonum v0.13.0 // indirect
+require gonum.org/v1/gonum v0.13.0
