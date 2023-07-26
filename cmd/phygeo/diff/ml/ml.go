@@ -182,8 +182,11 @@ func run(c *command.Command, args []string) error {
 			fmt.Fprintf(c.Stderr(), "%s\t%.6f\t%.6f\t%.6f\n", tn, lambdaFlag, like, stepFlag)
 		}
 		b.first(c.Stdout(), t, param, stepFlag)
-		for step := stepFlag / 2; step > stopFlag; step = step / 2 {
+		for step := stepFlag / 2; ; step = step / 2 {
 			b.search(c.Stdout(), t, param, step)
+			if step < stopFlag {
+				break
+			}
 		}
 		fmt.Fprintf(c.Stdout(), "# %s\t%.6f\t%.6f\t<--- best value\n", tn, b.lambda, b.logLike)
 	}
