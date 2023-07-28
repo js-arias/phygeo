@@ -66,6 +66,7 @@ func (t *Tree) Simulate(particles int) {
 		}(p)
 	}
 	wg.Wait()
+	close(sChan)
 }
 
 func (n *node) scaleLike(t *Tree, p int) {
