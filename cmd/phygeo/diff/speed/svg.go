@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	"github.com/js-arias/blind"
-	"github.com/js-arias/earth"
 	"github.com/js-arias/timetree"
 )
 
@@ -115,46 +114,17 @@ func (s *svgTree) prepare(n *node) {
 	n.y = topY + (botY-topY)/2
 }
 
-func (s *svgTree) setColor(t *timetree.Tree, rec *recTree) {
-	var max float64
-	min := math.MaxFloat64
-	nSp := make(map[int]float64, len(rec.nodes))
-	for id, n := range rec.nodes {
-		// skip root node
-		pN := t.Parent(id)
-		if pN < 0 {
-			continue
-		}
-
-		brLen := float64(t.Age(pN)-t.Age(id)) / millionYears
-		var sum float64
-		for _, nd := range n.recs {
-			sum += nd.dist / brLen
-		}
-		avg := sum / float64(len(n.recs))
-
-		// scale to km per million year
-		avg *= earth.Radius / 1000
-		// and take the logarithm
-		if avg == 0 {
-			continue
-		}
-		avg = math.Log10(avg)
-		nSp[id] = avg
-		if avg > max {
-			max = avg
-		}
-		if avg < min {
-			min = avg
-		}
-	}
-	s.root.setColor(nSp, min, max)
+func (s *svgTree) setColor(sp map[int]float64, min, max float64) {
+	s.root.setColor(sp, min, max)
+	s.root.color = color.RGBA{102, 102, 102, 255}
 }
 
 func (n *node) setColor(sp map[int]float64, min, max float64) {
 	n.color = color.RGBA{0, 0, 255, 255}
 	if v, ok := sp[n.id]; ok {
 		n.color = blind.Gradient((v - min) / (max - min))
+	} else {
+		n.color = blind.Gradient(0)
 	}
 
 	for _, d := range n.desc {

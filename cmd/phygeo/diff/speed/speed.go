@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -22,65 +23,62 @@ import (
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/timetree"
 	"golang.org/x/exp/slices"
+	"gonum.org/v1/gonum/stat"
 )
 
 var Command = &command.Command{
 	Usage: `speed [--time]
 	[--tree <file-prefix>] [--step <number>] [--box <number>]
-	-i|--input <file> [-o|--output <file>] <project-file>`,
+	-i|--input <file> <project-file>`,
 	Short: "calculates speed and distance for a reconstruction",
 	Long: `
-Command speed reads a file with a range reconstruction for the nodes of one or
-more trees in a project, and calculates the distance and speed of the
-reconstructed particles.
+Command speed reads a file with a sampled pixels from stochastic mapping of
+one or more trees in a project, and calculates the distance and speed of the
+reconstructed histories.
 
-The distance is a 'biological' distance, in the sense that it is the distance
+The distance is a 'biological' distance, in the sense that the distance is the
 product of the diffusion process. It is calculated using the great circle
-distances between the beginning and ending pixel on a each branch segment of a
-branch. A geo-distance indicates the distance between the beginning and ending
-pixel of the whole branch, so both biological and tectonic movement is taken
-into account.
+distances between the beginning and ending pixel on each time segment in a
+branch.
 
 The argument of the command is the name of the project file.
 
 The flag --input, or -i, is required and indicates the input file.
 
-By default the output will be printed in the standard output. Use the flag
---output, or -o, to define an output file.
-
-The default output reports the speed and distance for each branch in each
-particle using a tab-delimited format with the following columns:
-
-	tree	 the name of the tree
-	particle the number of the particle
-	node	 the ID of the node in the tree
-	speed	 the speed in radians per million years on the branch
-	distance the traveled distance in radians on the branch
-	geo-dist the distance in radians between the ancestor and the end
-		point of the branch
-
 If the flag --tree is defined with a file prefix. Each tree will be saved as
 SVG with each branch colored by the speed of the branch in a red(=fast)-green-
 blue(=slow), scale. The scale was made using the log10 of the speed in
-kilometers per million year. The tree will be stored using the indicated file
-prefix and the tree name. By default, 10 pixels units will be used per million
-year, use the flag --step to define a different value (it can have decimal
-points). The flag --box defines shaded boxes each indicated time steps. The
-size of the box is in million years.
+kilometers per million year. If the speed of the branch is zero, the minimum
+value will used for the branch. The tree will be stored using the indicated
+file prefix and the tree name. By default, 10 pixels units will be used per
+million year, use the flag --step to define a different value (it can have
+decimal points). The flag --box defines shaded boxes each indicated time
+steps. The size of the box is in million years.
 
-IF the flag --time is used, instead of calculating the speed per branch, the
-speed will be calculated for each time slice. In this case the speed of each
-branch segment that pass trough a time slice will be averaged. In the case of
-splits or terminals that became extinct in the time slice, they will be
-counted as lineages in the time slice. The output file will be a tab-delimited
-file with the following columns:
+The output will be printed in the standard output, as a Tab-delimited table
+with the following columns:
 
-	tree	  the name of the tree
-	particle  the number of the particle
-	age	  the age of the time slice
-	avg-speed the average speed in the time slice in radians per million
-		years
-	lineages  the number of lineages that are included in the time slice
+	tree      the name of the tree
+	node      the ID of the node in the tree
+	distance  the median of the traveled distance in kilometers
+	d-025     the 2.5% of the empirical CDF
+	d-975     the 97.5% of the empirical CDF
+	brLen     the length of the branch in million years
+	speed     the median of the speed in kilometers per million year
+
+If the flag --time is used, instead of calculating the speed per branch, the
+speed will be calculated for each time slice. In this case the whole traveled
+distance of each branch segment that pass trough a time slice will be divided
+by the total length of all branch segments. The output file will be a
+tab-delimited file with the following columns:
+
+	tree      the name of the tree
+	age       age of the time slice
+	distance  the median of the traveled distance in kilometers
+	d-025     the 2.5% of the empirical CDF
+	d-975     the 97.5% of the empirical CDF
+	brLen     the length of the branch in million years
+	speed     the median of the speed in kilometers per million year
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -91,7 +89,6 @@ var stepX float64
 var timeBox float64
 var treePrefix string
 var inputFile string
-var outputFile string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
@@ -99,8 +96,6 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&timeBox, "box", 0, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
-	c.Flags().StringVar(&outputFile, "output", "", "")
-	c.Flags().StringVar(&outputFile, "o", "", "")
 	c.Flags().StringVar(&treePrefix, "tree", "", "")
 }
 
@@ -143,7 +138,7 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 
-		if err := timeSliceFile(c.Stdout(), tSlice); err != nil {
+		if err := writeTimeSlice(c.Stdout(), tSlice); err != nil {
 			return err
 		}
 		return nil
@@ -154,7 +149,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	if err := recBranchFile(c.Stdout(), tc, tBranch); err != nil {
+	if err := writeRecBranch(c.Stdout(), tc, tBranch); err != nil {
 		return err
 	}
 
@@ -302,6 +297,9 @@ func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (m
 			}
 			t.nodes[id] = n
 		}
+		if tv.IsRoot(id) {
+			continue
+		}
 
 		f = "particle"
 		pN, err := strconv.Atoi(row[fields[f]])
@@ -357,38 +355,14 @@ func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (m
 	return rt, nil
 }
 
-func recBranchFile(w io.Writer, tc *timetree.Collection, rt map[string]*recTree) error {
-	if outputFile != "" {
-		f, err := os.Create(outputFile)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			e := f.Close()
-			if e != nil && err == nil {
-				err = e
-			}
-		}()
-		w = f
-	} else {
-		outputFile = "stdout"
-	}
-
-	if err := writeRecBranch(w, tc, rt); err != nil {
-		return fmt.Errorf("when writing on file %q: %v", outputFile, err)
-	}
-	return nil
-}
-
 func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree) error {
 	tab := csv.NewWriter(w)
 	tab.Comma = '\t'
 	tab.UseCRLF = true
 
-	if err := tab.Write([]string{"tree", "particle", "node", "speed", "distance", "geo-dist"}); err != nil {
+	if err := tab.Write([]string{"tree", "node", "distance", "d-025", "d-975", "brLen", "speed"}); err != nil {
 		return err
 	}
-
 	for _, name := range tc.Names() {
 		dt, ok := rt[name]
 		if !ok {
@@ -404,31 +378,29 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 			}
 
 			n := dt.nodes[nID]
-			a := dt.nodes[pN]
-			brLen := float64(t.Age(pN)-t.Age(nID)) / millionYears
-
-			ps := make([]int, 0, len(n.recs))
-			for p := range n.recs {
-				ps = append(ps, p)
+			dist := make([]float64, 0, len(n.recs))
+			weights := make([]float64, 0, len(n.recs))
+			for _, r := range n.recs {
+				dist = append(dist, r.dist*earth.Radius/1000)
+				weights = append(weights, 1.0)
 			}
-			slices.Sort(ps)
+			slices.Sort(dist)
 
-			for _, p := range ps {
-				nd := n.recs[p]
-				sp := nd.dist / brLen
-				gd := earth.Distance(a.recs[p].endPt, nd.endPt)
+			brLen := float64(t.Age(pN)-t.Age(nID)) / millionYears
+			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
+			s := d / brLen
 
-				row := []string{
-					name,
-					strconv.Itoa(p),
-					strconv.Itoa(nID),
-					strconv.FormatFloat(sp, 'f', 6, 64),
-					strconv.FormatFloat(nd.dist, 'f', 6, 64),
-					strconv.FormatFloat(gd, 'f', 6, 64),
-				}
-				if err := tab.Write(row); err != nil {
-					return err
-				}
+			row := []string{
+				name,
+				strconv.Itoa(nID),
+				strconv.FormatFloat(d, 'f', 3, 64),
+				strconv.FormatFloat(stat.Quantile(0.025, stat.Empirical, dist, weights), 'f', 3, 64),
+				strconv.FormatFloat(stat.Quantile(0.975, stat.Empirical, dist, weights), 'f', 3, 64),
+				strconv.FormatFloat(brLen, 'f', 3, 64),
+				strconv.FormatFloat(s, 'f', 3, 64),
+			}
+			if err := tab.Write(row); err != nil {
+				return err
 			}
 		}
 	}
@@ -449,7 +421,42 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 
 		t := tc.Tree(name)
 		st := copyTree(t, stepX)
-		st.setColor(t, rec)
+
+		sp := make(map[int]float64)
+		min := math.MaxFloat64
+		max := math.SmallestNonzeroFloat64
+		for _, nID := range t.Nodes() {
+			// skip root node
+			pN := t.Parent(nID)
+			if pN < 0 {
+				continue
+			}
+
+			n := rec.nodes[nID]
+			dist := make([]float64, 0, len(n.recs))
+			weights := make([]float64, 0, len(n.recs))
+			for _, r := range n.recs {
+				dist = append(dist, r.dist*earth.Radius/1000)
+				weights = append(weights, 1.0)
+			}
+			slices.Sort(dist)
+
+			brLen := float64(t.Age(pN)-t.Age(nID)) / millionYears
+			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
+			s := math.Log10(d / brLen)
+
+			if s < 0 {
+				continue
+			}
+			if s > max {
+				max = s
+			}
+			if s < min {
+				min = s
+			}
+			sp[nID] = s
+		}
+		st.setColor(sp, min, max)
 
 		fName := treePrefix + "-" + name + ".svg"
 		if err := writeSVGTree(fName, st); err != nil {

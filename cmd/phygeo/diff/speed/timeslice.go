@@ -17,6 +17,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/timetree"
 	"golang.org/x/exp/slices"
+	"gonum.org/v1/gonum/stat"
 )
 
 func getTimeSlice(name string, tc *timetree.Collection, tp *model.TimePix) (map[string]*treeSlice, error) {
@@ -34,19 +35,14 @@ func getTimeSlice(name string, tc *timetree.Collection, tp *model.TimePix) (map[
 }
 
 type treeSlice struct {
-	name      string
-	particles map[int]*partSlice
-}
-
-type partSlice struct {
-	id int
-	ts map[int64]*recSlice
+	name       string
+	timeSlices map[int64]*recSlice
 }
 
 type recSlice struct {
-	age      int64
-	sumSpeed float64
-	lineages int
+	age       int64
+	sumBrLen  float64
+	distances map[int]float64
 }
 
 func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[string]*treeSlice, error) {
@@ -93,9 +89,10 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 		t, ok := ts[tn]
 		if !ok {
 			t = &treeSlice{
-				name:      tn,
-				particles: make(map[int]*partSlice),
+				name:       tn,
+				timeSlices: make(map[int64]*recSlice),
 			}
+			t.addSlices(tv, tp, tv.Root())
 			ts[tn] = t
 		}
 
@@ -115,32 +112,14 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 		if err != nil {
 			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 		}
-		p, ok := t.particles[pN]
-		if !ok {
-			p = &partSlice{
-				id: pN,
-				ts: make(map[int64]*recSlice),
-			}
-			t.particles[pN] = p
-		}
 
 		f = "age"
 		age, err := strconv.ParseInt(row[fields[f]], 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 		}
-		old, young := tp.Bounds(age)
-		if na := tv.Age(tv.Parent(id)); na < old {
-			old = na
-		}
-
-		rs, ok := p.ts[young]
-		if !ok {
-			rs = &recSlice{
-				age: young,
-			}
-			p.ts[young] = rs
-		}
+		age = tp.ClosestStageAge(age)
+		rs := t.timeSlices[age]
 
 		f = "from"
 		fPx, err := strconv.Atoi(row[fields[f]])
@@ -163,9 +142,7 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 		to := tp.Pixelation().ID(tPx).Point()
 
 		dist := earth.Distance(from, to)
-		brLen := float64(old-age) / millionYears
-		rs.sumSpeed += dist / brLen
-		rs.lineages++
+		rs.distances[pN] += dist
 	}
 	if len(ts) == 0 {
 		return nil, fmt.Errorf("while reading data: %v", io.EOF)
@@ -173,27 +150,44 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 	return ts, nil
 }
 
-func timeSliceFile(w io.Writer, ts map[string]*treeSlice) error {
-	if outputFile != "" {
-		f, err := os.Create(outputFile)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			e := f.Close()
-			if e != nil && err == nil {
-				err = e
-			}
-		}()
-		w = f
-	} else {
-		outputFile = "stdout"
+func (s *treeSlice) addSlices(t *timetree.Tree, tp *model.TimePix, n int) {
+	children := t.Children(n)
+	for _, c := range children {
+		s.addSlices(t, tp, c)
 	}
 
-	if err := writeTimeSlice(w, ts); err != nil {
-		return fmt.Errorf("when writing on file %q: %v", outputFile, err)
+	if t.IsRoot(n) {
+		return
 	}
-	return nil
+
+	nAge := t.Age(n)
+	prev := t.Age(t.Parent(n))
+
+	// add time stages
+	for a := tp.ClosestStageAge(prev - 1); a > nAge; a = tp.ClosestStageAge(a - 1) {
+		ts, ok := s.timeSlices[a]
+		if !ok {
+			ts = &recSlice{
+				age:       a,
+				distances: make(map[int]float64),
+			}
+			s.timeSlices[a] = ts
+		}
+		ts.sumBrLen += float64(prev-a) / millionYears
+		prev = a
+	}
+
+	// add the last segment
+	age := tp.ClosestStageAge(nAge)
+	ts, ok := s.timeSlices[age]
+	if !ok {
+		ts = &recSlice{
+			age:       age,
+			distances: make(map[int]float64),
+		}
+		s.timeSlices[age] = ts
+	}
+	ts.sumBrLen += float64(prev-nAge) / millionYears
 }
 
 func writeTimeSlice(w io.Writer, ts map[string]*treeSlice) error {
@@ -201,7 +195,7 @@ func writeTimeSlice(w io.Writer, ts map[string]*treeSlice) error {
 	tab.Comma = '\t'
 	tab.UseCRLF = true
 
-	if err := tab.Write([]string{"tree", "particle", "age", "avg-speed", "lineages"}); err != nil {
+	if err := tab.Write([]string{"tree", "age", "distance", "d-025", "d-975", "brLen", "speed"}); err != nil {
 		return err
 	}
 
@@ -213,36 +207,39 @@ func writeTimeSlice(w io.Writer, ts map[string]*treeSlice) error {
 
 	for _, name := range names {
 		t := ts[name]
-
-		ps := make([]int, 0, len(t.particles))
-		for p := range t.particles {
-			ps = append(ps, p)
+		ages := make([]int64, 0, len(t.timeSlices))
+		for a := range t.timeSlices {
+			ages = append(ages, a)
 		}
-		slices.Sort(ps)
+		slices.Sort(ages)
 
-		for _, pID := range ps {
-			p := t.particles[pID]
-			ages := make([]int64, 0, len(p.ts))
-			for a := range p.ts {
-				ages = append(ages, a)
+		for _, a := range ages {
+			s := t.timeSlices[a]
+
+			dist := make([]float64, 0, len(s.distances))
+			weights := make([]float64, 0, len(s.distances))
+			for _, d := range s.distances {
+				dist = append(dist, d*earth.Radius/1000)
+				weights = append(weights, 1.0)
 			}
-			slices.Sort(ages)
+			slices.Sort(dist)
 
-			for _, a := range ages {
-				rs := p.ts[a]
-				speed := rs.sumSpeed / float64(rs.lineages)
+			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
+			sp := d / s.sumBrLen
 
-				row := []string{
-					name,
-					strconv.Itoa(pID),
-					strconv.FormatInt(a, 10),
-					strconv.FormatFloat(speed, 'f', 6, 64),
-					strconv.Itoa(rs.lineages),
-				}
-				if err := tab.Write(row); err != nil {
-					return err
-				}
+			row := []string{
+				name,
+				strconv.FormatInt(a, 10),
+				strconv.FormatFloat(d, 'f', 3, 64),
+				strconv.FormatFloat(stat.Quantile(0.025, stat.Empirical, dist, weights), 'f', 3, 64),
+				strconv.FormatFloat(stat.Quantile(0.975, stat.Empirical, dist, weights), 'f', 3, 64),
+				strconv.FormatFloat(s.sumBrLen, 'f', 3, 64),
+				strconv.FormatFloat(sp, 'f', 3, 64),
 			}
+			if err := tab.Write(row); err != nil {
+				return err
+			}
+
 		}
 	}
 
