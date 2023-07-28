@@ -27,8 +27,9 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `speed [--time]
+	Usage: `speed 
 	[--tree <file-prefix>] [--step <number>] [--box <number>]
+	[--time] [--plot <file-prefix>]
 	-i|--input <file> <project-file>`,
 	Short: "calculates speed and distance for a reconstruction",
 	Long: `
@@ -45,7 +46,7 @@ The argument of the command is the name of the project file.
 
 The flag --input, or -i, is required and indicates the input file.
 
-If the flag --tree is defined with a file prefix. Each tree will be saved as
+If the flag --tree is defined with a file prefix, each tree will be saved as
 SVG with each branch colored by the speed of the branch in a red(=fast)-green-
 blue(=slow), scale. The scale was made using the log10 of the speed in
 kilometers per million year. If the speed of the branch is zero, the minimum
@@ -79,6 +80,9 @@ tab-delimited file with the following columns:
 	d-975     the 97.5% of the empirical CDF
 	brLen     the length of the branch in million years
 	speed     the median of the speed in kilometers per million year
+
+If the flag --plot is defined with a file prefix, a box plot for each tree
+will be produced, using the speed of each time segment.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -89,6 +93,7 @@ var stepX float64
 var timeBox float64
 var treePrefix string
 var inputFile string
+var plotPrefix string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
@@ -97,6 +102,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&treePrefix, "tree", "", "")
+	c.Flags().StringVar(&plotPrefix, "plot", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -140,6 +146,19 @@ func run(c *command.Command, args []string) error {
 
 		if err := writeTimeSlice(c.Stdout(), tSlice); err != nil {
 			return err
+		}
+
+		if plotPrefix != "" {
+			for _, name := range tc.Names() {
+				t := tc.Tree(name)
+				dt, ok := tSlice[name]
+				if !ok {
+					continue
+				}
+				if err := timeSpeedPlot(t, dt); err != nil {
+					continue
+				}
+			}
 		}
 		return nil
 	}
