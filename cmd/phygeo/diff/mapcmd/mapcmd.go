@@ -229,6 +229,11 @@ func run(c *command.Command, args []string) error {
 		}
 
 		norm = dist.NewNormal(kdeLambda, landscape.Pixelation())
+
+		if bound <= 0 || bound > 1 {
+			msg := fmt.Sprintf("invalid --bound value %.3f, bound should be between 0 and 1", bound)
+			return c.UsageError(msg)
+		}
 	}
 
 	if outputPre == "" {
