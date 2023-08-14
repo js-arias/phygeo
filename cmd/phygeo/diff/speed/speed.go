@@ -365,6 +365,18 @@ func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (m
 		if age == tv.Age(id) {
 			p.endPt = to
 		}
+
+		// add to the whole tree reconstruction
+		root := t.nodes[tv.Root()]
+		p, ok = root.recs[pN]
+		if !ok {
+			p = &recBranch{
+				id:   pN,
+				node: root,
+			}
+			root.recs[pN] = p
+		}
+		p.dist += dist
 	}
 
 	if len(rt) == 0 {
@@ -390,12 +402,6 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 
 		t := tc.Tree(name)
 		for _, nID := range t.Nodes() {
-			// skip root node
-			pN := t.Parent(nID)
-			if pN < 0 {
-				continue
-			}
-
 			n := dt.nodes[nID]
 			dist := make([]float64, 0, len(n.recs))
 			weights := make([]float64, 0, len(n.recs))
@@ -405,7 +411,12 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 			}
 			slices.Sort(dist)
 
-			brLen := float64(t.Age(pN)-t.Age(nID)) / millionYears
+			brLen := float64(t.Len()) / millionYears
+			pN := t.Parent(nID)
+			if pN >= 0 {
+				brLen = float64(t.Age(pN)-t.Age(nID)) / millionYears
+			}
+
 			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
 			s := d / brLen
 
@@ -417,6 +428,10 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 				strconv.FormatFloat(stat.Quantile(0.975, stat.Empirical, dist, weights), 'f', 3, 64),
 				strconv.FormatFloat(brLen, 'f', 3, 64),
 				strconv.FormatFloat(s, 'f', 3, 64),
+			}
+			if nID == 0 {
+				// root node is the whole tree
+				row[1] = "--"
 			}
 			if err := tab.Write(row); err != nil {
 				return err
