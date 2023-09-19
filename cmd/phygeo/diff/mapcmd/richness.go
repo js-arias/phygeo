@@ -5,149 +5,131 @@
 package mapcmd
 
 import (
-	"encoding/csv"
-	"errors"
 	"fmt"
 	"image"
-	"io"
-	"os"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat"
 	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
 )
 
-func richnessOnTime(name string, tot *model.Total, landscape *model.TimePix, keys *pixKey, norm dist.Normal, pp pixprob.Pixel, contour image.Image) error {
-	f, err := os.Open(name)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+type stageRng struct {
+	rs *recStage
+	wg *sync.WaitGroup
 
-	rt, err := readRichness(f, landscape)
-	if err != nil {
-		return fmt.Errorf("on input file %q: %v", name, err)
-	}
-
-	sc := make(chan stageChan, numCPU*2)
-	for i := 0; i < numCPU; i++ {
-		go procStage(sc)
-	}
-
-	errChan := make(chan error)
-	doneChan := make(chan struct{})
-	var wg sync.WaitGroup
-	for _, s := range rt {
-		// the age is in million years
-		age := float64(s.age) / 1_000_000
-		suf := fmt.Sprintf("-richness-%.3f", age)
-		s.step = 360 / float64(colsFlag)
-		s.keys = keys
-		s.contour = contour
-		wg.Add(1)
-		sc <- stageChan{
-			rs:        s,
-			out:       outputPre + suf + ".png",
-			err:       errChan,
-			wg:        &wg,
-			norm:      norm,
-			pp:        pp,
-			landscape: landscape,
-			tot:       tot,
-		}
-	}
-
-	go func() {
-		wg.Wait()
-		close(doneChan)
-	}()
-
-	select {
-	case err := <-errChan:
-		return err
-	case <-doneChan:
-	}
-
-	return nil
+	norm      dist.Normal
+	pp        pixprob.Pixel
+	landscape *model.TimePix
 }
 
-func readRichness(r io.Reader, landscape *model.TimePix) (map[int64]*recStage, error) {
-	tsv := csv.NewReader(r)
-	tsv.Comma = '\t'
-	tsv.Comment = '#'
+type kdeAnswer struct {
+	age int64
+	rng map[int]float64
+}
 
-	head, err := tsv.Read()
+func procStageRichness(sc chan stageRng, ans chan kdeAnswer) {
+	for sr := range sc {
+		rng := stat.KDE(sr.norm, sr.rs.rec, sr.landscape, sr.rs.cAge, sr.pp)
+		ans <- kdeAnswer{
+			age: sr.rs.cAge,
+			rng: rng,
+		}
+		sr.wg.Done()
+	}
+}
+
+func richnessOnTime(name string, tot *model.Total, landscape *model.TimePix, keys *pixKey, norm dist.Normal, pp pixprob.Pixel, contour image.Image) error {
+	rec, err := getRec(name, landscape)
 	if err != nil {
-		return nil, fmt.Errorf("while reading header: %v", err)
+		return err
 	}
-	fields := make(map[string]int, len(head))
-	for i, h := range head {
-		h = strings.ToLower(h)
-		fields[h] = i
+
+	sc := make(chan stageRng, numCPU*2)
+	ac := make(chan kdeAnswer, numCPU*2)
+	for i := 0; i < numCPU; i++ {
+		go procStageRichness(sc, ac)
 	}
-	for _, h := range headerFields {
-		if _, ok := fields[h]; !ok {
-			return nil, fmt.Errorf("expecting field %q", h)
+
+	var wg sync.WaitGroup
+	for _, t := range rec {
+		for _, n := range t.nodes {
+			for _, s := range n.stages {
+				if s.age != s.cAge {
+					continue
+				}
+				wg.Add(1)
+				go func(s *recStage) {
+					sc <- stageRng{
+						rs:        s,
+						wg:        &wg,
+						norm:      norm,
+						pp:        pp,
+						landscape: landscape,
+					}
+				}(s)
+			}
 		}
 	}
+	go func() {
+		wg.Wait()
+		close(sc)
+		close(ac)
+	}()
 
 	rt := make(map[int64]*recStage)
-	for {
-		row, err := tsv.Read()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		ln, _ := tsv.FieldPos(0)
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: %v", ln, err)
-		}
-
-		f := "tree"
-		tn := strings.Join(strings.Fields(row[fields[f]]), " ")
-		if tn == "" {
-			continue
-		}
-
-		f = "age"
-		age, err := strconv.ParseInt(row[fields[f]], 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-		if l := landscape.Stage(age); l == nil {
-			continue
-		}
-		st, ok := rt[age]
+	for a := range ac {
+		st, ok := rt[a.age]
 		if !ok {
 			st = &recStage{
-				age:       age,
-				cAge:      landscape.ClosestStageAge(age),
+				age:       a.age,
+				cAge:      a.age,
 				rec:       make(map[int]float64),
 				landscape: landscape,
 			}
-			rt[age] = st
+			rt[a.age] = st
 		}
 
-		f = "to"
-		px, err := strconv.Atoi(row[fields[f]])
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-		if px >= landscape.Pixelation().Len() {
-			return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
-		}
+		for pix, prob := range a.rng {
+			if prob < 1-bound {
+				continue
+			}
 
-		st.rec[px]++
-		if v := st.rec[px]; v > st.max {
-			st.max = v
+			st.rec[pix] += prob
 		}
 	}
 
-	if len(rt) == 0 {
-		return nil, fmt.Errorf("while reading data: %v", io.EOF)
-	}
+	// We only use the KDE lambda when estimating
+	// the node-stage ranges,
+	// for the drawing,
+	// we use the raw value.
+	kdeLambda = 0
 
-	return rt, nil
+	for _, st := range rt {
+		// the age is in million years
+		age := float64(st.age) / 1_000_000
+		suf := fmt.Sprintf("-richness-%.3f", age)
+		out := outputPre + suf + ".png"
+
+		st.step = 360 / float64(colsFlag)
+		st.keys = keys
+		st.contour = contour
+		if tot != nil {
+			st.tot = tot.Rotation(st.age)
+		}
+
+		var max float64
+		for _, p := range st.rec {
+			if p > max {
+				max = p
+			}
+		}
+		st.max = max
+
+		if err := writeImage(out, st); err != nil {
+			return err
+		}
+	}
+	return nil
 }
