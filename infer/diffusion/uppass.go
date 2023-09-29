@@ -160,6 +160,9 @@ func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
 	if t.dm != nil {
 		for px, p := range ts.scaled {
 			p *= ts.pdf.ProbRingDist(t.dm.At(source, px))
+			if p == 0 {
+				continue
+			}
 			density = append(density, likePix{
 				px:   px,
 				like: p,
@@ -175,6 +178,9 @@ func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
 			pt2 := pix.ID(px).Point()
 			dist := earth.Distance(pt1, pt2)
 			p *= ts.pdf.Prob(dist)
+			if p == 0 {
+				continue
+			}
 			density = append(density, likePix{
 				px:   px,
 				like: p,
@@ -185,7 +191,47 @@ func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
 		}
 	}
 
-	dest := ts.pick(p, source, max, density)
+	if len(density) > 0 {
+		dest := ts.pick(p, source, max, density)
+		return rotPix(t.rot, t.landscape, dest, ts.age, t.pp)
+	}
+
+	// if density is 0 use an slow algorithm
+	max = -math.MaxFloat64
+	if t.dm != nil {
+		for px, p := range ts.scaled {
+			p = math.Log(p) + ts.pdf.LogProbRingDist(t.dm.At(source, px))
+			density = append(density, likePix{
+				px:      px,
+				logLike: p,
+			})
+			if p > max {
+				max = p
+			}
+		}
+	} else {
+		pix := t.landscape.Pixelation()
+		pt1 := pix.ID(source).Point()
+		for px, p := range ts.scaled {
+			pt2 := pix.ID(px).Point()
+			dist := earth.Distance(pt1, pt2)
+			p = math.Log(p) + ts.pdf.LogProb(dist)
+			density = append(density, likePix{
+				px:      px,
+				logLike: p,
+			})
+			if p > max {
+				max = p
+			}
+		}
+	}
+
+	// scale
+	for i, d := range density {
+		density[i].like = math.Exp(d.logLike - max)
+	}
+
+	dest := ts.pick(p, source, 1, density)
 	return rotPix(t.rot, t.landscape, dest, ts.age, t.pp)
 }
 

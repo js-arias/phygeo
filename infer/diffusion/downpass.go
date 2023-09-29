@@ -30,12 +30,20 @@ type answerChan struct {
 
 func pixLike(likeChan chan likeChanType, answer chan answerChan, size int) {
 	for c := range likeChan {
-		var sum, pdfSum float64
+		var sum float64
+		nMax := c.pdf.LogProbRingDist(0)
+		max := -math.MaxFloat64
 		if c.dm != nil {
 			// use the distance matrix
 			for _, cL := range c.like {
-				sum += c.pdf.ProbRingDist(c.dm.At(c.pixel, cL.px)) * cL.like
-				pdfSum += c.pdf.ProbRingDist(c.dm.At(c.pixel, cL.px))
+				dist := c.dm.At(c.pixel, cL.px)
+				sum += c.pdf.ScaledProbRingDist(dist) * cL.like
+				if sum > 0 {
+					continue
+				}
+				if lp := c.pdf.LogProbRingDist(dist) + cL.logLike; lp > max {
+					max = lp
+				}
 			}
 		} else {
 			// use raw distance
@@ -43,20 +51,28 @@ func pixLike(likeChan chan likeChanType, answer chan answerChan, size int) {
 			for _, cL := range c.like {
 				pt2 := c.pix.ID(cL.px).Point()
 				dist := earth.Distance(pt1, pt2)
-				sum += c.pdf.Prob(dist) * cL.like
+				sum += c.pdf.ScaledProb(dist) * cL.like
+				if sum > 0 {
+					continue
+				}
+				if lp := c.pdf.LogProb(dist) + cL.logLike; lp > max {
+					max = lp
+				}
 			}
 		}
 
-		pixID := -1
-		var pixLike float64
 		if sum > 0 {
-			pixID = c.pixel
-			pixLike = math.Log(sum) + c.max
+			answer <- answerChan{
+				pixel:   c.pixel,
+				logLike: math.Log(sum) + c.max + nMax,
+			}
+			c.wg.Done()
+			continue
 		}
 
 		answer <- answerChan{
-			pixel:   pixID,
-			logLike: pixLike,
+			pixel:   c.pixel,
+			logLike: max,
 		}
 		c.wg.Done()
 	}
@@ -129,8 +145,9 @@ func (n *node) conditional(t *Tree, pixTmp []likePix) {
 
 // LikePix stores the conditional likelihood of a pixel.
 type likePix struct {
-	px   int     // Pixel ID
-	like float64 // conditional likelihood
+	px      int     // Pixel ID
+	like    float64 // conditional likelihood
+	logLike float64
 }
 
 // Conditional calculates the conditional likelihood
@@ -155,7 +172,6 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix) map[int]f
 
 	go func() {
 		// send the pixels
-
 		var wg sync.WaitGroup
 		for px := range stage {
 			// skip pixels with 0 prior
@@ -225,8 +241,9 @@ func prepareLogLikePix(logLike, logPrior map[int]float64, tp map[int]int, lp []l
 		}
 		p += prior
 		lp = append(lp, likePix{
-			px:   px,
-			like: p,
+			px:      px,
+			like:    p,
+			logLike: p,
 		})
 		if p > max {
 			max = p
