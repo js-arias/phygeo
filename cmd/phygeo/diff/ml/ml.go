@@ -17,6 +17,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
@@ -161,7 +162,7 @@ func run(c *command.Command, args []string) error {
 		Ranges:    rc,
 	}
 
-	fmt.Fprintf(c.Stdout(), "tree\tlambda\tlogLike\tstep\n")
+	fmt.Fprintf(c.Stdout(), "tree\tlambda\tstdDev\tlogLike\tstep\n")
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		stem := int64(stemAge * 1_000_000)
@@ -179,7 +180,9 @@ func run(c *command.Command, args []string) error {
 			df := diffusion.New(t, param)
 			like := df.LogLike()
 			b.logLike = like
-			fmt.Fprintf(c.Stderr(), "%s\t%.6f\t%.6f\t%.6f\n", tn, lambdaFlag, like, stepFlag)
+			standard := calcStandardDeviation(param.Landscape.Pixelation(), lambdaFlag)
+
+			fmt.Fprintf(c.Stderr(), "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", tn, lambdaFlag, standard, like, stepFlag)
 		}
 		b.first(c.Stdout(), t, param, stepFlag)
 		for step := stepFlag / 2; ; step = step / 2 {
@@ -209,7 +212,9 @@ func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step f
 		p.Lambda = l
 		df := diffusion.New(t, p)
 		like := df.LogLike()
-		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, l, like, step)
+		standard := calcStandardDeviation(p.Landscape.Pixelation(), l)
+
+		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, l, standard, like, stepFlag)
 
 		if like < b.logLike {
 			break
@@ -228,7 +233,9 @@ func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step f
 		p.Lambda = l
 		df := diffusion.New(t, p)
 		like := df.LogLike()
-		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, l, like, step)
+		standard := calcStandardDeviation(p.Landscape.Pixelation(), l)
+
+		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, l, standard, like, stepFlag)
 
 		if like < b.logLike {
 			return
@@ -251,7 +258,9 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 	p.Lambda = b.lambda + step
 	df := diffusion.New(t, p)
 	like := df.LogLike()
-	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, like, step)
+	standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
+
+	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, stepFlag)
 	if like > b.logLike {
 		// we found an improvement
 		b.lambda = p.Lambda
@@ -266,7 +275,9 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 	p.Lambda = b.lambda - step
 	df = diffusion.New(t, p)
 	like = df.LogLike()
-	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, like, step)
+	standard = calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
+
+	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, stepFlag)
 	if like > b.logLike {
 		// we found an improvement
 		b.lambda = p.Lambda
@@ -347,4 +358,13 @@ func readRanges(name string) (*ranges.Collection, error) {
 	}
 
 	return coll, nil
+}
+
+// CalcStandardDeviation returns the standard deviation
+// (i.e. the square root of variance)
+// in km per million year.
+func calcStandardDeviation(pix *earth.Pixelation, lambda float64) float64 {
+	n := dist.NewNormal(lambda, pix)
+	v := n.Variance()
+	return math.Sqrt(v) * earth.Radius / 1000
 }

@@ -11,6 +11,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
@@ -80,6 +82,9 @@ following columns:
 
 	- tree, for the tree used in the sample
 	- lambda, for the value of lambda used in the sample
+		(in 1/radians^2)
+	- stdDev, for the standard deviation
+		(in Km/My)
 	- logLike, the log likelihood for the reconstruction
 
 By default, all available CPUs will be used in the processing. Set --cpu flag
@@ -209,7 +214,7 @@ func run(c *command.Command, args []string) error {
 		Ranges:    rc,
 	}
 
-	fmt.Fprintf(c.Stdout(), "tree\tlambda\tlogLike\n")
+	fmt.Fprintf(c.Stdout(), "tree\tlambda\tstdDev\tlogLike\n")
 	if distribution != "" {
 		r, err := getDistribution()
 		if err != nil {
@@ -276,8 +281,9 @@ func sample(w io.Writer, projName string, t *timetree.Tree, p diffusion.Param, r
 		p.Lambda = r.Rand()
 		df := diffusion.New(t, p)
 		like := df.LogLike()
+		standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
-		fmt.Fprintf(w, "%s\t%.6f\t%.6f\n", name, p.Lambda, like)
+		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)
 
 		// up-pass
 		if particles == 0 {
@@ -311,8 +317,9 @@ func integrate(w io.Writer, t *timetree.Tree, p diffusion.Param) {
 		p.Lambda = i
 		df := diffusion.New(t, p)
 		like := df.LogLike()
+		standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
-		fmt.Fprintf(w, "%s\t%.6f\t%.6f\n", name, i, like)
+		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)
 	}
 }
 
@@ -323,8 +330,9 @@ func monteCarlo(w io.Writer, t *timetree.Tree, p diffusion.Param) {
 		p.Lambda = rand.Float64()*size + minFlag
 		df := diffusion.New(t, p)
 		like := df.LogLike()
+		standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
-		fmt.Fprintf(w, "%s\t%.6f\t%.6f\n", name, p.Lambda, like)
+		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)
 	}
 }
 
@@ -484,4 +492,13 @@ func writeUpPass(tsv *csv.Writer, p, cum int, t *diffusion.Tree) error {
 		}
 	}
 	return nil
+}
+
+// CalcStandardDeviation returns the standard deviation
+// (i.e. the square root of variance)
+// in km per million year.
+func calcStandardDeviation(pix *earth.Pixelation, lambda float64) float64 {
+	n := dist.NewNormal(lambda, pix)
+	v := n.Variance()
+	return math.Sqrt(v) * earth.Radius / 1000
 }

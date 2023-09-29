@@ -11,6 +11,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
@@ -167,6 +169,8 @@ func run(c *command.Command, args []string) error {
 		dm, _ = earth.NewDistMat(landscape.Pixelation())
 	}
 
+	standard := calcStandardDeviation(landscape.Pixelation(), lambdaFlag)
+
 	param := diffusion.Param{
 		Landscape: landscape,
 		Rot:       rot,
@@ -193,7 +197,7 @@ func run(c *command.Command, args []string) error {
 			name = output + "-" + name
 		}
 
-		if err := upPass(dt, name, args[0], lambdaFlag, particles); err != nil {
+		if err := upPass(dt, name, args[0], lambdaFlag, standard, particles); err != nil {
 			return err
 		}
 	}
@@ -274,7 +278,7 @@ func readRanges(name string) (*ranges.Collection, error) {
 	return coll, nil
 }
 
-func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (err error) {
+func upPass(t *diffusion.Tree, name, p string, lambda, standard float64, particles int) (err error) {
 	t.Simulate(particles)
 
 	f, err := os.Create(name)
@@ -289,7 +293,7 @@ func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (e
 	}()
 
 	w := bufio.NewWriter(f)
-	tsv, err := outHeader(w, t.Name(), p, lambda, t.LogLike())
+	tsv, err := outHeader(w, t.Name(), p, lambda, standard, t.LogLike())
 	if err != nil {
 		return fmt.Errorf("while writing header on %q: %v", name, err)
 	}
@@ -310,9 +314,10 @@ func upPass(t *diffusion.Tree, name, p string, lambda float64, particles int) (e
 	return nil
 }
 
-func outHeader(w io.Writer, t, p string, lambda, logLike float64) (*csv.Writer, error) {
+func outHeader(w io.Writer, t, p string, lambda, standard, logLike float64) (*csv.Writer, error) {
 	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t, p)
 	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
+	fmt.Fprintf(w, "# standard deviation: %.6f * Km/My\n", standard)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
 	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
@@ -354,4 +359,13 @@ func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree) error {
 		}
 	}
 	return nil
+}
+
+// CalcStandardDeviation returns the standard deviation
+// (i.e. the square root of variance)
+// in km per million year.
+func calcStandardDeviation(pix *earth.Pixelation, lambda float64) float64 {
+	n := dist.NewNormal(lambda, pix)
+	v := n.Variance()
+	return math.Sqrt(v) * earth.Radius / 1000
 }

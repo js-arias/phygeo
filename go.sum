@@ -53,6 +53,8 @@ github.com/js-arias/earth v0.0.0-20230810183752-6914a33c480c h1:Vwc0LCbRlTPvlmoe
 github.com/js-arias/earth v0.0.0-20230810183752-6914a33c480c/go.mod h1:wRNxqf4EEx5dS9eB05/nItRy0iFQ21RCSfTNqYYLiTo=
 github.com/js-arias/earth v0.0.0-20230927204915-526ab845b5b9 h1:OFFzQkCcoZDUtCcaGTeODKelFlslxKnYQ8lM6kx16W0=
 github.com/js-arias/earth v0.0.0-20230927204915-526ab845b5b9/go.mod h1:wRNxqf4EEx5dS9eB05/nItRy0iFQ21RCSfTNqYYLiTo=
+github.com/js-arias/earth v0.0.0-20230929205244-bba50a2c4dc9 h1:KrixHdK9jFyA9JnRZ9LUVpNABTOxSf0D9WNM0Yut11M=
+github.com/js-arias/earth v0.0.0-20230929205244-bba50a2c4dc9/go.mod h1:wRNxqf4EEx5dS9eB05/nItRy0iFQ21RCSfTNqYYLiTo=
 github.com/js-arias/ranges v0.0.0-20230613202757-e638a333ee53 h1:M0NjE16duceSM3094f+Q1dfQMImEudbYtK+tBDffg2U=
 github.com/js-arias/ranges v0.0.0-20230613202757-e638a333ee53/go.mod h1:3fcaj55701dd+8uD4fiojYVCmfRXy0nUVCpA0aP8A2A=
 github.com/js-arias/ranges v0.0.0-20230810195732-cf5be4732d8b h1:Ur4eFtukZL68mjSe8ve5pndCTzw1sz521r1H4/TZPS4=
