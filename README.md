@@ -6,14 +6,14 @@
 
 There are two ways to install *PhyGeo*.
 If you are only interested in the command-line tool,
-just go to the Releases tab,
+just go to the [Releases tab](https://github.com/js-arias/phygeo/releases),
 select the last release,
 choose an executable for your system architecture,
 renamed at your will,
 and put it in your default `bin` directory.
 If you want an up-to-date tool
 you require the [go tool](https://go.dev/dl/)
-and install it by running:
+and install the *PhyGeo* package by running:
 
 ```bash
 go install github.com/js-arias/phygeo@latest
@@ -350,6 +350,28 @@ to learn more about this command.
     manipulate pixelated distribution data.
   - [TimeTree](https://github.com/js-arias/timetree):
     manipulate time calibrated trees.
+
+## Contribution and bug reports
+
+The best way to contribute to the package
+is by running the program,
+detecting bugs,
+or asking for features.
+Use the tab [issues](https://github.com/js-arias/phygeo/issues)
+to file a bug
+or ask for a feature.
+
+If you like programming,
+you can create tools and packages to import
+export,
+or analyze data and results to or from *PhyGeo*.
+If you send me the link,
+I will post the link of your tool
+or package.
+
+Of course,
+this package is open source,
+so you can modify it at your will!
 
 ## Authorship and license
 
