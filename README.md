@@ -9,7 +9,10 @@ If you are only interested in the command-line tool,
 just go to the [Releases tab](https://github.com/js-arias/phygeo/releases),
 select the last release,
 choose an executable for your system architecture,
-renamed at your will,
+renamed at your will
+(Here,
+it is assumed that you use the name `phygeo`
+or `phygeo.exe` if you use  Windows),
 and put it in your default `bin` directory.
 If you want an up-to-date tool
 you require the [go tool](https://go.dev/dl/)
@@ -19,7 +22,7 @@ and install the *PhyGeo* package by running:
 go install github.com/js-arias/phygeo@latest
 ```
 
-f you want to use the package
+If you want to use the package
 in your own code,
 just import the package,
 for example:
@@ -173,7 +176,7 @@ it is possible to make inferences from the data.
 There are several possibilities.
 Maybe the most simple
 is to just attempt a likelihood estimation
-of the data with an a priori lambda value,
+of the data with an a priori *lambda* value,
 just to see what happens,
 or because from a previous analysis,
 you know that the given lambda
@@ -191,7 +194,7 @@ will create a new file with the prefix `like`
 which are usually large).
 
 As you probably want to know
-the maximum likelihood estimate of lambda,
+the maximum likelihood estimate of *lambda*,
 you can use the command `diff ml`:
 
 ```bash
@@ -208,18 +211,18 @@ you can set a more detailed bound
 
 Maybe
 you prefer a Bayesian analysis.
-As the only free parameter is the lambda value,
+As the only free parameter is the *lambda* value,
 you can make a simple integration:
 
 ```bash
-phygeo -min 100 .max 300 -parts 500 project.tab > log-like.tab
+phygeo --min 100 --max 300 --parts 500 project.tab > log-like.tab
 ```
 
 and then,
 using any program to read tab-delimited data
 (in this case `log-like.tab`,
 [here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/vireya-integrate-360.tab)),
-you can provide the prior for lambda
+you can provide the prior for *lambda*
 (or just use the integration output,
 assuming a flat uniform prior).
 
@@ -278,7 +281,7 @@ with a [rainbow color scheme](https://personal.sron.nl/~pault/#fig:scheme_rainbo
 to red for pixels with a high posterior)
 see [this directory](https://github.com/js-arias/schistanthe-data/tree/main/recs-95)
 for an example output.
-The command map has several options,
+The command `map` has several options,
 so consult `help diff map` for a full explanation.
 Here are some options:
 to produce rotated
@@ -311,7 +314,7 @@ Use the command `diff speed`
 to retrieve general speed results:
 
 ```bash
-phygeo diff speed --tree speed -step 5 --box 5 -i ml-project.tab project.tab > speed.txt
+phygeo diff speed --tree speed --step 5 --box 5 -i ml-project.tab project.tab > speed.txt
 ```
 
 This example
