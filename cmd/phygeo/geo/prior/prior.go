@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
@@ -19,7 +22,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: "prior [--add <file>] <project-file>",
+	Usage: "prior [--add <file>] [--set <value>] <project-file>",
 	Short: "manage pixel priors",
 	Long: `
 Command prior manage pixel priors defined for a PhyGeo project.
@@ -29,15 +32,26 @@ The argument of the command is the name of the project file.
 By default, the command will print the currently defined pixel priors into the
 standard output. If the flag --add is defined, the indicated file will be used
 as the pixel prior of the project.
+
+If the flag --set is defined, it will set a pixel prior to a raster value. Th
+ sintaxis of the definition is:
+
+	<value>=<probability>
+
+If there is no pixel prior file defined in the project, a new file will be
+created using the project file name as a prefix and "-pix-prior.tab" as a
+suffix.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
 var priorFile string
+var setFlag string
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&priorFile, "add", "", "")
+	c.Flags().StringVar(&setFlag, "set", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -55,6 +69,34 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 		p.Add(project.PixPrior, priorFile)
+		if err := p.Write(args[0]); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if setFlag != "" {
+		pp := pixprob.New()
+		ppF := p.Path(project.PixPrior)
+		if ppF != "" {
+			pp, err = readPriorFile(p.Path(project.PixPrior))
+			if err != nil {
+				return err
+			}
+		} else {
+			ppF = makePixPriorFileName(args[0])
+		}
+
+		k, prob, err := getKeyProb()
+		if err != nil {
+			return err
+		}
+		pp.Set(k, prob)
+
+		if err := writePPF(ppF, pp); err != nil {
+			return err
+		}
+		p.Add(project.PixPrior, ppF)
 		if err := p.Write(args[0]); err != nil {
 			return err
 		}
@@ -139,4 +181,49 @@ func readLandscape(name string) (*model.TimePix, error) {
 	}
 
 	return tp, nil
+}
+
+func makePixPriorFileName(path string) string {
+	p := filepath.Base(path)
+	i := strings.LastIndex(p, ".")
+	return p[:i] + "-pix-prob.tab"
+}
+
+func getKeyProb() (key int, prob float64, err error) {
+	s := strings.Split(setFlag, "=")
+	if len(s) < 2 {
+		return 0, 0, fmt.Errorf("invalid --set value: %q", setFlag)
+	}
+	key, err = strconv.Atoi(s[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid --set value: %q: %v", setFlag, err)
+	}
+	prob, err = strconv.ParseFloat(s[1], 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid --set value: %q: %v", setFlag, err)
+	}
+	if prob < 0 || prob > 1 {
+		return 0, 0, fmt.Errorf("invalid --set value: %q: invalid probability value", setFlag)
+	}
+
+	return key, prob, nil
+}
+
+func writePPF(name string, pp pixprob.Pixel) (err error) {
+	var f *os.File
+	f, err = os.Create(name)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := f.Close()
+		if e != nil && err == nil {
+			err = e
+		}
+	}()
+
+	if err := pp.TSV(f); err != nil {
+		return err
+	}
+	return nil
 }
