@@ -7,6 +7,7 @@ package main
 import "github.com/js-arias/command"
 
 func init() {
+	app.Add(pixelPriorGuide)
 	app.Add(projectsGuide)
 }
 
@@ -62,4 +63,38 @@ The valid file types are:
   tab-delimited file. The recommended way to add a presence-absence file is by
   using the command 'phygeo range add'.
 	`,
+}
+
+var pixelPriorGuide = &command.Command{
+	Usage: "pixel-priors",
+	Short: "about the pixel prior file",
+	Long: `
+To take into account the landscape, each pixel must have a different prior, so
+some pixels will be more likely to be sampled than others based on the
+landscape features.
+
+In PhyGeo, such priors can be defined in a file for pixel prior values. The
+recommended way to interact with the priors is by using the command
+"phygeo geo prior", which can be used to add a pixel prior file, view the
+current priors, or set or edit values. See "phygeo help geo add" to learn
+more.
+  
+A pixel prior file is a tab-delimited file with the following fields:
+  
+	- key    the value used as an identifier in the landscape model must 
+                 be an integer.
+	- prior  the prior of the pixel, it should be a value between 0 and 1.
+  
+Here is an example file:
+
+	key	prior	comment
+	0	0.000000	deep ocean
+	1	0.010000	oceanic plateaus
+	2	0.050000	continental shelf
+	3	0.950000	lowlands
+	4	1.000000	highlands
+	5	0.001000	ice sheets
+
+In this case, the comment column will be ignored.
+`,
 }

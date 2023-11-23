@@ -5,7 +5,7 @@ go 1.21.0
 require (
 	github.com/js-arias/blind v0.0.0-20230608213033-66946442796b
 	github.com/js-arias/command v0.0.0-20220321160405-bad66700a180
-	github.com/js-arias/earth v0.0.0-20231122193150-882b98a8c68b
+	github.com/js-arias/earth v0.0.0-20231122213530-9f9149a873e3
 	github.com/js-arias/ranges v0.0.0-20230810195732-cf5be4732d8b
 	github.com/js-arias/timetree v0.0.0-20230905210531-e9f9f734a4df
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
