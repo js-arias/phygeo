@@ -18,7 +18,9 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: "add [-f|--file <tree-file>] <project-file> [<tree-file>...]",
+	Usage: `add [-f|--file <tree-file>]
+	[--newick <name>] [--age <value>]
+	<project-file> [<tree-file>...]`,
 	Short: "add phylogenetic trees to a PhyGeo project",
 	Long: `
 Command add read one or more trees from one or more tree files, and add the
@@ -29,6 +31,14 @@ project file exists, a new project will be created.
 
 One or more tree files can be given as arguments. If no file is given the
 tress will be read from the standard input.
+
+By default, the input is expected to be in the form of tab-delimited tree
+files. To import newick trees (i.e., trees in parenthetical format), use the
+flag --newick with a name to be defined for the trees found in the input
+files. It is expected that branch lengths were given in million years. By
+default, the age of the root will be calculated from the largest branch length
+between any terminal and the root. To set a different root age, use the
+flag --age, with a value in million years.
 
 By default the trees will be stored in the tree file currently defined for the
 project. If the project does not have a tree file, a new one will be created
@@ -42,10 +52,14 @@ file for the project (previously defined trees will be kept).
 }
 
 var treeFile string
+var newickName string
+var rootAge float64
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&treeFile, "file", "", "")
 	c.Flags().StringVar(&treeFile, "f", "", "")
+	c.Flags().StringVar(&newickName, "newick", "", "")
+	c.Flags().Float64Var(&rootAge, "age", 0, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -73,13 +87,22 @@ func run(c *command.Command, args []string) error {
 	if len(args) == 0 {
 		args = append(args, "-")
 	}
-	for _, a := range args {
+	for i, a := range args {
 		fn := a
 		if fn == "-" {
 			fn = ""
 			a = "stdin"
 		}
-		nc, err := readTreeFile(c.Stdin(), fn)
+		var nc *timetree.Collection
+		if newickName != "" {
+			tn := newickName
+			if i > 0 {
+				tn = fmt.Sprintf("%s.%d", newickName, i)
+			}
+			nc, err = readNewick(c.Stdin(), fn, tn)
+		} else {
+			nc, err = readTreeFile(c.Stdin(), fn)
+		}
 		if err != nil {
 			return err
 		}
@@ -156,4 +179,28 @@ func writeTrees(tc *timetree.Collection) (err error) {
 		return fmt.Errorf("while writing to %q: %v", treeFile, err)
 	}
 	return nil
+}
+
+// millionYears is used transform the age flag
+// (a float in million years)
+// into an integer in years.
+const millionYears = 1_000_000
+
+func readNewick(r io.Reader, newickFile, treeName string) (*timetree.Collection, error) {
+	if newickFile != "" {
+		f, err := os.Open(newickFile)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	} else {
+		newickFile = "stdin"
+	}
+
+	c, err := timetree.Newick(r, treeName, int64(rootAge*millionYears))
+	if err != nil {
+		return nil, fmt.Errorf("while reading file %q: %v", treeFile, err)
+	}
+	return c, nil
 }
