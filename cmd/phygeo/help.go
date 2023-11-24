@@ -97,6 +97,9 @@ Here is an example file:
 	5	0.001000	ice sheets
 
 In this case, the comment column will be ignored.
+
+In a PhyGeo project, the file that contains the pixel priors is indicated with
+the "pixprior" keyword.
 `,
 }
 
