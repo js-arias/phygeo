@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/project"
-	"golang.org/x/exp/slices"
 )
 
 var Command = &command.Command{

@@ -9,6 +9,7 @@ package diffusion
 
 import (
 	"math"
+	"slices"
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
@@ -16,7 +17,6 @@ import (
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
-	"golang.org/x/exp/slices"
 )
 
 // Param is a collection of parameters

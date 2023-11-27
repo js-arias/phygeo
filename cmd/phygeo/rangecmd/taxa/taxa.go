@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
@@ -18,7 +19,6 @@ import (
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
-	"golang.org/x/exp/slices"
 )
 
 var Command = &command.Command{

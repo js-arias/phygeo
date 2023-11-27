@@ -7,10 +7,10 @@ package project_test
 import (
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/js-arias/phygeo/project"
-	"golang.org/x/exp/slices"
 )
 
 type setPath struct {
