@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/js-arias/gbifer v0.0.0-20230905173919-aa63af247b21
 	gonum.org/v1/gonum v0.14.0
 	gonum.org/v1/plot v0.14.0
 )

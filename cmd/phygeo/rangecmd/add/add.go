@@ -7,21 +7,25 @@
 package add
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/gbifer/tsv"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 )
 
 var Command = &command.Command{
-	Usage: `add [-f|--file <range-file>] [--type <file-type>]
+	Usage: `add [-f|--file <range-file>]
+	[--type <file-type>] [--format <format>]
 	<project-file> [<range-file>...]`,
 	Short: "add taxon ranges to a PhyGeo project",
 	Long: `
@@ -45,6 +49,21 @@ type can be:
 	points	presence-absence taxon ranges
 	ranges	continuous range map
 
+By default, the command adds presence-absence files using a tab-delimited
+files with the pixel IDs. Using the flag --format, it is possible to define a
+different file format. Valid formats are:
+
+	phygeo  the default phygeo format
+	darwin  DarwinCore format using tab characters as delimiters (e.g.,
+	        the files downloaded from GBIF). Parsed fields are "species",
+	        "decimalLatitude", and "decimalLongitude".
+	text    a simple tab-delimited file with the following fields:
+	        "species", "latitude", and "longitude".
+	csv     the same as text, but using commas as delimiters.
+
+In formats different from the PhyGeo format, all entries are assumed to be
+geo-referenced at the present time.
+
 By default the range maps will be stored in the range files currently defined
 for the project. If the project does not have a range file, a new one will be
 created with the name 'points.tab' for presence-absence taxon ranges, or
@@ -58,12 +77,14 @@ will be kept).
 	Run:      run,
 }
 
+var format string
 var outFile string
 var typeFlag string
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outFile, "file", "", "")
 	c.Flags().StringVar(&outFile, "f", "", "")
+	c.Flags().StringVar(&format, "format", "phygeo", "")
 	c.Flags().StringVar(&typeFlag, "type", "", "")
 }
 
@@ -133,11 +154,30 @@ func addPoints(r io.Reader, p *project.Project, files []string) error {
 		coll = ranges.New(pix)
 	}
 
+	readPtsFunc := readCollection
+	switch strings.ToLower(format) {
+	case "csv":
+		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
+			return readTextData(r, pix, name, ',')
+		}
+	case "darwin":
+		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
+			return readGBIFData(r, pix, name)
+		}
+	case "phygeo":
+	case "text":
+		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
+			return readTextData(r, pix, name, '\t')
+		}
+	default:
+		return fmt.Errorf("format %q unknown", format)
+	}
+
 	if len(files) == 0 {
 		files = append(files, "-")
 	}
 	for _, f := range files {
-		c, err := readCollection(r, f)
+		c, err := readPtsFunc(r, f)
 		if err != nil {
 			return err
 		}
@@ -278,6 +318,153 @@ func readCollection(r io.Reader, name string) (*ranges.Collection, error) {
 	coll, err := ranges.ReadTSV(r, nil)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+
+	return coll, nil
+}
+
+var textHeaderFields = []string{
+	"species",
+	"latitude",
+	"longitude",
+}
+
+func readTextData(r io.Reader, pix *earth.Pixelation, name string, comma rune) (*ranges.Collection, error) {
+	if name != "-" {
+		f, err := os.Open(name)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	} else {
+		name = "stdin"
+	}
+
+	in := csv.NewReader(r)
+	in.Comma = comma
+	in.Comment = '#'
+
+	head, err := in.Read()
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: while reading header: %v", name, err)
+	}
+	fields := make(map[string]int, len(head))
+	for i, h := range head {
+		h = strings.ToLower(h)
+		fields[h] = i
+	}
+	for _, h := range textHeaderFields {
+		if _, ok := fields[h]; !ok {
+			return nil, fmt.Errorf("on file %q: expecting field %q", name, h)
+		}
+	}
+
+	coll := ranges.New(pix)
+	for {
+		row, err := in.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		ln, _ := in.FieldPos(0)
+		if err != nil {
+			return nil, fmt.Errorf("on file %q: row %d: %v", name, ln, err)
+		}
+
+		f := "species"
+		tax := row[fields[f]]
+
+		f = "latitude"
+		lat, err := strconv.ParseFloat(row[fields[f]], 64)
+		if err != nil {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: %v", name, ln, f, err)
+		}
+		if lat < -90 || lat > 90 {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: invalid latitude %.6f", name, ln, f, lat)
+		}
+
+		f = "longitude"
+		lon, err := strconv.ParseFloat(row[fields[f]], 64)
+		if err != nil {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: %v", name, ln, f, err)
+		}
+		if lon < -180 || lon > 180 {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: invalid longitude %.6f", name, ln, f, lon)
+		}
+
+		coll.Add(tax, 0, lat, lon)
+	}
+	return coll, nil
+}
+
+var gbifFields = []string{
+	"species",
+	"decimallatitude",
+	"decimallongitude",
+}
+
+func readGBIFData(r io.Reader, pix *earth.Pixelation, name string) (*ranges.Collection, error) {
+	if name != "-" {
+		f, err := os.Open(name)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	} else {
+		name = "stdin"
+	}
+
+	tab := tsv.NewReader(r)
+
+	head, err := tab.Read()
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: while reading header: %v", name, err)
+	}
+	fields := make(map[string]int, len(head))
+	for i, h := range head {
+		h = strings.ToLower(h)
+		fields[h] = i
+	}
+	for _, h := range gbifFields {
+		if _, ok := fields[h]; !ok {
+			return nil, fmt.Errorf("on file %q: expecting field %q", name, h)
+		}
+	}
+
+	coll := ranges.New(pix)
+	for {
+		row, err := tab.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		ln, _ := tab.FieldPos(0)
+		if err != nil {
+			return nil, fmt.Errorf("on file %q: row %d: %v", name, ln, err)
+		}
+
+		f := "species"
+		tax := row[fields[f]]
+
+		f = "decimallatitude"
+		lat, err := strconv.ParseFloat(row[fields[f]], 64)
+		if err != nil {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: %v", name, ln, f, err)
+		}
+		if lat < -90 || lat > 90 {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: invalid latitude %.6f", name, ln, f, lat)
+		}
+
+		f = "decimallongitude"
+		lon, err := strconv.ParseFloat(row[fields[f]], 64)
+		if err != nil {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: %v", name, ln, f, err)
+		}
+		if lon < -180 || lon > 180 {
+			return nil, fmt.Errorf("on file %q: row %d: field %q: invalid longitude %.6f", name, ln, f, lon)
+		}
+
+		coll.Add(tax, 0, lat, lon)
 	}
 
 	return coll, nil
