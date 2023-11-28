@@ -21,11 +21,13 @@ import (
 	"github.com/js-arias/gbifer/tsv"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
+	"github.com/js-arias/timetree"
 )
 
 var Command = &command.Command{
 	Usage: `add [-f|--file <range-file>]
 	[--type <file-type>] [--format <format>]
+	[--filter]
 	<project-file> [<range-file>...]`,
 	Short: "add taxon ranges to a PhyGeo project",
 	Long: `
@@ -64,6 +66,10 @@ different file format. Valid formats are:
 In formats different from the PhyGeo format, all entries are assumed to be
 geo-referenced at the present time.
 
+By default, all records in the input files will be added. If the flag --filter
+is defined and there are trees in the project, then it will add only the
+records that match a taxon name in the trees.
+
 By default the range maps will be stored in the range files currently defined
 for the project. If the project does not have a range file, a new one will be
 created with the name 'points.tab' for presence-absence taxon ranges, or
@@ -80,12 +86,14 @@ will be kept).
 var format string
 var outFile string
 var typeFlag string
+var filterFlag bool
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outFile, "file", "", "")
 	c.Flags().StringVar(&outFile, "f", "", "")
 	c.Flags().StringVar(&format, "format", "phygeo", "")
 	c.Flags().StringVar(&typeFlag, "type", "", "")
+	c.Flags().BoolVar(&filterFlag, "filter", false, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -134,6 +142,36 @@ func openProject(name string) (*project.Project, error) {
 	return p, nil
 }
 
+func makeFilter(p *project.Project) (map[string]bool, error) {
+	tf := p.Path(project.Trees)
+	if tf == "" {
+		return nil, fmt.Errorf("project without trees")
+	}
+
+	f, err := os.Open(tf)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	c, err := timetree.ReadTSV(f)
+	if err != nil {
+		return nil, fmt.Errorf("while reading file %q: %v", tf, err)
+	}
+	terms := make(map[string]bool)
+	for _, tn := range c.Names() {
+		t := c.Tree(tn)
+		if t == nil {
+			continue
+		}
+		for _, tax := range t.Terms() {
+			terms[tax] = true
+		}
+	}
+
+	return terms, nil
+}
+
 func addPoints(r io.Reader, p *project.Project, files []string) error {
 	pix, err := openPixelation(p)
 	if err != nil {
@@ -152,6 +190,14 @@ func addPoints(r io.Reader, p *project.Project, files []string) error {
 		}
 	} else {
 		coll = ranges.New(pix)
+	}
+
+	var filter map[string]bool
+	if filterFlag {
+		filter, err = makeFilter(p)
+		if err != nil {
+			return err
+		}
 	}
 
 	readPtsFunc := readCollection
@@ -184,6 +230,11 @@ func addPoints(r io.Reader, p *project.Project, files []string) error {
 		cp := c.Pixelation()
 
 		for _, nm := range c.Taxa() {
+			if filterFlag {
+				if !filter[nm] {
+					continue
+				}
+			}
 			if c.Type(nm) != ranges.Points {
 				continue
 			}
@@ -220,6 +271,14 @@ func addRanges(r io.Reader, p *project.Project, files []string) error {
 		return err
 	}
 
+	var filter map[string]bool
+	if filterFlag {
+		filter, err = makeFilter(p)
+		if err != nil {
+			return err
+		}
+	}
+
 	var coll *ranges.Collection
 	if rf := p.Path(project.Ranges); rf != "" {
 		var err error
@@ -247,6 +306,11 @@ func addRanges(r io.Reader, p *project.Project, files []string) error {
 		}
 
 		for _, nm := range c.Taxa() {
+			if filterFlag {
+				if !filter[nm] {
+					continue
+				}
+			}
 			if c.Type(nm) != ranges.Range {
 				continue
 			}
