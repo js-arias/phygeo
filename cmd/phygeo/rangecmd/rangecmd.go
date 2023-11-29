@@ -9,6 +9,7 @@ package rangecmd
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/add"
+	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/rotate"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/taxa"
 )
@@ -20,6 +21,7 @@ var Command = &command.Command{
 
 func init() {
 	Command.Add(add.Command)
+	Command.Add(mapcmd.Command)
 	Command.Add(rotate.Command)
 	Command.Add(taxa.Command)
 }
