@@ -9,6 +9,7 @@ import "github.com/js-arias/command"
 func init() {
 	app.Add(pixelPriorGuide)
 	app.Add(projectsGuide)
+	app.Add(rangeFilesGuide)
 	app.Add(treeFilesGuide)
 }
 
@@ -136,5 +137,62 @@ Here is an example file:
 	
 In a PhyGeo project, the file that contains the trees is indicated with the
 "trees" keyword.
+	`,
+}
+
+var rangeFilesGuide = &command.Command{
+	Usage: "range-files",
+	Short: "about distribution range files",
+	Long: `
+There are two ways in which distribution range data is stored in PhyGeo. In
+the first form, the distribution range is expressed as presence-absence
+pixels. Another way to see it is as a rasterization of the collection
+localities of the specimen records. The second form, the distribution range,
+is a continuous range map in which each pixel stores a scaled density that
+indicates the relative likelihood of the species presence. In traditional
+range maps, all densities are equal, whereas in distribution models, the
+densities might be different.
+
+In PhyGeo, both kinds of distribution ranges are kept separate. By default,
+commands that use distribution ranges use the points.
+
+The recommended way to interact with distribution range files is with the
+commands in "phygeo range". Type "phygeo range" to see the distribution range
+commands, and "phygeo help range <command>" to learn more about a command.
+
+A distribution range file is a tab-delimited file with the following columns:
+
+	- taxon    the name of the taxon
+	- type     the type of the range model. Can be "points" (for
+	           presence-absence pixelation), or "range" (for a pixelated
+	           range map).
+	- age      for the age stage of the pixels (in years)
+	- equator  for the number of pixels in the equator
+	- pixel    the ID of a pixel (from the pixelation)
+	- density  the density for the presence at that pixel
+
+Here is an example file for a presence-absence pixels:
+
+	# pixel presences
+	taxon	type	age	equator	pixel	density
+	Brontostoma discus	points	0	360	17319	1.000000
+	Brontostoma discus	points	0	360	19117	1.000000
+	Rhododendron ericoides	points	0	360	18588	1.000000
+	Rhododendron ericoides	points	0	360	19305	1.000000
+	Rhododendron ericoides	points	0	360	19308	1.000000
+
+And an example file for a continuous distribution range map:
+
+	# continuous distribution range models
+	taxon	type	age	equator	pixel	density
+	E. lunensis	range	230000000	360	34661	0.200000
+	E. lunensis	range	230000000	360	34662	0.500000
+	E. lunensis	range	230000000	360	34663	1.000000
+	E. lunensis	range	230000000	360	34664	0.500000
+	E. lunensis	range	230000000	360	34665	0.200000
+
+In a PhyGeo project, the file that contains the presence-absence pixels is
+indicated with the "points" keyword, and continuous range files with the
+"ranges" keyword.
 	`,
 }
