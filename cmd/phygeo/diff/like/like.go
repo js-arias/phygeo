@@ -56,13 +56,18 @@ diffusivity while smaller values indicate high diffusivity.
 By default, 1000 particles will be simulated for the stochastic mapping. The
 number of particles can be changed with the flag -p, or --particles.
 
-The results will be writing on a TSV file using the project name, the tree
-name, the lambda value, and the number of particles. If the flag -o, or
---output is defined, the indicated string will be used as a prefix for the
-file. For example, in the project 'rhododendron.tab', and the tree 'vireya'
-using default parameters will result in a file called:
-'rhododendron.tab-vireya-1.000000x1000.tab'. If the flag -o is set to 'out' the
-resulting file will be: 'out-rhododendron.tab-vireya-1.000000x1000.tab'.
+There are two different kinds of results. The first is a TSV file with the
+conditional likelihoods (i.e., down-pass results) for each pixel at each node.
+The second is a TSV file with the results of the stochastic mapping. These
+output files are prefixed with the name of the project file; to set a
+different prefix, use the flag --output or -o. After the prefix, the file will
+be identified by the tree name and the lambda value. For the down-pass file,
+the suffix 'down' will be added, and for the stochastic mapping, it will add
+the number of particles. For example, in the tree 'vireya' in project
+'rhododendron.tab', using default parameters will result in the files
+'rhododendron.tab-vireya-100.000000-down.tab' (conditional likelihood
+down-pass) and 'rhododendron.tab-vireya-100.000000x1000.tab' (stochastic
+mapping up-pass).
 
 By default, all available CPUs will be used in the processing. Set --cpu flag
 to use a different number of CPUs.
@@ -191,8 +196,15 @@ func run(c *command.Command, args []string) error {
 		}
 		param.Stem = stem
 		dt := diffusion.New(t, param)
+		name := fmt.Sprintf("%s-%s-%.6f-down.tab", args[0], t.Name(), lambdaFlag)
+		if output != "" {
+			name = output + "-" + name
+		}
+		if err := writeTreeConditional(dt, name, args[0], lambdaFlag, standard, landscape.Pixelation().Len()); err != nil {
+			return err
+		}
 
-		name := fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
+		name = fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
 		if output != "" {
 			name = output + "-" + name
 		}
@@ -368,4 +380,65 @@ func calcStandardDeviation(pix *earth.Pixelation, lambda float64) float64 {
 	n := dist.NewNormal(lambda, pix)
 	v := n.Variance()
 	return math.Sqrt(v) * earth.Radius / 1000
+}
+
+func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard float64, numPix int) (err error) {
+	f, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := f.Close()
+		if err == nil && e != nil {
+			err = e
+		}
+	}()
+
+	w := bufio.NewWriter(f)
+	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
+	fmt.Fprintf(w, "# standard deviation: %.6f * Km/My\n", standard)
+	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
+	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
+
+	tsv := csv.NewWriter(w)
+	tsv.Comma = '\t'
+	tsv.UseCRLF = true
+	if err := tsv.Write([]string{"tree", "node", "age", "type", "pixel", "value"}); err != nil {
+		return err
+	}
+
+	nodes := t.Nodes()
+	for _, n := range nodes {
+		stages := t.Stages(n)
+		for _, a := range stages {
+			c := t.Conditional(n, a)
+			for px := 0; px < numPix; px++ {
+				lk, ok := c[px]
+				if !ok {
+					continue
+				}
+				row := []string{
+					t.Name(),
+					strconv.Itoa(n),
+					strconv.FormatInt(a, 10),
+					"log-like",
+					strconv.Itoa(px),
+					strconv.FormatFloat(lk, 'f', 8, 64),
+				}
+				if err := tsv.Write(row); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	tsv.Flush()
+	if err := tsv.Error(); err != nil {
+		return fmt.Errorf("while writing data on %q: %v", name, err)
+	}
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("while writing data on %q: %v", name, err)
+	}
+	return nil
 }

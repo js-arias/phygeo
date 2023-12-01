@@ -109,6 +109,40 @@ func New(t *timetree.Tree, p Param) *Tree {
 	return nt
 }
 
+// Conditional returns the conditional logLikelihood
+// for a given node
+// at a given age stage
+// (in years).
+// The conditional likelihood is returned as a map of pixels
+// to the logLikelihood of the pixels.
+func (t *Tree) Conditional(n int, age int64) map[int]float64 {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return nil
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return nil
+	}
+
+	ts := nn.stages[i]
+	cLike := make(map[int]float64, len(ts.logLike))
+	for px, p := range ts.logLike {
+		cLike[px] = p
+	}
+
+	return cLike
+}
+
 // LogLike returns the logLikelihood of the whole reconstruction
 // in the most basal stem node.
 func (t *Tree) LogLike() float64 {
