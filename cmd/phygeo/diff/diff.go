@@ -14,6 +14,7 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/ml"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/speed"
+	"github.com/js-arias/phygeo/cmd/phygeo/diff/xmap"
 )
 
 var Command = &command.Command{
@@ -27,4 +28,5 @@ func init() {
 	Command.Add(mapcmd.Command)
 	Command.Add(ml.Command)
 	Command.Add(speed.Command)
+	Command.Add(xmap.Command)
 }

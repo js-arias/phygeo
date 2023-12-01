@@ -127,13 +127,15 @@ func (i *Image) At(x, y int) color.Color {
 			}
 		}
 
-		if i.Gray {
-			if c, ok := i.Keys.Gray(v); ok {
-				return c
-			}
-		} else if i.Keys != nil {
-			if c, ok := i.Keys.Color(v); ok {
-				return c
+		if i.Keys != nil {
+			if i.Gray {
+				if c, ok := i.Keys.Gray(v); ok {
+					return c
+				}
+			} else {
+				if c, ok := i.Keys.Color(v); ok {
+					return c
+				}
 			}
 		}
 		return color.RGBA{211, 211, 211, 255}
@@ -144,13 +146,15 @@ func (i *Image) At(x, y int) color.Color {
 	}
 
 	v, _ := i.Landscape.At(i.cAge, pix.ID())
-	if i.Gray {
-		if c, ok := i.Keys.Gray(v); ok {
-			return c
-		}
-	} else if i.Keys != nil {
-		if c, ok := i.Keys.Color(v); ok {
-			return c
+	if i.Keys != nil {
+		if i.Gray {
+			if c, ok := i.Keys.Gray(v); ok {
+				return c
+			}
+		} else {
+			if c, ok := i.Keys.Color(v); ok {
+				return c
+			}
 		}
 	}
 	return color.RGBA{211, 211, 211, 255}
