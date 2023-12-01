@@ -7,6 +7,7 @@ package main
 import "github.com/js-arias/command"
 
 func init() {
+	app.Add(colorKeyGuide)
 	app.Add(pixelPriorGuide)
 	app.Add(projectsGuide)
 	app.Add(rangeFilesGuide)
@@ -194,5 +195,36 @@ And an example file for a continuous distribution range map:
 In a PhyGeo project, the file that contains the presence-absence pixels is
 indicated with the "points" keyword, and continuous range files with the
 "ranges" keyword.
+	`,
+}
+
+var colorKeyGuide = &command.Command{
+	Usage: "color-keys",
+	Short: "about color keys file",
+	Long: `
+By default, mapping commands in PhyGeo use a plain gray background. A color
+key file can be defined to set colors to the image map, using the project
+landscape as the background.
+
+A color key file is a tab-delimited file with the following columns:
+
+	-key    the landscape value used as an identifier
+	-color  a RGB value separated by commas, for example, "125,132,148".
+
+Optionally, it can contain the following column:
+
+	-gray   for a gray scale value (using the RGB scale)
+
+Any other columns will be ignored.
+
+Here is an example of a key file:
+
+	key	color	gray	comment
+	0	0, 26, 51	0	deep ocean
+	1	0, 84, 119	10	oceanic plateaus
+	2	68, 167, 196	20	continental shelf
+	3	251, 236, 93	90	lowlands
+	4	255, 165, 0	100	highlands
+	5	229, 229, 224	50	ice sheets
 	`,
 }
