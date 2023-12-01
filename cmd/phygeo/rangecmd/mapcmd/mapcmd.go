@@ -10,16 +10,15 @@ package mapcmd
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"image/png"
 	"os"
 	"strings"
 
-	"github.com/js-arias/blind"
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/pixkey"
+	"github.com/js-arias/phygeo/probmap"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 )
@@ -177,18 +176,17 @@ func run(c *command.Command, args []string) error {
 			out = outPrefix + "-" + out
 		}
 
-		tm := &taxMap{
-			step:      360 / float64(colsFlag),
-			age:       age,
-			cAge:      landscape.ClosestStageAge(age),
-			landscape: landscape,
-			keys:      keys,
-			rng:       rng,
-			contour:   contour,
+		tm := &probmap.Image{
+			Cols:      colsFlag,
+			Age:       age,
+			Landscape: landscape,
+			Keys:      keys,
+			Rng:       rng,
+			Contour:   contour,
+			Present:   present,
+			Gray:      grayFlag,
 		}
-		if tot != nil {
-			tm.tot = tot.Rotation(tm.cAge)
-		}
+		tm.Format(tot)
 
 		if err := writeImage(out, tm); err != nil {
 			return err
@@ -257,109 +255,7 @@ func readRanges(name string) (*ranges.Collection, error) {
 	return coll, nil
 }
 
-type taxMap struct {
-	step      float64
-	age       int64
-	cAge      int64
-	landscape *model.TimePix
-	tot       map[int][]int
-	keys      *pixkey.PixKey
-	rng       map[int]float64
-
-	contour image.Image
-}
-
-func (tm *taxMap) ColorModel() color.Model { return color.RGBAModel }
-func (tm *taxMap) Bounds() image.Rectangle { return image.Rect(0, 0, colsFlag, colsFlag/2) }
-func (tm *taxMap) At(x, y int) color.Color {
-	if tm.contour != nil {
-		_, _, _, a := tm.contour.At(x, y).RGBA()
-		if a > 100 {
-			return color.RGBA{A: 255}
-		}
-	}
-
-	lat := 90 - float64(y)*tm.step
-	lon := float64(x)*tm.step - 180
-
-	pix := tm.landscape.Pixelation().Pixel(lat, lon)
-
-	if unRot {
-		// Total rotation from present time
-		// to stage time
-		dst := tm.tot[pix.ID()]
-		if len(dst) == 0 {
-			v, _ := tm.landscape.At(0, pix.ID())
-			if grayFlag {
-				if c, ok := tm.keys.Gray(v); ok {
-					return c
-				}
-			} else if tm.keys != nil {
-				if c, ok := tm.keys.Color(v); ok {
-					return c
-				}
-			}
-			return color.RGBA{211, 211, 211, 255}
-		}
-
-		// Check if the pixel is in the range
-		// of the time stage
-		var max float64
-		for _, px := range dst {
-			p := tm.rng[px]
-			if p > max {
-				max = p
-			}
-		}
-		if max > 0 {
-			return blind.Gradient(max)
-		}
-
-		// The taxon is absent,
-		// use the landscape value of the pixel
-		// at the stage time
-		var v int
-		if present {
-			v, _ = tm.landscape.At(0, pix.ID())
-		} else {
-			for _, px := range dst {
-				vv, _ := tm.landscape.At(tm.cAge, px)
-				if vv > v {
-					v = vv
-				}
-			}
-		}
-
-		if grayFlag {
-			if c, ok := tm.keys.Gray(v); ok {
-				return c
-			}
-		} else if tm.keys != nil {
-			if c, ok := tm.keys.Color(v); ok {
-				return c
-			}
-		}
-		return color.RGBA{211, 211, 211, 255}
-	}
-
-	if p, ok := tm.rng[pix.ID()]; ok {
-		return blind.Gradient(p)
-	}
-
-	v, _ := tm.landscape.At(tm.cAge, pix.ID())
-	if grayFlag {
-		if c, ok := tm.keys.Gray(v); ok {
-			return c
-		}
-	} else if tm.keys != nil {
-		if c, ok := tm.keys.Color(v); ok {
-			return c
-		}
-	}
-	return color.RGBA{211, 211, 211, 255}
-}
-
-func writeImage(name string, m *taxMap) (err error) {
+func writeImage(name string, m *probmap.Image) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
