@@ -195,11 +195,13 @@ func run(c *command.Command, args []string) error {
 			stem = t.Age(t.Root()) / 10
 		}
 		param.Stem = stem
-		dt := diffusion.New(t, param)
 		name := fmt.Sprintf("%s-%s-%.6f-down.tab", args[0], t.Name(), lambdaFlag)
 		if output != "" {
 			name = output + "-" + name
 		}
+
+		dt := diffusion.New(t, param)
+		dt.DownPass()
 		if err := writeTreeConditional(dt, name, args[0], lambdaFlag, standard, landscape.Pixelation().Len()); err != nil {
 			return err
 		}

@@ -280,7 +280,7 @@ func sample(w io.Writer, projName string, t *timetree.Tree, p diffusion.Param, r
 	for i := 0; i < parts; i++ {
 		p.Lambda = r.Rand()
 		df := diffusion.New(t, p)
-		like := df.LogLike()
+		like := df.DownPass()
 		standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)
@@ -316,7 +316,7 @@ func integrate(w io.Writer, t *timetree.Tree, p diffusion.Param) {
 	for i := minFlag + step/2; i < maxFlag; i += step {
 		p.Lambda = i
 		df := diffusion.New(t, p)
-		like := df.LogLike()
+		like := df.DownPass()
 		standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)
@@ -329,7 +329,7 @@ func monteCarlo(w io.Writer, t *timetree.Tree, p diffusion.Param) {
 	for i := 0; i < mcParts; i++ {
 		p.Lambda = rand.Float64()*size + minFlag
 		df := diffusion.New(t, p)
-		like := df.LogLike()
+		like := df.DownPass()
 		standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)

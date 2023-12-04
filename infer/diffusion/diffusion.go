@@ -104,7 +104,6 @@ func New(t *timetree.Tree, p Param) *Tree {
 			st.logLike[px] = math.Log(p) - math.Log(sum)
 		}
 	}
-	root.fullDownPass(nt)
 
 	return nt
 }
@@ -141,6 +140,16 @@ func (t *Tree) Conditional(n int, age int64) map[int]float64 {
 	}
 
 	return cLike
+}
+
+// DownPass performs the Felsenstein's pruning algorithm
+// to estimate the likelihood of the data
+// for a tree.
+func (t *Tree) DownPass() float64 {
+	root := t.nodes[t.t.Root()]
+	root.fullDownPass(t)
+
+	return t.LogLike()
 }
 
 // LogLike returns the logLikelihood of the whole reconstruction

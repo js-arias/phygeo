@@ -178,7 +178,7 @@ func run(c *command.Command, args []string) error {
 		if lambdaFlag > 0 {
 			param.Lambda = lambdaFlag
 			df := diffusion.New(t, param)
-			like := df.LogLike()
+			like := df.DownPass()
 			b.logLike = like
 			standard := calcStandardDeviation(param.Landscape.Pixelation(), lambdaFlag)
 
@@ -211,7 +211,7 @@ func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step f
 	for l := b.lambda + step; ; l += step {
 		p.Lambda = l
 		df := diffusion.New(t, p)
-		like := df.LogLike()
+		like := df.DownPass()
 		standard := calcStandardDeviation(p.Landscape.Pixelation(), l)
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, l, standard, like, stepFlag)
@@ -232,7 +232,7 @@ func (b *bestRec) first(w io.Writer, t *timetree.Tree, p diffusion.Param, step f
 	for l := b.lambda - step; l > 0; l -= step {
 		p.Lambda = l
 		df := diffusion.New(t, p)
-		like := df.LogLike()
+		like := df.DownPass()
 		standard := calcStandardDeviation(p.Landscape.Pixelation(), l)
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, l, standard, like, stepFlag)
@@ -257,7 +257,7 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 	// go up
 	p.Lambda = b.lambda + step
 	df := diffusion.New(t, p)
-	like := df.LogLike()
+	like := df.DownPass()
 	standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
 	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, stepFlag)
@@ -274,7 +274,7 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 	}
 	p.Lambda = b.lambda - step
 	df = diffusion.New(t, p)
-	like = df.LogLike()
+	like = df.DownPass()
 	standard = calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
 	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, stepFlag)
