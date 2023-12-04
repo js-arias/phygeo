@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"encoding/csv"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"runtime"
@@ -30,47 +29,37 @@ import (
 
 var Command = &command.Command{
 	Usage: `like [--ranges] [--stem <age>] [--lambda <value>]
-	[-p|--particles <number>]
 	[-o|--output <file>]
 	[--cpu <number>] [--nomat] <project-file>`,
 	Short: "perform a likelihood reconstruction",
 	Long: `
-Command like reads a PhyGeo project, perform a likelihood reconstruction for
-the trees in the project, using a diffusion model over a sphere, and write the
-results of an stochastic mapping.
+Command like reads a PhyGeo project and performs a likelihood reconstruction
+for the trees in the project.
 
-By default, it will use geographic distributions stored as points (presence-
-absence maps). If no there are no point distribution, or the flags --ranges is
-defined, the continuous range maps will be used.
+The argument of the command is the name of the project file.
 
-By default, an stem branch will be added to each tree using the 10% of the root
-age. To set a different stem age use the flag --stem, the value should be in
+By default, it will use geographic distributions stored as points
+(presence-absence maps). If there are no point distributions or the flag
+--ranges is defined, the continuous range maps will be used.
+
+By default, a stem branch will be added to each tree using 10% of the root
+age. To set a different stem age, use the flag --stem; the value should be in
 million years.
 
 The flag --lambda defines the concentration parameter of the spherical normal
-(equivalent to kappa parameter of the von Mises-Fisher distribution) for a
-diffusion process on a million year using 1/radian^2 units. If no value is
-defined, it will use 100. As the kappa parameter, lager values indicate low
-diffusivity while smaller values indicate high diffusivity.
+(equivalent to the kappa parameter of the von Mises-Fisher distribution) for a
+diffusion process over a million years using 1/radias^2 units. If no value is
+defined, it will use 100. As the kappa parameter, larger values indicate low
+diffusivity, while smaller values indicate high diffusivity.
 
-By default, 1000 particles will be simulated for the stochastic mapping. The
-number of particles can be changed with the flag -p, or --particles.
+The output file is a TSV file with the conditional likelihoods (i.e.,
+down-pass results) for each pixel at each node. The prefix of the output file
+name is the name of the project file. To set a different prefix, use the flag
+--output, or -o. The output file name will be named by the tree name, the
+lambda value, and the suffix 'down'.
 
-There are two different kinds of results. The first is a TSV file with the
-conditional likelihoods (i.e., down-pass results) for each pixel at each node.
-The second is a TSV file with the results of the stochastic mapping. These
-output files are prefixed with the name of the project file; to set a
-different prefix, use the flag --output or -o. After the prefix, the file will
-be identified by the tree name and the lambda value. For the down-pass file,
-the suffix 'down' will be added, and for the stochastic mapping, it will add
-the number of particles. For example, in the tree 'vireya' in project
-'rhododendron.tab', using default parameters will result in the files
-'rhododendron.tab-vireya-100.000000-down.tab' (conditional likelihood
-down-pass) and 'rhododendron.tab-vireya-100.000000x1000.tab' (stochastic
-mapping up-pass).
-
-By default, all available CPUs will be used in the processing. Set --cpu flag
-to use a different number of CPUs.
+By default, all available CPUs will be used in the calculations. Set the flag
+--cpu to use a different number of CPUs.
 
 By default, if the base pixelation is smaller than 500 pixels at the equator,
 it will build a distance matrix to speed up the search. As this matrix
@@ -84,7 +73,6 @@ consumes a lot of memory, this procedure can be disabled using the flag
 var lambdaFlag float64
 var stemAge float64
 var numCPU int
-var particles int
 var output string
 var useRanges bool
 var noDMatrix bool
@@ -93,8 +81,6 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
-	c.Flags().IntVar(&particles, "p", 1000, "")
-	c.Flags().IntVar(&particles, "particles", 1000, "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
@@ -206,14 +192,16 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 
-		name = fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
-		if output != "" {
-			name = output + "-" + name
-		}
+		/*
+			name = fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
+			if output != "" {
+				name = output + "-" + name
+			}
 
-		if err := upPass(dt, name, args[0], lambdaFlag, standard, particles); err != nil {
-			return err
-		}
+			if err := upPass(dt, name, args[0], lambdaFlag, standard, particles); err != nil {
+				return err
+			}
+		*/
 	}
 	return nil
 }
@@ -292,89 +280,6 @@ func readRanges(name string) (*ranges.Collection, error) {
 	return coll, nil
 }
 
-func upPass(t *diffusion.Tree, name, p string, lambda, standard float64, particles int) (err error) {
-	t.Simulate(particles)
-
-	f, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		e := f.Close()
-		if err == nil && e != nil {
-			err = e
-		}
-	}()
-
-	w := bufio.NewWriter(f)
-	tsv, err := outHeader(w, t.Name(), p, lambda, standard, t.LogLike())
-	if err != nil {
-		return fmt.Errorf("while writing header on %q: %v", name, err)
-	}
-
-	for i := 0; i < particles; i++ {
-		if err := writeUpPass(tsv, i, t); err != nil {
-			return fmt.Errorf("while writing data on %q: %v", name, err)
-		}
-	}
-
-	tsv.Flush()
-	if err := tsv.Error(); err != nil {
-		return fmt.Errorf("while writing data on %q: %v", name, err)
-	}
-	if err := w.Flush(); err != nil {
-		return fmt.Errorf("while writing data on %q: %v", name, err)
-	}
-	return nil
-}
-
-func outHeader(w io.Writer, t, p string, lambda, standard, logLike float64) (*csv.Writer, error) {
-	fmt.Fprintf(w, "# diff.like on tree %q of project %q\n", t, p)
-	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
-	fmt.Fprintf(w, "# standard deviation: %.6f * Km/My\n", standard)
-	fmt.Fprintf(w, "# logLikelihood: %.6f\n", logLike)
-	fmt.Fprintf(w, "# up-pass particles: %d\n", particles)
-	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
-
-	tsv := csv.NewWriter(w)
-	tsv.Comma = '\t'
-	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "particle", "node", "age", "from", "to"}); err != nil {
-		return nil, err
-	}
-
-	return tsv, nil
-}
-
-func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree) error {
-	nodes := t.Nodes()
-
-	for _, n := range nodes {
-		stages := t.Stages(n)
-		// skip the first stage
-		// (i.e. the post-split stage)
-		for i := 1; i < len(stages); i++ {
-			a := stages[i]
-			st := t.SrcDest(n, p, a)
-			if st.From == -1 {
-				continue
-			}
-			row := []string{
-				t.Name(),
-				strconv.Itoa(p),
-				strconv.Itoa(n),
-				strconv.FormatInt(a, 10),
-				strconv.Itoa(st.From),
-				strconv.Itoa(st.To),
-			}
-			if err := tsv.Write(row); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // CalcStandardDeviation returns the standard deviation
 // (i.e. the square root of variance)
 // in km per million year.
@@ -406,7 +311,7 @@ func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard fl
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
 	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "node", "age", "type", "pixel", "value"}); err != nil {
+	if err := tsv.Write([]string{"tree", "node", "age", "type", "lambda", "pixel", "value"}); err != nil {
 		return err
 	}
 
@@ -425,6 +330,7 @@ func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard fl
 					strconv.Itoa(n),
 					strconv.FormatInt(a, 10),
 					"log-like",
+					strconv.FormatFloat(lambda, 'f', 6, 64),
 					strconv.Itoa(px),
 					strconv.FormatFloat(lk, 'f', 8, 64),
 				}

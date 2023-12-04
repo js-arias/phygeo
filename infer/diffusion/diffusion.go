@@ -183,6 +183,35 @@ func (t *Tree) Nodes() []int {
 	return t.t.Nodes()
 }
 
+// SetConditional sets the conditional likelihood
+// (in logLike units)
+// of a node at a given time stage.
+func (t *Tree) SetConditional(n int, age int64, logLike map[int]float64) {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return
+	}
+
+	ts := nn.stages[i]
+	ts.logLike = make(map[int]float64, len(logLike))
+	for px, p := range logLike {
+		ts.logLike[px] = p
+	}
+}
+
 // SrcDest return the source and destination pixel
 // for a given node,
 // at a given age stage

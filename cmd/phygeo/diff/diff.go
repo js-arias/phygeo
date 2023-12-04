@@ -13,6 +13,7 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/like"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/ml"
+	"github.com/js-arias/phygeo/cmd/phygeo/diff/particles"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/speed"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff/xmap"
 )
@@ -27,6 +28,7 @@ func init() {
 	Command.Add(like.Command)
 	Command.Add(mapcmd.Command)
 	Command.Add(ml.Command)
+	Command.Add(particles.Command)
 	Command.Add(speed.Command)
 	Command.Add(xmap.Command)
 }
