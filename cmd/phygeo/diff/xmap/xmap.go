@@ -28,6 +28,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `xmap [-c|--columns <value>] [--key <key-file>] [--gray]
+	[--bound <value>]
 	[--unrot] [--present] [--contour <image-file>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map reconstruction",
@@ -39,6 +40,9 @@ using a plate carrée (equirectangular) projection.
 The argument of the command is the name of the project file.
 
 The flag --input, or -i, is required and indicates the input file.
+
+By default, when reading a KDE reconstruction, it will only map the pixels in
+the 0.95 of the CDF. Use the flag --bound to change this bound value.
 
 By default, the reconstructions will be mapped using their respective time
 stages. If the flag --unrot is given, then the reconstructions will be drawn
@@ -66,6 +70,7 @@ var grayFlag bool
 var unRot bool
 var present bool
 var colsFlag int
+var bound float64
 var contourFile string
 var keyFile string
 var inputFile string
@@ -77,6 +82,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&present, "present", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
+	c.Flags().Float64Var(&bound, "bound", 0.95, "")
 	c.Flags().StringVar(&keyFile, "key", "", "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
@@ -374,7 +380,8 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 		return nil, fmt.Errorf("while reading data: %v", io.EOF)
 	}
 
-	if tp == "log-like" {
+	switch tp {
+	case "log-like":
 		// scale log-like values
 		for _, t := range rt {
 			for _, n := range t.nodes {
@@ -387,6 +394,36 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 					}
 					for px, p := range s.rec {
 						s.rec[px] = math.Exp(p - max)
+					}
+				}
+			}
+		}
+	case "freq":
+		// scale frequencies
+		for _, t := range rt {
+			for _, n := range t.nodes {
+				for _, s := range n.stages {
+					var max float64
+					for _, p := range s.rec {
+						if p > max {
+							max = p
+						}
+					}
+					for px, p := range s.rec {
+						s.rec[px] = p / max
+					}
+				}
+			}
+		}
+	case "kde":
+		// remove pixels outside the bound
+		for _, t := range rt {
+			for _, n := range t.nodes {
+				for _, s := range n.stages {
+					for px, p := range s.rec {
+						if p < 1-bound {
+							delete(s.rec, px)
+						}
 					}
 				}
 			}
