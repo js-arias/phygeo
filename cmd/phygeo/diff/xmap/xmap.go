@@ -28,7 +28,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `xmap [-c|--columns <value>] [--key <key-file>] [--gray]
-	[--bound <value>]
+	[--bound <value>] [--richness]
 	[--unrot] [--present] [--contour <image-file>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map reconstruction",
@@ -53,6 +53,13 @@ given image will be used as a contour of the output map. The contour map will
 set the size of the output image and should be fully transparent, except for
 the contour, which will always be drawn in black.
 
+By default, it will output the results of each node. If the flag --richness is
+defined, then it will output the relative richness over time, that is, the
+number of lineages alive at the end of each time stage. This number is
+calculated using the scaled pixel values of each node alive at each time (so
+each pixel can add a number between 1 and 0). For each map, the output is
+scaled to the maximum value at that time stage.
+
 By default, the output image will have the input file name as a prefix. To
 change the prefix, use the flag --output or -o. The suffix of the file will be
 the tree name, the node ID, and the time stage.
@@ -69,6 +76,7 @@ colors of the image. If the flag --gray is set, then gray colors will be used.
 var grayFlag bool
 var unRot bool
 var present bool
+var richnessFlag bool
 var colsFlag int
 var bound float64
 var contourFile string
@@ -80,6 +88,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
 	c.Flags().BoolVar(&unRot, "unrot", false, "")
 	c.Flags().BoolVar(&present, "present", false, "")
+	c.Flags().BoolVar(&richnessFlag, "richness", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().Float64Var(&bound, "bound", 0.95, "")
@@ -148,6 +157,39 @@ func run(c *command.Command, args []string) error {
 		if grayFlag && !keys.HasGrayScale() {
 			keys = nil
 		}
+	}
+
+	if richnessFlag {
+		if outPrefix == "" {
+			outPrefix = "richness-" + inputFile
+		}
+		stages, err := richnessOnTime(inputFile, landscape)
+		if err != nil {
+			return err
+		}
+
+		// draw the maps
+		for _, st := range stages {
+			age := float64(st.age) / 1_000_000
+			out := fmt.Sprintf("%s-%.3f.png", outPrefix, age)
+
+			pm := &probmap.Image{
+				Cols:      colsFlag,
+				Age:       st.age,
+				Landscape: landscape,
+				Keys:      keys,
+				Rng:       st.rec,
+				Contour:   contour,
+				Present:   present,
+				Gray:      grayFlag,
+			}
+			pm.Format(tot)
+
+			if err := writeImage(out, pm); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	if outPrefix == "" {
