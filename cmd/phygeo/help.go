@@ -241,7 +241,8 @@ tab-delimited file.
 
 Plate motion models are taken as given in PhyGeo. If you want to work with
 plate motion models, the recommended way is to use the tool 'plates',
-available at: <https://github.com/js-arias/earth>.
+available at: <https://github.com/js-arias/earth>. Here is a repository with a
+collection of plate motion models: <https://github.com/js-arias/geomodels>.
 
 A plate motion model file is a tab-delimited file with the following columns:
 
