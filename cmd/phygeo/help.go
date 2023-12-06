@@ -9,6 +9,7 @@ import "github.com/js-arias/command"
 func init() {
 	app.Add(colorKeyGuide)
 	app.Add(pixelPriorGuide)
+	app.Add(motionModelGuide)
 	app.Add(projectsGuide)
 	app.Add(rangeFilesGuide)
 	app.Add(treeFilesGuide)
@@ -226,5 +227,42 @@ Here is an example of a key file:
 	3	251, 236, 93	90	lowlands
 	4	255, 165, 0	100	highlands
 	5	229, 229, 224	50	ice sheets
+	`,
+}
+
+var motionModelGuide = &command.Command{
+	Usage: "motion-model",
+	Short: "about plate motion models",
+	Long: `
+A plate motion model stores the locations of tectonic features at different
+times. While geologists use a vectorial and time-continuous rotation model, in
+PhyGeo, a rasterized and time-discrete version of such models is stored as a
+tab-delimited file.
+
+Plate motion models are taken as given in PhyGeo. If you want to work with
+plate motion models, the recommended way is to use the tool 'plates',
+available at: <https://github.com/js-arias/earth>.
+
+A plate motion model file is a tab-delimited file with the following columns:
+
+	-equator      for the size of the pixelation (the number of pixels in
+	              the equatorial ring).
+	-plate        the ID of the tectonic plate.
+	-pixel        the ID of the pixel at the present location (from the
+	              pixelation).
+	-age          the time stage, in years.
+	-stage-pixel  the ID of the pixel at the indicated time stage.
+	
+Here is an example file:
+
+	equator	plate	pixel	age	stage-pixel
+	360	59999	17051	100000000	19051
+	360	59999	17051	140000000	20051
+	360	59999	17055	100000000	19055
+	360	59999	17055	140000000	20055
+	360	59999	17055	140000000	20056
+
+In a PhyGeo project, the file that contains the plate motion model is
+indicated with the "geomotion" keyword.
 	`,
 }
