@@ -31,15 +31,15 @@ project exists, a new project will be created.
 The second argument is the valid path of a model file. If there is a model
 already defined in the project, its path will be replaced by the path of the
 added file. The model can be either a plate motion model (pixels locations in
-time), or a paleolandscape pixelation (pixel values on time). Both kind of
-models must be compatible, i.e. based on the same underlying pixelation, and
-have the same time stages.
+time), or a landscape pixelation (pixel values on time). Both kind of models
+must be compatible, i.e. based on the same underlying pixelation, and have the
+same time stages.
 
 The type of the added model must be explicitly defined using the flag --type
 with one of the following values:
 
 	geomotion	for a plate motion model
-	landscape	for a paleolandscape
+	landscape	for a landscape model
 	`,
 	SetFlags: setFlags,
 	Run:      run,

@@ -135,7 +135,7 @@ func readLandscape(w io.Writer, name string, pix *earth.Pixelation) (*earth.Pixe
 		pix = tp.Pixelation()
 	}
 
-	fmt.Fprintf(w, "Paleo-Landscape model:\n")
+	fmt.Fprintf(w, "Landscape model:\n")
 	fmt.Fprintf(w, "\tfile: %s\n", name)
 	fmt.Fprintf(w, "\tpixelation: e%d\n", pix.Equator())
 

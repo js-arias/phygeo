@@ -9,6 +9,7 @@ import "github.com/js-arias/command"
 func init() {
 	app.Add(colorKeyGuide)
 	app.Add(pixelPriorGuide)
+	app.Add(landscapeModelGuide)
 	app.Add(motionModelGuide)
 	app.Add(projectsGuide)
 	app.Add(rangeFilesGuide)
@@ -46,10 +47,10 @@ The valid file types are:
   contains the plate motion model in the form of a tab-delimited file. The
   recommended way to add a plate motion model is by using the command
   'phygeo geo add'.
-- Paleolandscape models. Defined by the dataset keyword "landscape". This file
+- Landscape models. Defined by the dataset keyword "landscape". This file
   contains pixel values at different time stages in the form of a
-  tab-delimited file. The recommended way to add a paleolandscape model is by
-  using the command 'phygeo geo add'.
+  tab-delimited file. The recommended way to add a landscape model is by using
+  the command 'phygeo geo add'.
 - Pixel prior values. Defined by the dataset keyword "pixprior". This file
   contains the values used for the pixel priors in the form of a
   tab-delimited file. The recommended way to add a pixel prior file is by
@@ -265,5 +266,55 @@ Here is an example file:
 
 In a PhyGeo project, the file that contains the plate motion model is
 indicated with the "geomotion" keyword.
+	`,
+}
+
+var landscapeModelGuide = &command.Command{
+	Usage: "landscape",
+	Short: "about landscape models",
+	Long: `
+A landscape model (or paleolandscape model) stores pixel values at different
+times. These values are usually associated with a particular landscape feature
+(for example, 1 is associated with shallow seas, while 5 is associated with
+high-altitude mountains). In PhyGeo, the landscape models are stored as
+tab-delimited files.
+
+There are two uses for the landscape models in PhyGeo. The first, and most
+important, is for the analysis. The landscape features are associated with
+pixel priors. Therefore, the landscape feature modifies the probability of
+assigning a pixel as part of the ancestral range. In the second usage, mapping
+commands use feature values to assign background colors.
+
+The landscape models are closely associated with plate motion models. In
+PhyGeo, both models should have the same spatial and temporal resolution. They
+are kept separated for flexibility; for example, you can have two different
+landscape models using the same plate motion model.
+
+Landscape models are taken as given in PhyGeo. If you want to work with
+landscape models, the recommended way is to use the tools 'plates' or
+'platesgui' available at: <https://github.com/js-arias/earth>. Here is a
+repository with a collection of landscape models:
+<https://github.com/js-arias/geomodels>.
+
+A landscape model is a tab-delimited file with the following columns:
+
+	-equator      for the size of the pixelation (the number of pixels in
+	              the equatorial ring).
+	-age          the time stage, in years.	
+	-stage-pixel  the ID of a pixel at the indicated time stage.
+	-value         an integer value associated with a landscape feature.
+
+Here is an example file:
+
+	equator	age	stage-pixel	value
+	360	100000000	19051	1
+	360	100000000	19055	2
+	360	100000000	19409	1
+	360	140000000	20051	1
+	360	140000000	20055	2
+	360	140000000	20056	3
+
+In a PhyGeo project, the file that contains the landscape model is indicated
+with the "landscape" keyword.
 	`,
 }
