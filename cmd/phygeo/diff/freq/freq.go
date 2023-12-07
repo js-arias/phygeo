@@ -14,9 +14,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/js-arias/command"
@@ -28,7 +30,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `freq [--kde <value>]
+	Usage: `freq [--kde <value>] [--cpu <number>]
 	-i|--input <file> [-o|--output <file>] <project-file>`,
 	Short: "calculate pixel frequencies",
 	Long: `
@@ -42,7 +44,10 @@ The flag --input, or -i, is required and indicates the input file.
 
 By default, the ranges are taken as given. If the flag --kde is defined, a
 kernel density estimation using a spherical normal will be used to smooth the
-results with the indicated concentration parameter (in 1/radians^2).
+results with the indicated concentration parameter (in 1/radians^2). As
+calculating the KDE can be computationally expensive, this procedure is run in
+parallel using all available processors. Use the flag --cpu to change the
+number of processors.
 
 By default, the output file will have the name of the input file with the
 prefix "freq" or "kde" if the --kde flag is used. With the flag --output, or
@@ -52,11 +57,13 @@ prefix "freq" or "kde" if the --kde flag is used. With the flag --output, or
 	Run:      run,
 }
 
+var numCPU int
 var kdeLambda float64
 var inputFile string
 var outPrefix string
 
 func setFlags(c *command.Command) {
+	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 	c.Flags().Float64Var(&kdeLambda, "kde", 0, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
@@ -101,7 +108,18 @@ func run(c *command.Command, args []string) error {
 
 	tp := "freq"
 	if kdeLambda > 0 {
-		setKDE(rt, landscape)
+		var pp pixprob.Pixel
+		ppF := p.Path(project.PixPrior)
+		if ppF == "" {
+			msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
+			return c.UsageError(msg)
+		}
+		pp, err = readPriors(ppF)
+		if err != nil {
+			return err
+		}
+
+		setKDE(rt, landscape, pp)
 		tp = "kde"
 	} else {
 		scale(rt)
@@ -142,6 +160,21 @@ func readLandscape(name string) (*model.TimePix, error) {
 	}
 
 	return tp, nil
+}
+
+func readPriors(name string) (pixprob.Pixel, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	pp, err := pixprob.ReadTSV(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+
+	return pp, nil
 }
 
 type recTree struct {
@@ -278,23 +311,68 @@ func scale(rt map[string]*recTree) {
 	}
 }
 
-func setKDE(rt map[string]*recTree, landscape *model.TimePix) {
+type stageChan struct {
+	t   string          // tree ID
+	n   int             // node ID
+	age int64           // stage age
+	rec map[int]float64 // stage reconstruction
+}
+
+func makeKDE(in, out chan stageChan, wg *sync.WaitGroup, norm dist.Normal, landscape *model.TimePix, pp pixprob.Pixel) {
+	for d := range in {
+		rec := stat.KDE(norm, d.rec, landscape, d.age, pp)
+		out <- stageChan{
+			t:   d.t,
+			n:   d.n,
+			age: d.age,
+			rec: rec,
+		}
+		wg.Done()
+	}
+}
+
+func setKDE(rt map[string]*recTree, landscape *model.TimePix, prior pixprob.Pixel) {
 	pp := pixprob.New()
-	for _, age := range landscape.Stages() {
-		s := landscape.Stage(age)
-		for _, v := range s {
+	for _, v := range prior.Values() {
+		if prior.Prior(v) > 0 {
 			pp.Set(v, 1)
 		}
 	}
 	norm := dist.NewNormal(kdeLambda, landscape.Pixelation())
 
-	for _, t := range rt {
-		for _, n := range t.nodes {
-			for _, s := range n.stages {
-				s.rec = stat.KDE(norm, s.rec, landscape, s.age, pp)
+	in := make(chan stageChan, numCPU*2)
+	out := make(chan stageChan, numCPU*2)
+	var wg sync.WaitGroup
+	for i := 0; i < numCPU; i++ {
+		go makeKDE(in, out, &wg, norm, landscape, pp)
+	}
+
+	go func() {
+		// send the reconstructions
+		for _, t := range rt {
+			for _, n := range t.nodes {
+				for _, s := range n.stages {
+					wg.Add(1)
+					in <- stageChan{
+						t:   t.name,
+						n:   n.id,
+						age: s.age,
+						rec: s.rec,
+					}
+				}
 			}
 		}
+		wg.Wait()
+		close(out)
+	}()
+
+	for a := range out {
+		t := rt[a.t]
+		n := t.nodes[a.n]
+		s := n.stages[a.age]
+		s.rec = a.rec
 	}
+	close(in)
 }
 
 func writeFrequencies(rt map[string]*recTree, name, p, tp string, numPix int) (err error) {
