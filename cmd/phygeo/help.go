@@ -71,7 +71,7 @@ The valid file types are:
 
 var pixelPriorGuide = &command.Command{
 	Usage: "pixel-priors",
-	Short: "about the pixel prior file",
+	Short: "about the pixel prior files",
 	Long: `
 To take into account the landscape, each pixel must have a different prior, so
 some pixels will be more likely to be sampled than others based on the
@@ -201,7 +201,7 @@ indicated with the "points" keyword, and continuous range files with the
 
 var colorKeyGuide = &command.Command{
 	Usage: "color-keys",
-	Short: "about color keys file",
+	Short: "about color keys files",
 	Long: `
 By default, mapping commands in PhyGeo use a plain gray background. A color
 key file can be defined to set colors to the image map, using the project
