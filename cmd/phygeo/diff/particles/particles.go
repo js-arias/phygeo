@@ -45,7 +45,8 @@ The argument of the command is the name of the project file.
 By default, 1000 particles will be simulated for the stochastic mapping. The
 number of particles can be changed with the flag --particles, or -p.
 
-The flag --input, or -i, is required and indicates the input file.
+The flag --input, or -i, is required and indicates the input file. The input
+file is a pixel probability file with stored log-likelihoods.
 
 The prefix for the name of the output file will be the name of the project
 file. To set a different prefix, use the flag --output, or -o. The full file

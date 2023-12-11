@@ -39,7 +39,8 @@ using a plate carrée (equirectangular) projection.
 
 The argument of the command is the name of the project file.
 
-The flag --input, or -i, is required and indicates the input file.
+The flag --input, or -i, is required and indicates the input file. The input
+file is a pixel probability file.
 
 By default, when reading a KDE reconstruction, it will only map the pixels in
 the 0.95 of the CDF. Use the flag --bound to change this bound value.

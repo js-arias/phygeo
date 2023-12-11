@@ -52,11 +52,11 @@ diffusion process over a million years using 1/radias^2 units. If no value is
 defined, it will use 100. As the kappa parameter, larger values indicate low
 diffusivity, while smaller values indicate high diffusivity.
 
-The output file is a TSV file with the conditional likelihoods (i.e.,
-down-pass results) for each pixel at each node. The prefix of the output file
-name is the name of the project file. To set a different prefix, use the flag
---output, or -o. The output file name will be named by the tree name, the
-lambda value, and the suffix 'down'.
+The output file is a pixel probability file with the conditional likelihoods
+(i.e., down-pass results) for each pixel at each node. The prefix of the
+output file name is the name of the project file. To set a different prefix,
+use the flag --output, or -o. The output file name will be named by the tree
+name, the lambda value, and the suffix 'down'.
 
 By default, all available CPUs will be used in the calculations. Set the flag
 --cpu to use a different number of CPUs.
