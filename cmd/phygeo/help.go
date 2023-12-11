@@ -165,14 +165,14 @@ commands, and "phygeo help range <command>" to learn more about a command.
 
 A distribution range file is a tab-delimited file with the following columns:
 
-	- taxon    the name of the taxon
-	- type     the type of the range model. Can be "points" (for
-	           presence-absence pixelation), or "range" (for a pixelated
-	           range map).
-	- age      for the age stage of the pixels (in years)
-	- equator  for the number of pixels in the equator
-	- pixel    the ID of a pixel (from the pixelation)
-	- density  the density for the presence at that pixel
+	-taxon    the name of the taxon
+	-type     the type of the range model. Can be "points" (for
+	          presence-absence pixelation), or "range" (for a pixelated
+	          range map).
+	-age      for the age stage of the pixels (in years)
+	-equator  for the number of pixels in the equator
+	-pixel    the ID of a pixel (from the pixelation)
+	-density  the density for the presence at that pixel
 
 Here is an example file for a presence-absence pixels:
 
