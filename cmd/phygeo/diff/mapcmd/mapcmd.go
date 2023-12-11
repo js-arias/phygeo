@@ -309,6 +309,7 @@ var headerFields = []string{
 	"node",
 	"age",
 	"type",
+	"equator",
 	"pixel",
 	"value",
 }
@@ -400,6 +401,15 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 		}
 		if tp != tpV {
 			return nil, fmt.Errorf("on row %d: field %q: got %q want %q", ln, f, tpV, tp)
+		}
+
+		f = "equator"
+		eq, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		if eq != landscape.Pixelation().Equator() {
+			return nil, fmt.Errorf("on row %d: field %q: invalid equator value %d", ln, f, eq)
 		}
 
 		f = "pixel"

@@ -126,7 +126,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	name := fmt.Sprintf("%s-%s-%s.tab", outPrefix, args[0], inputFile)
-	if err := writeFrequencies(rt, name, args[0], tp, landscape.Pixelation().Len()); err != nil {
+	if err := writeFrequencies(rt, name, args[0], tp, landscape.Pixelation().Len(), landscape.Pixelation().Equator()); err != nil {
 		return err
 	}
 
@@ -375,7 +375,7 @@ func setKDE(rt map[string]*recTree, landscape *model.TimePix, prior pixprob.Pixe
 	close(in)
 }
 
-func writeFrequencies(rt map[string]*recTree, name, p, tp string, numPix int) (err error) {
+func writeFrequencies(rt map[string]*recTree, name, p, tp string, numPix, eq int) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -397,7 +397,7 @@ func writeFrequencies(rt map[string]*recTree, name, p, tp string, numPix int) (e
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
 	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "node", "age", "type", "pixel", "value"}); err != nil {
+	if err := tsv.Write([]string{"tree", "node", "age", "type", "equator", "pixel", "value"}); err != nil {
 		return err
 	}
 
@@ -437,6 +437,7 @@ func writeFrequencies(rt map[string]*recTree, name, p, tp string, numPix int) (e
 						strconv.Itoa(n.id),
 						strconv.FormatInt(s.age, 10),
 						tp,
+						strconv.Itoa(eq),
 						strconv.Itoa(px),
 						strconv.FormatFloat(f, 'f', 15, 64),
 					}

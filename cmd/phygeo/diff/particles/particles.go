@@ -196,7 +196,7 @@ func run(c *command.Command, args []string) error {
 		}
 
 		name := fmt.Sprintf("%s-%s-%.6fx%d.tab", outPrefix, dt.Name(), t.lambda, numParticles)
-		if err := upPass(dt, name, args[0], t.lambda, standard, numParticles); err != nil {
+		if err := upPass(dt, name, args[0], t.lambda, standard, numParticles, landscape.Pixelation().Equator()); err != nil {
 			return err
 		}
 	}
@@ -317,6 +317,7 @@ var headerFields = []string{
 	"age",
 	"type",
 	"lambda",
+	"equator",
 	"pixel",
 	"value",
 }
@@ -413,6 +414,15 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 			n.stages[age] = st
 		}
 
+		f = "equator"
+		eq, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		if eq != landscape.Pixelation().Equator() {
+			return nil, fmt.Errorf("on row %d: field %q: invalid equator value %d", ln, f, eq)
+		}
+
 		f = "pixel"
 		px, err := strconv.Atoi(row[fields[f]])
 		if err != nil {
@@ -449,7 +459,7 @@ func calcStandardDeviation(pix *earth.Pixelation, lambda float64) float64 {
 	return math.Sqrt(v) * earth.Radius / 1000
 }
 
-func upPass(t *diffusion.Tree, name, p string, lambda, standard float64, particles int) (err error) {
+func upPass(t *diffusion.Tree, name, p string, lambda, standard float64, particles, eq int) (err error) {
 	t.Simulate(particles)
 
 	f, err := os.Create(name)
@@ -470,7 +480,7 @@ func upPass(t *diffusion.Tree, name, p string, lambda, standard float64, particl
 	}
 
 	for i := 0; i < particles; i++ {
-		if err := writeUpPass(tsv, i, t); err != nil {
+		if err := writeUpPass(tsv, i, t, eq); err != nil {
 			return fmt.Errorf("while writing data on %q: %v", name, err)
 		}
 	}
@@ -496,14 +506,14 @@ func outHeader(w io.Writer, t, p string, lambda, standard, logLike float64) (*cs
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
 	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "particle", "node", "age", "from", "to"}); err != nil {
+	if err := tsv.Write([]string{"tree", "particle", "node", "age", "equator", "from", "to"}); err != nil {
 		return nil, err
 	}
 
 	return tsv, nil
 }
 
-func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree) error {
+func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree, eq int) error {
 	nodes := t.Nodes()
 
 	for _, n := range nodes {
@@ -521,6 +531,7 @@ func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree) error {
 				strconv.Itoa(p),
 				strconv.Itoa(n),
 				strconv.FormatInt(a, 10),
+				strconv.Itoa(eq),
 				strconv.Itoa(st.From),
 				strconv.Itoa(st.To),
 			}

@@ -188,20 +188,9 @@ func run(c *command.Command, args []string) error {
 
 		dt := diffusion.New(t, param)
 		dt.DownPass()
-		if err := writeTreeConditional(dt, name, args[0], lambdaFlag, standard, landscape.Pixelation().Len()); err != nil {
+		if err := writeTreeConditional(dt, name, args[0], lambdaFlag, standard, landscape.Pixelation().Len(), landscape.Pixelation().Equator()); err != nil {
 			return err
 		}
-
-		/*
-			name = fmt.Sprintf("%s-%s-%.6fx%d.tab", args[0], t.Name(), lambdaFlag, particles)
-			if output != "" {
-				name = output + "-" + name
-			}
-
-			if err := upPass(dt, name, args[0], lambdaFlag, standard, particles); err != nil {
-				return err
-			}
-		*/
 	}
 	return nil
 }
@@ -289,7 +278,7 @@ func calcStandardDeviation(pix *earth.Pixelation, lambda float64) float64 {
 	return math.Sqrt(v) * earth.Radius / 1000
 }
 
-func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard float64, numPix int) (err error) {
+func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard float64, numPix, eq int) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -311,7 +300,7 @@ func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard fl
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
 	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "node", "age", "type", "lambda", "pixel", "value"}); err != nil {
+	if err := tsv.Write([]string{"tree", "node", "age", "type", "lambda", "equator", "pixel", "value"}); err != nil {
 		return err
 	}
 
@@ -331,6 +320,7 @@ func writeTreeConditional(t *diffusion.Tree, name, p string, lambda, standard fl
 					strconv.FormatInt(a, 10),
 					"log-like",
 					strconv.FormatFloat(lambda, 'f', 6, 64),
+					strconv.Itoa(eq),
 					strconv.Itoa(px),
 					strconv.FormatFloat(lk, 'f', 8, 64),
 				}
