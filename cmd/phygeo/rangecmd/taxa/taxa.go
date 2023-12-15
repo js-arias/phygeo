@@ -219,7 +219,7 @@ func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimeP
 		}
 
 		rng := coll.Range(tax)
-		age := coll.Age(tax)
+		age := tp.ClosestStageAge(coll.Age(tax))
 		lsc := tp.Stage(age)
 		val := 0
 		for px := range rng {
