@@ -91,7 +91,7 @@ func run(c *command.Command, args []string) error {
 			}
 		}
 		if len(n) == 0 {
-			fmt.Fprintf(c.Stderr(), "WARNING: taxon %q: undefined pixels at age %.6f", tax, float64(a)/millionYears)
+			fmt.Fprintf(c.Stderr(), "WARNING: taxon %q: undefined pixels at age %.6f\n", tax, float64(a)/millionYears)
 		}
 		pts.SetPixels(tax, a, n)
 	}
