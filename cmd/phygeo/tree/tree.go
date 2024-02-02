@@ -11,6 +11,7 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/tree/add"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree/draw"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree/list"
+	"github.com/js-arias/phygeo/cmd/phygeo/tree/remove"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree/terms"
 )
 
@@ -23,6 +24,7 @@ func init() {
 	Command.Add(add.Command)
 	Command.Add(draw.Command)
 	Command.Add(list.Command)
+	Command.Add(remove.Command)
 	Command.Add(terms.Command)
 
 	// help topics
