@@ -10,6 +10,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/project"
@@ -17,7 +19,8 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `draw [--tree <tree>] [--step <value>] [--time <number>]
+	Usage: `draw [--tree <tree>]
+	[--step <value>] [--time <number>] [--tick <tick-value>]
 	[-o|--output <out-prefix>]
 	<project-file>`,
 	Short: "draw project trees as SVG files",
@@ -36,6 +39,14 @@ to define a different value (it can have decimal points).
 By default, all trees in the project will be drawn. If the flag --tree is set,
 only the indicated tree will be printed.
 
+By default, a timescale with ticks every million years will be added at the
+bottom of the drawing. Use the flag --tick to define the tick lines, using the
+following format: "<min-tick>,<max-tick>,<label-tick>", in which min-tick
+indicates minor ticks, max-tick indicates major ticks, and label-tick the
+ticks that will be labeled; for example, the default is "1,5,5" which means
+that small ticks will be added each million years, major ticks will be added
+every 5 million years, and labels will be added every 5 million years.
+
 By default, the names of the trees will be used as the output file names. Use
 the flag -o, or --output, to define a prefix for the resulting files.
 	`,
@@ -46,6 +57,7 @@ the flag -o, or --output, to define a prefix for the resulting files.
 var stepX float64
 var timeBox float64
 var treeName string
+var tickFlag string
 var outPrefix string
 
 func setFlags(c *command.Command) {
@@ -54,11 +66,16 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 	c.Flags().StringVar(&treeName, "tree", "", "")
+	c.Flags().StringVar(&tickFlag, "tick", "", "")
 }
 
 func run(c *command.Command, args []string) error {
 	if len(args) < 1 {
 		return c.UsageError("expecting project file")
+	}
+	tv, err := parseTick()
+	if err != nil {
+		return err
 	}
 
 	p, err := project.Read(args[0])
@@ -79,7 +96,7 @@ func run(c *command.Command, args []string) error {
 	ls := tc.Names()
 	for _, tn := range ls {
 		t := tc.Tree(tn)
-		if err := writeSVG(tn, copyTree(t, stepX)); err != nil {
+		if err := writeSVG(tn, copyTree(t, stepX, tv.min, tv.max, tv.label)); err != nil {
 			return err
 		}
 	}
@@ -126,4 +143,46 @@ func writeSVG(name string, t svgTree) (err error) {
 		return fmt.Errorf("while writing file %q: %v", name, err)
 	}
 	return nil
+}
+
+type tickValues struct {
+	min   int
+	max   int
+	label int
+}
+
+func parseTick() (tickValues, error) {
+	if tickFlag == "" {
+		return tickValues{
+			min:   1,
+			max:   5,
+			label: 5,
+		}, nil
+	}
+
+	vals := strings.Split(tickFlag, ",")
+	if len(vals) != 3 {
+		return tickValues{}, fmt.Errorf("invalid tick values: %q", tickFlag)
+	}
+
+	min, err := strconv.Atoi(vals[0])
+	if err != nil {
+		return tickValues{}, fmt.Errorf("invalid minor tick value: %q: %v", tickFlag, err)
+	}
+
+	max, err := strconv.Atoi(vals[1])
+	if err != nil {
+		return tickValues{}, fmt.Errorf("invalid major tick value: %q: %v", tickFlag, err)
+	}
+
+	label, err := strconv.Atoi(vals[2])
+	if err != nil {
+		return tickValues{}, fmt.Errorf("invalid label tick value: %q: %v", tickFlag, err)
+	}
+
+	return tickValues{
+		min:   min,
+		max:   max,
+		label: label,
+	}, nil
 }

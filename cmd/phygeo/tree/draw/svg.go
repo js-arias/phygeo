@@ -36,6 +36,11 @@ type svgTree struct {
 	minAge float64
 	xStep  float64
 
+	// timeline ticks
+	min   int // small ticks
+	max   int // large ticks
+	label int // label ticks
+
 	taxSz int
 	root  *node
 }
@@ -45,7 +50,7 @@ type svgTree struct {
 // to a float in million years.
 const millionYears = 1_000_000
 
-func copyTree(t *timetree.Tree, xStep float64) svgTree {
+func copyTree(t *timetree.Tree, xStep float64, minTick, maxTick, labelTick int) svgTree {
 	maxSz := 0
 	var root *node
 	ids := make(map[int]*node)
@@ -81,6 +86,9 @@ func copyTree(t *timetree.Tree, xStep float64) svgTree {
 	s := svgTree{
 		xStep:  xStep,
 		minAge: minAge,
+		min:    minTick,
+		max:    maxTick,
+		label:  labelTick,
 		root:   root,
 		taxSz:  maxSz,
 	}
@@ -125,7 +133,7 @@ func (s svgTree) draw(w io.Writer) error {
 	svg := xml.StartElement{
 		Name: xml.Name{Local: "svg"},
 		Attr: []xml.Attr{
-			{Name: xml.Name{Local: "height"}, Value: strconv.Itoa(s.y + 5)},
+			{Name: xml.Name{Local: "height"}, Value: strconv.Itoa(s.y + 5 + 2*yStep)},
 			// assume that each character has 6 pixels wide
 			{Name: xml.Name{Local: "width"}, Value: strconv.Itoa(int(s.x) + s.taxSz*6)},
 			{Name: xml.Name{Local: "xmlns"}, Value: "http://www.w3.org/2000/svg"},
@@ -146,6 +154,7 @@ func (s svgTree) draw(w io.Writer) error {
 	e.EncodeToken(g)
 
 	s.drawTimeRecs(e)
+	s.drawTimeScale(e)
 
 	s.root.draw(e)
 	s.root.label(e)
@@ -190,6 +199,57 @@ func (s svgTree) drawTimeRecs(e *xml.Encoder) {
 		}
 		e.EncodeToken(rect)
 		e.EncodeToken(rect.End())
+	}
+}
+
+func (s svgTree) drawTimeScale(e *xml.Encoder) {
+	y := s.y + yStep/2
+	ln := xml.StartElement{
+		Name: xml.Name{Local: "line"},
+		Attr: []xml.Attr{
+			{Name: xml.Name{Local: "x1"}, Value: strconv.Itoa(int(s.root.x))},
+			{Name: xml.Name{Local: "y1"}, Value: strconv.Itoa(int(y))},
+			{Name: xml.Name{Local: "x2"}, Value: strconv.Itoa(int(s.x))},
+			{Name: xml.Name{Local: "y2"}, Value: strconv.Itoa(int(y))},
+		},
+	}
+	e.EncodeToken(ln)
+	e.EncodeToken(ln.End())
+
+	// Add tick marks
+	for a := 0.0; a < s.root.age; a += float64(s.min) {
+		if a < s.minAge {
+			continue
+		}
+
+		x := (s.root.age-a)*s.xStep + 10
+		ln.Attr[0].Value = strconv.Itoa(int(x))
+		ln.Attr[2].Value = strconv.Itoa(int(x))
+
+		maxY := y + yStep/4
+		if int(a)%s.max == 0 {
+			maxY = y + yStep/2
+		}
+		ln.Attr[3].Value = strconv.Itoa(int(maxY))
+		e.EncodeToken(ln)
+		e.EncodeToken(ln.End())
+
+		// tick label
+		if int(a)%s.label != 0 {
+			continue
+		}
+		tx := xml.StartElement{
+			Name: xml.Name{Local: "text"},
+			Attr: []xml.Attr{
+				{Name: xml.Name{Local: "x"}, Value: strconv.Itoa(int(x - 5))},
+				{Name: xml.Name{Local: "y"}, Value: strconv.Itoa(int(y + yStep + 5))},
+				{Name: xml.Name{Local: "stroke-width"}, Value: "0"},
+			},
+		}
+		e.EncodeToken(tx)
+		e.EncodeToken(xml.CharData(strconv.Itoa(int(a))))
+		e.EncodeToken(tx.End())
+
 	}
 }
 
