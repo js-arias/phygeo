@@ -11,6 +11,7 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/add"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/kde"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/mapcmd"
+	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/remove"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/rotate"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd/taxa"
 )
@@ -24,6 +25,7 @@ func init() {
 	Command.Add(add.Command)
 	Command.Add(kde.Command)
 	Command.Add(mapcmd.Command)
+	Command.Add(remove.Command)
 	Command.Add(rotate.Command)
 	Command.Add(taxa.Command)
 
