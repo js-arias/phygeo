@@ -28,7 +28,8 @@ import (
 
 var Command = &command.Command{
 	Usage: `speed 
-	[--tree <file-prefix>] [--step <number>] [--box <number>]
+	[--tree <file-prefix>] [--step <number>]
+	[--box <number>] [--tick <tick-value>]
 	[--time] [--plot <file-prefix>]
 	-i|--input <file> <project-file>`,
 	Short: "calculates speed and distance for a reconstruction",
@@ -54,7 +55,14 @@ value will used for the branch. The tree will be stored using the indicated
 file prefix and the tree name. By default, 10 pixels units will be used per
 million year, use the flag --step to define a different value (it can have
 decimal points). The flag --box defines shaded boxes each indicated time
-steps. The size of the box is in million years.
+steps. The size of the box is in million years. By default, a timescale with
+ticks every million years will be added at the bottom of the drawing. Use the
+flag --tick to define the tick lines, using the following format:
+"<min-tick>,<max-tick>,<label-tick>", in which min-tick indicates minor ticks,
+max-tick indicates major ticks, and label-tick the ticks that will be labeled;
+for example, the default is "1,5,5" which means that small ticks will be added
+each million years, major ticks will be added every 5 million years, and
+labels will be added every 5 million years.
 
 The output will be printed in the standard output, as a Tab-delimited table
 with the following columns:
@@ -94,6 +102,7 @@ var timeBox float64
 var treePrefix string
 var inputFile string
 var plotPrefix string
+var tickFlag string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
@@ -103,6 +112,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&treePrefix, "tree", "", "")
 	c.Flags().StringVar(&plotPrefix, "plot", "", "")
+	c.Flags().StringVar(&tickFlag, "tick", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -447,6 +457,11 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 }
 
 func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
+	tv, err := parseTick()
+	if err != nil {
+		return err
+	}
+
 	for _, name := range tc.Names() {
 		rec, ok := rt[name]
 		if !ok {
@@ -454,7 +469,7 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 		}
 
 		t := tc.Tree(name)
-		st := copyTree(t, stepX)
+		st := copyTree(t, stepX, tv.min, tv.max, tv.label)
 
 		sp := make(map[int]float64)
 		min := math.MaxFloat64
@@ -520,4 +535,46 @@ func writeSVGTree(name string, t svgTree) (err error) {
 		return fmt.Errorf("while writing file %q: %v", name, err)
 	}
 	return nil
+}
+
+type tickValues struct {
+	min   int
+	max   int
+	label int
+}
+
+func parseTick() (tickValues, error) {
+	if tickFlag == "" {
+		return tickValues{
+			min:   1,
+			max:   5,
+			label: 5,
+		}, nil
+	}
+
+	vals := strings.Split(tickFlag, ",")
+	if len(vals) != 3 {
+		return tickValues{}, fmt.Errorf("invalid tick values: %q", tickFlag)
+	}
+
+	min, err := strconv.Atoi(vals[0])
+	if err != nil {
+		return tickValues{}, fmt.Errorf("invalid minor tick value: %q: %v", tickFlag, err)
+	}
+
+	max, err := strconv.Atoi(vals[1])
+	if err != nil {
+		return tickValues{}, fmt.Errorf("invalid major tick value: %q: %v", tickFlag, err)
+	}
+
+	label, err := strconv.Atoi(vals[2])
+	if err != nil {
+		return tickValues{}, fmt.Errorf("invalid label tick value: %q: %v", tickFlag, err)
+	}
+
+	return tickValues{
+		min:   min,
+		max:   max,
+		label: label,
+	}, nil
 }
