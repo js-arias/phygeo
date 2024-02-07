@@ -77,8 +77,8 @@ Maybe the best way to start a project
 is by setting the paleogeography model:
 
 ```bash
-phygeo geo add --type geomotion muller-2022-motion.tab project.tab
-phygeo geo add --type landscape cao-2017-landscape.tab project.tab
+phygeo geo add --type geomotion project muller-2022-motion.tab
+phygeo geo add --type landscape project cao-2017-landscape.tab
 ```
 
 In this example,
@@ -104,12 +104,9 @@ phygeo geo prior --add model-pix-prior.tab project.tab
 ```
 
 Phylogenetic trees in *PhyGeo* must be time-calibrated.
-The format file is a tab-delimited file
-([here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/rhodo-tree-360.tab));
-the tree must be fully dichotomous.
-At the moment,
-it does not import newick trees
-(you can do that with the tool [TimeTree](https://github.com/js-arias/timetree)).
+The trees must be fully dichotomous.
+The preferred tree file is a tab-delimited file
+([here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/rhodo-tree-360.tab)).
 To add a tree file,
 you must define the name of the destination file
 (if it is the first tree to be added),
@@ -122,19 +119,24 @@ with the trees
 phygeo tree add -f data-tree.tab project.tab vireya-tree.tab
 ```
 
+Most users usually have the trees in [newick format](https://en.wikipedia.org/wiki/Newick_format).
+To import a newick tree,
+use the flag --newick
+with the name of the added tree:
+
+```bash
+phygeo tree add -f data-tree.tab --newick vireya project.tab vireya.tre
+```
+
+See the documentation of the command `tree add`
+for more information about adding trees.
+
 Specimen records
 are stored as a set of pixels
 (presence-absence pixels)
 or range maps.
 Both files have the same format
 ([here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/rhodo-points-360.tab)).
-You should use a particular tool
-to transform your data in this format
-(for example,
-the tool [TaxRange](https://github.com/js-arias/ranges)
-can be used to import data
-from a GBIF table
-or a latitude-longitude table).
 To import a set of records to a project,
 you must define a destination file
 (if it is the first set of records to be added),
@@ -146,6 +148,20 @@ and one or more files with the records:
 ```bash
 phygeo range add -f data-points.tab project.tab vireya-points.tab pseudovireya-points.tab
 ```
+
+It is possible that your file with specimen records
+is a table with latitudes and longitudes
+or a table downloaded from GBIF.
+In such cases,
+you can import them using the flag --format:
+
+```bash
+phygeo range add -f data-points.tab -format darwin project.tab gbif-download.csv 
+```
+
+See the documentation of the command `range add`
+for more information
+about adding specimen records.
 
 Note that the pixelation used
 for the specimen records
@@ -186,12 +202,31 @@ is the maximum likelihood value:
 phygeo diff like --lambda 100 -o like project.tab
 ```
 
+This analysis will create a new file
+with the prefix `like`
+(for example, `like-project.tab-vireya.100.000000-down.tab`),
+which contains the down-pass likelihoods
+(i.e., the conditional likelihoods)
+of each pixel in each node,
+so it is a large file.
+As the calculation of the likelihood conditionals
+is a time-consuming operation,
+this file will be helpful
+to skip that operation in further analysis.
+For example,
+it can be used to perform stochastic mapping:
+
+```bash
+phygeo diff particles -i like-project.tab-vireya-100.000000-down.tab -o p project.tab
+```
+
 This analysis
-will create a new file with the prefix `like`
+will create a new file with the prefix `p`
 (for example,
-`like-project.tab-vireya-100.0x1000.tab`,
-[here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/ml-project-360.tab-vireya-150.000000x1000.tab),
-which are usually large).
+'p-vireya-100.000000x1000.tab';
+[here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/ml-project-360.tab-vireya-150.000000x1000.tab).
+This file will contain all the simulated dispersal paths,
+so it is usually a large file.
 
 As you probably want to know
 the maximum likelihood estimate of *lambda*,
@@ -215,7 +250,7 @@ As the only free parameter is the *lambda* value,
 you can make a simple integration:
 
 ```bash
-phygeo --min 100 --max 300 --parts 500 project.tab > log-like.tab
+phygeo diff integrate --min 100 --max 300 --parts 500 project.tab > log-like.tab
 ```
 
 and then,
@@ -250,11 +285,11 @@ The output will have the prefix
 These files are usually large
 and are of the same format
 as the output files produced
-by the `diff like` command.
+by the `diff particles` command.
 
 ### Working with the output
 
-The results of the `diff like` command,
+The results of the `diff particles` command,
 or `diff integrate --distribution` command,
 form the most important output of the program.
 These files contain one
@@ -266,33 +301,47 @@ and internodes
 (branches that cross a time stage
 defined by the paleogeography model).
 
-The most valuable output
-is to generate image maps
-of the reconstructions:
+We can transform the stochastic maps
+into pixel frequencies,
+which are the approximation
+of the pixel posterior at each node.
+These frequencies can be raw
+(i.e., just counts of sampled pixels)
+or smoothed using a spherical KDE:
 
 ```bash
-phygeo diff map -c 1440 -key landscape-key.tab --gray --kde 1000 -i ml-project.tab -o ml project.tab
+phygeo diff freq --kde 1000 -i p-vireya-100.000000x1000.tab -o kde project.tab
+```
+
+In this example,
+the pixel frequencies
+will be stored in a file with the `kde` prefix
+(for example,
+`kde-project.tab-p-vireya-100.000000x1000.tab.tab`),
+which is usually large.
+
+Then we can create an image map of the frequencies:
+
+```bash
+phygeo diff map -c 1440 -key landscape-key.tab --gray -i kde-project.tab-p-vireya-100.000000x1000.tab.tab -o "ml-95/ml-95" project.tab
 ```
 
 The command `diff map`
-will create the reconstruction for all nodes
-with a [rainbow color scheme](https://personal.sron.nl/~pault/#fig:scheme_rainbow_smooth)
-(from blue for pixels with a low posterior
-to red for pixels with a high posterior)
+will create a reconstruction
+from the frequency file
+using a [rainbow color scheme](https://personal.sron.nl/~pault/#fig:scheme_rainbow_smooth)
+(from blue for pixels with low posterior probability
+to red for pixels with a high posterior);
 see [this directory](https://github.com/js-arias/schistanthe-data/tree/main/recs-95)
 for an example output.
-The command `map` has several options,
-so consult `help diff map` for a full explanation.
+The command `diff map` has a lot of output options;
+see the command help for more information.
 Here are some options:
 to produce rotated
 (the default)
 or unrotated maps
 (maps with current geographic locations,
 `--unrot` flag),
-to use a KDE to smooth the output
-(as in the example),
-or just output raw results
-(the default),
 to output each node
 (the default),
 or output by time stage
@@ -340,8 +389,8 @@ to learn more about this command.
 
 ## Additional resources
 
-- [Paleogeographic models](https://github.com/js-arias/geomodels)
-- Sample datasets:
+- [Paleogeographic models for *PhyGeo*](https://github.com/js-arias/geomodels)
+- Sample *PhyGeo* datasets:
   - [*Schistanthe* section of *Vireya*](https://github.com/js-arias/schistanthe-data/).
   - [Sapindaceae](https://github.com/js-arias/sapindaceae).
 - Other tools:
