@@ -260,7 +260,7 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 	like := df.DownPass()
 	standard := calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
-	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, stepFlag)
+	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, step)
 	if like > b.logLike {
 		// we found an improvement
 		b.lambda = p.Lambda
@@ -277,7 +277,7 @@ func (b *bestRec) search(w io.Writer, t *timetree.Tree, p diffusion.Param, step 
 	like = df.DownPass()
 	standard = calcStandardDeviation(p.Landscape.Pixelation(), p.Lambda)
 
-	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, stepFlag)
+	fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like, step)
 	if like > b.logLike {
 		// we found an improvement
 		b.lambda = p.Lambda
