@@ -77,8 +77,8 @@ Maybe the best way to start a project
 is by setting the paleogeography model:
 
 ```bash
-phygeo geo add --type geomotion project muller-2022-motion.tab
-phygeo geo add --type landscape project cao-2017-landscape.tab
+phygeo geo add --type geomotion project.tab muller-2022-motion.tab
+phygeo geo add --type landscape project.tab cao-2017-landscape.tab
 ```
 
 In this example,
@@ -156,7 +156,7 @@ In such cases,
 you can import them using the flag --format:
 
 ```bash
-phygeo range add -f data-points.tab -format darwin project.tab gbif-download.csv 
+phygeo range add -f data-points.tab --format darwin project.tab gbif-download.csv 
 ```
 
 See the documentation of the command `range add`
@@ -323,7 +323,7 @@ which is usually large.
 Then we can create an image map of the frequencies:
 
 ```bash
-phygeo diff map -c 1440 -key landscape-key.tab --gray -i kde-project.tab-p-vireya-100.000000x1000.tab.tab -o "ml-95/ml-95" project.tab
+phygeo diff map -c 1440 --key landscape-key.tab --gray -i kde-project.tab-p-vireya-100.000000x1000.tab.tab -o "ml-95/ml-95" project.tab
 ```
 
 The command `diff map`
@@ -386,6 +386,27 @@ at different time stages
 (using the flag `--time`).
 Consult the `help diff speed` command
 to learn more about this command.
+
+## Citation
+
+Here is the suggested citation for the *PhyGeo* tool:
+
+Arias, J.S. (2023)
+*PhyGeo: a tool for phylogenetic biogeography*.
+(available at: <https://github.com/js-arias/phygeo>).
+doi:[10.5281/zenodo.10636373](https://doi.org/10.5281/zenodo.10636373).
+
+The description of the method is available as a pre-print:
+
+Arias, J.S. (2023)
+Phylogenetic biogeography inference using dynamic paleogeography models and explicit geographic ranges.
+*BioRXiv* 2023.11.16.567427.
+doi:[10.1101/2023.11.16.567427](https://doi.org/10.1101/2023.11.16.567427).
+
+See the manuscript
+for more information about previous proposals for phylogenetic biogeography methods
+using explicit geographic ranges
+or the diffusion model.
 
 ## Additional resources
 
