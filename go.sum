@@ -31,10 +31,8 @@ github.com/js-arias/gbifer v0.0.0-20230905173919-aa63af247b21 h1:oPK+h7ZexqBzX13
 github.com/js-arias/gbifer v0.0.0-20230905173919-aa63af247b21/go.mod h1:1uRmlNzs2lmtaskbc+anqN9bL8XkHhIOm2t7Qmf4uyw=
 github.com/js-arias/ranges v0.0.0-20230810195732-cf5be4732d8b h1:Ur4eFtukZL68mjSe8ve5pndCTzw1sz521r1H4/TZPS4=
 github.com/js-arias/ranges v0.0.0-20230810195732-cf5be4732d8b/go.mod h1:rj9TctiFOz03Bhea7rWYCVnIcqNSW8iC1oqVPULirJQ=
-github.com/js-arias/timetree v0.0.0-20230905210531-e9f9f734a4df h1:A//knGXzkp2zGhlHiwinLl44VMrhVMx5wh1MaDATLo4=
-github.com/js-arias/timetree v0.0.0-20230905210531-e9f9f734a4df/go.mod h1:FIYFNM9iUKQhCNOTkV0F4TzSWufwmWV5QUC6/Bw0Y9Q=
-github.com/js-arias/timetree v0.0.0-20231218163331-01fad4e841fc h1:BBPZ/G8sHvEskckV2nZcOE89NEuuBONPtgIZnEB6DXk=
-github.com/js-arias/timetree v0.0.0-20231218163331-01fad4e841fc/go.mod h1:FIYFNM9iUKQhCNOTkV0F4TzSWufwmWV5QUC6/Bw0Y9Q=
+github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e h1:rxzavLgUHk/kHK9gVy6wcZH9iMAiKGxW3OjMI8AIO8I=
+github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e/go.mod h1:EBuYaZyL6w29nSSRUQJ0I8XOruByTBYUptRZSXaRvi8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
