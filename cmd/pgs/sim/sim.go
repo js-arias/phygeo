@@ -123,7 +123,7 @@ func run(c *command.Command, args []string) (err error) {
 		return err
 	}
 
-	dm, err := earth.NewDistMat(landscape.Pixelation())
+	dm, err := earth.NewDistMatRingScale(landscape.Pixelation())
 	if err != nil {
 		return err
 	}

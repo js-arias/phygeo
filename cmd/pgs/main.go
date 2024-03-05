@@ -9,6 +9,7 @@ package main
 
 import (
 	"github.com/js-arias/command"
+	"github.com/js-arias/phygeo/cmd/pgs/infer"
 	"github.com/js-arias/phygeo/cmd/pgs/sim"
 )
 
@@ -18,6 +19,7 @@ var app = &command.Command{
 }
 
 func init() {
+	app.Add(infer.Command)
 	app.Add(sim.Command)
 }
 
