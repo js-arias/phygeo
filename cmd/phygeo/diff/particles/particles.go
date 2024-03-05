@@ -182,14 +182,14 @@ func run(c *command.Command, args []string) error {
 		for _, n := range nodes {
 			nn, ok := t.nodes[n]
 			if !ok {
-				return fmt.Errorf("tree %q: node %d: undefined node\n", dt.Name(), n)
+				return fmt.Errorf("tree %q: node %d: undefined node", dt.Name(), n)
 			}
 			stages := dt.Stages(n)
 
 			for _, a := range stages {
 				s, ok := nn.stages[a]
 				if !ok {
-					return fmt.Errorf("tree %q: node %d: age %d: undefined conditional likelihood\n", dt.Name(), n, a)
+					return fmt.Errorf("tree %q: node %d: age %d: undefined conditional likelihood", dt.Name(), n, a)
 				}
 
 				dt.SetConditional(n, a, s.rec)
