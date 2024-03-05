@@ -5,14 +5,14 @@ go 1.21.0
 require (
 	github.com/js-arias/blind v0.0.0-20230608213033-66946442796b
 	github.com/js-arias/command v0.0.0-20220321160405-bad66700a180
-	github.com/js-arias/earth v0.0.0-20231122213530-9f9149a873e3
-	github.com/js-arias/ranges v0.0.0-20230810195732-cf5be4732d8b
+	github.com/js-arias/earth v0.0.0-20240131164515-9aa2ed1963e8
+	github.com/js-arias/ranges v0.0.0-20240305173047-29b4d2c279fb
 	github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 )
 
 require (
-	github.com/js-arias/gbifer v0.0.0-20230905173919-aa63af247b21
+	github.com/js-arias/gbifer v0.0.0-20230906190155-b9741f9e3228
 	gonum.org/v1/gonum v0.14.0
 	gonum.org/v1/plot v0.14.0
 )

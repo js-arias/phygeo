@@ -157,7 +157,7 @@ func run(c *command.Command, args []string) error {
 
 	var dm *earth.DistMat
 	if !noDMatrix {
-		dm, _ = earth.NewDistMat(landscape.Pixelation())
+		dm, _ = earth.NewDistMatRingScale(landscape.Pixelation())
 	}
 
 	standard := calcStandardDeviation(landscape.Pixelation(), lambdaFlag)
