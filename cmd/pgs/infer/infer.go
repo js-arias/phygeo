@@ -172,7 +172,11 @@ func run(c *command.Command, args []string) (err error) {
 		return err
 	}
 
-	for _, r := range res {
+	for _, tn := range tc.Names() {
+		r, ok := res[tn]
+		if !ok {
+			continue
+		}
 		stem := r.tree.Age(r.tree.Root()) / 10
 		param.Stem = stem
 		param.Ranges = r.rng
@@ -384,7 +388,7 @@ func readSimLambda(coll *timetree.Collection) (map[string]*simResults, error) {
 			return nil, fmt.Errorf("while reading %q: line %d: field %q: %v", name, ln, f, err)
 		}
 
-		r[tn] = &simResults{
+		r[t.Name()] = &simResults{
 			tree:     t,
 			lambda:   l,
 			mlLambda: 100,

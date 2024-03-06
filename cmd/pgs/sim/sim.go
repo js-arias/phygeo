@@ -14,6 +14,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -212,15 +213,10 @@ func run(c *command.Command, args []string) (err error) {
 			Lambda:    lambda,
 		}
 
-		diffusion.NewSimData(t, param)
-
 		sim := diffusion.NewSimData(t, param)
 		sim.Simulate(numParticles)
-
-		for j := 0; j < numParticles; j++ {
-			if err := writeSimulation(tsv, j, sim, landscape.Pixelation().Equator()); err != nil {
-				return fmt.Errorf("while writing data on %q: %v", outFile, err)
-			}
+		if err := writeSimulation(tsv, sim, landscape.Pixelation().Equator()); err != nil {
+			return fmt.Errorf("while writing data on %q: %v", outFile, err)
 		}
 
 		vals[t.Name()] = lambda
@@ -383,7 +379,7 @@ func outHeader(w io.Writer, p string) (*csv.Writer, error) {
 	return tsv, nil
 }
 
-func writeSimulation(tsv *csv.Writer, p int, t *diffusion.Tree, eq int) error {
+func writeSimulation(tsv *csv.Writer, t *diffusion.Tree, eq int) error {
 	nodes := t.Nodes()
 
 	for _, n := range nodes {
@@ -392,21 +388,28 @@ func writeSimulation(tsv *csv.Writer, p int, t *diffusion.Tree, eq int) error {
 		// (i.e. the post-split stage)
 		for i := 1; i < len(stages); i++ {
 			a := stages[i]
-			st := t.SrcDest(n, p, a)
-			if st.From == -1 {
-				continue
-			}
-			row := []string{
-				t.Name(),
-				strconv.Itoa(p),
-				strconv.Itoa(n),
-				strconv.FormatInt(a, 10),
-				strconv.Itoa(eq),
-				strconv.Itoa(st.From),
-				strconv.Itoa(st.To),
-			}
-			if err := tsv.Write(row); err != nil {
-				return err
+
+			nv := strconv.Itoa(n)
+			av := strconv.FormatInt(a, 10)
+			eqv := strconv.Itoa(eq)
+
+			for p := 0; p < t.Particles(n, a); p++ {
+				st := t.SrcDest(n, p, a)
+				if st.From == -1 {
+					continue
+				}
+				row := []string{
+					t.Name(),
+					strconv.Itoa(p),
+					nv,
+					av,
+					eqv,
+					strconv.Itoa(st.From),
+					strconv.Itoa(st.To),
+				}
+				if err := tsv.Write(row); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -436,8 +439,14 @@ func writeLambdaVals(lv map[string]float64, p string) (err error) {
 		return fmt.Errorf("unable to write header to %q: %v", name, err)
 	}
 
-	for t, l := range lv {
-		v := strconv.FormatFloat(l, 'f', 6, 64)
+	trees := make([]string, 0, len(lv))
+	for t := range lv {
+		trees = append(trees, t)
+	}
+	slices.Sort(trees)
+
+	for _, t := range trees {
+		v := strconv.FormatFloat(lv[t], 'f', 6, 64)
 		if err := tsv.Write([]string{t, v}); err != nil {
 			return fmt.Errorf("unable to write data to %q: %v", name, err)
 		}

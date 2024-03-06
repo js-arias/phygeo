@@ -183,6 +183,33 @@ func (t *Tree) Nodes() []int {
 	return t.t.Nodes()
 }
 
+// Particles return the number of particles
+// for a given nodes
+// at a give age stage
+// (in years)
+// for the simulation.
+func (t *Tree) Particles(n int, age int64) int {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return 0
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return 0
+	}
+
+	return len(nn.stages[i].particles)
+}
+
 // SetConditional sets the conditional likelihood
 // (in logLike units)
 // of a node at a given time stage.
