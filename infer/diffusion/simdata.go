@@ -20,7 +20,7 @@ import (
 //
 // To make the simulation
 // use method Simulate.
-func NewSimData(t *timetree.Tree, p Param) *Tree {
+func NewSimData(t *timetree.Tree, p Param, spread float64) *Tree {
 	nt := &Tree{
 		t:         t,
 		nodes:     make(map[int]*node, len(t.Nodes())),
@@ -50,8 +50,8 @@ func NewSimData(t *timetree.Tree, p Param) *Tree {
 	}
 
 	// Create the centroid for the simulation
-	source := nt.startParticle(p.Lambda)
-	root.centroidSimulation(nt, source)
+	source := nt.startParticle(spread)
+	root.centroidSimulation(nt, source, spread)
 	return nt
 }
 
@@ -66,25 +66,28 @@ func (t *Tree) startParticle(lambda float64) int {
 
 	pix := t.landscape.Pixelation()
 
-	pdf := dist.NewNormal(lambda, pix)
+	px := -1
 	for {
-		px := pix.Random().ID()
+		px = pix.Random().ID()
 		accept := t.pp.Prior(stage[px])
 		if rand.Float64() < accept {
-			prob := buildDensity(pix, pdf, t.dm, px, stage, t.pp)
-			rs.logLike = make(map[int]float64, len(prob))
-			for px, p := range prob {
-				rs.logLike[px] = math.Log(p)
-			}
-			return rotPix(t.rot, t.landscape, px, rs.age, t.pp)
+			break
 		}
 	}
+
+	pdf := dist.NewNormal(lambda, pix)
+	prob := buildDensity(pix, pdf, t.dm, px, stage, t.pp)
+	rs.logLike = make(map[int]float64, len(prob))
+	for px, p := range prob {
+		rs.logLike[px] = math.Log(p)
+	}
+	return rotPix(t.rot, t.landscape, px, rs.age, t.pp)
 }
 
-func (n *node) centroidSimulation(t *Tree, source int) {
+func (n *node) centroidSimulation(t *Tree, source int, spread float64) {
 	for i := 1; i < len(n.stages); i++ {
 		ts := n.stages[i]
-		source = ts.centroidSimulation(t, source)
+		source = ts.centroidSimulation(t, source, spread)
 	}
 	like := n.stages[len(n.stages)-1].logLike
 
@@ -95,11 +98,11 @@ func (n *node) centroidSimulation(t *Tree, source int) {
 		for px, p := range like {
 			sp.logLike[px] = p
 		}
-		c.centroidSimulation(t, source)
+		c.centroidSimulation(t, source, spread)
 	}
 }
 
-func (ts *timeStage) centroidSimulation(t *Tree, source int) int {
+func (ts *timeStage) centroidSimulation(t *Tree, source int, spread float64) int {
 	age := t.landscape.ClosestStageAge(ts.age)
 	stage := t.landscape.Stage(age)
 
@@ -107,7 +110,8 @@ func (ts *timeStage) centroidSimulation(t *Tree, source int) int {
 	density := buildDensity(pix, ts.pdf, t.dm, source, stage, t.pp)
 
 	centroid := pick(density)
-	prob := buildDensity(pix, ts.pdf, t.dm, centroid, stage, t.pp)
+	pdf := dist.NewNormal(spread, pix)
+	prob := buildDensity(pix, pdf, t.dm, centroid, stage, t.pp)
 	ts.logLike = make(map[int]float64, len(prob))
 	for px, p := range prob {
 		ts.logLike[px] = math.Log(p)

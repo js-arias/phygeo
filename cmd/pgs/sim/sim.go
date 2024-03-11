@@ -63,7 +63,10 @@ same concentration parameter) or a range separated by a comma: for example
 100.
 
 By default, 100 particles will be simulated for the stochastic mapping. The
-number of particles can be changed with the flag --particles, or -p.
+number of particles can be changed with the flag --particles, or -p. By
+default, the particles that make the range will be spread around the centroid
+of the distribution, using a spherical normal of lambda 100. Use the flag
+--spread to change the spreading of the particles.
 
 	`,
 	SetFlags: setFlags,
@@ -74,6 +77,7 @@ var output string
 var ageFlag string
 var termFlag string
 var lambdaFlag string
+var spread float64
 var numTrees int
 var numParticles int
 
@@ -86,6 +90,7 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numTrees, "trees", 100, "")
 	c.Flags().IntVar(&numParticles, "p", 100, "")
 	c.Flags().IntVar(&numParticles, "particles", 100, "")
+	c.Flags().Float64Var(&spread, "spread", 100, "")
 }
 
 const millionYears = 1_000_000
@@ -213,7 +218,7 @@ func run(c *command.Command, args []string) (err error) {
 			Lambda:    lambda,
 		}
 
-		sim := diffusion.NewSimData(t, param)
+		sim := diffusion.NewSimData(t, param, spread)
 		sim.Simulate(numParticles)
 		if err := writeSimulation(tsv, sim, landscape.Pixelation().Equator()); err != nil {
 			return fmt.Errorf("while writing data on %q: %v", outFile, err)
