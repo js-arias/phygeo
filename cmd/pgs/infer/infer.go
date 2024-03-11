@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `infer -i|--input <prefix> [-o|--output <prefix>]
+	[--cpu <number>]
 	[-p|--particles <number>]
 	<project-file>`,
 	Short: "infer parameters from simulated data",
@@ -50,6 +52,9 @@ stochastic mapping for the lambda value estimated with maximum likelihood. The
 lambda values are stored in '<prefix>-infer-lambda.tab'. If no prefix is
 defined, the command will use the prefix used for the input.
 
+By default, the calculations will use all available CPUs. Use the flag --cpu
+to change the number of processors.
+
 By default, 1000 particles will be simulated for the stochastic mapping. The
 number of particles can be changed with the flag --particles, or -p.
 
@@ -61,6 +66,7 @@ number of particles can be changed with the flag --particles, or -p.
 var input string
 var output string
 var numParticles int
+var numCPU int
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&input, "input", "", "")
@@ -69,6 +75,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&output, "o", "", "")
 	c.Flags().IntVar(&numParticles, "p", 1000, "")
 	c.Flags().IntVar(&numParticles, "particles", 1000, "")
+	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 }
 
 func run(c *command.Command, args []string) (err error) {
@@ -171,6 +178,8 @@ func run(c *command.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+
+	diffusion.SetCPU(numCPU)
 
 	for _, tn := range tc.Names() {
 		r, ok := res[tn]
