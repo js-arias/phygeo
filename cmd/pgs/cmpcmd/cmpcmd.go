@@ -7,10 +7,13 @@
 package cmpcmd
 
 import (
+	"cmp"
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"image/color"
 	"io"
+	"math"
 	"os"
 	"slices"
 	"strconv"
@@ -21,11 +24,15 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/timetree"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
 )
 
 var Command = &command.Command{
 	Usage: `cmp --got <file> --want <file>
 	--trees <file> [-o|--output <file>]
+	[--plot <file>]
 	[--bound <value>]
 	<project>`,
 	Short: "compare two reconstructions",
@@ -50,6 +57,10 @@ The argument of the command is the name of the project file.
 The comparison is restricted to cladogenetic (or split) nodes. Intermediate
 nodes (i.e., nodes inserted when branches pass several time stages), as well
 as terminal nodes, are ignored.
+
+If the flag --plot is defined, a plot with the proportion of nodes in which
+the number of correct pixels is greater than the 45%, will be saved in the
+indicated file.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -59,6 +70,7 @@ var gotFile string
 var wantFile string
 var treeFile string
 var output string
+var plotFile string
 var bound float64
 
 func setFlags(c *command.Command) {
@@ -67,6 +79,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&treeFile, "trees", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
+	c.Flags().StringVar(&plotFile, "plot", "", "")
 	c.Flags().Float64Var(&bound, "bound", 0.95, "")
 }
 
@@ -128,6 +141,8 @@ func run(c *command.Command, args []string) (err error) {
 		}
 	}()
 
+	freq := make(map[string][]int, len(got))
+
 	date := time.Now().Format(time.RFC3339)
 	fmt.Fprintf(f, "# results from simulated data from project %q\n", args[0])
 	fmt.Fprintf(f, "# date: %s\n", date)
@@ -141,6 +156,8 @@ func run(c *command.Command, args []string) (err error) {
 		if !ok {
 			continue
 		}
+
+		fv := make([]int, 11)
 
 		nodes := make([]int, 0, len(wt.nodes))
 		for _, n := range wt.nodes {
@@ -182,8 +199,18 @@ func run(c *command.Command, args []string) (err error) {
 					scale += v
 				}
 
+				i := int(math.Round(sum * 10 / scale))
+				fv[i]++
+
 				fmt.Fprintf(f, "%s\t%d\t%d\t%.6f\n", tn, id, a, sum/scale)
 			}
+		}
+		freq[tn] = fv
+	}
+
+	if plotFile != "" {
+		if err := makePlot(freq); err != nil {
+			return err
 		}
 	}
 
@@ -406,4 +433,75 @@ func readRecon(name string, landscape *model.TimePix, coll *timetree.Collection)
 	}
 
 	return rt, nil
+}
+
+func makePlot(freq map[string][]int) error {
+	p := plot.New()
+	p.Y.Label.Text = "nodes (proportion)"
+
+	w := vg.Points(3)
+	sum := make(map[string]int, len(freq))
+	names := make([]string, 0, len(freq))
+	for n, f := range freq {
+		s := 0
+		for _, v := range f {
+			s += v
+		}
+		sum[n] = s
+		names = append(names, n)
+	}
+	slices.SortFunc(names, func(a, b string) int {
+		fA := freq[a]
+		fB := freq[b]
+
+		var xA, xB float64
+		for i := 10; i >= 5; i-- {
+			xA += float64(fA[i])
+			xB += float64(fB[i])
+		}
+
+		return cmp.Compare(xA/float64(sum[a]), xB/float64(sum[b]))
+	})
+
+	grayScale := []uint8{
+		255, // 0
+		255, // 1
+		250, // 2
+		245, // 3
+		240, // 4
+		200, // 5
+		160, // 6
+		120, // 7
+		80,  // 8
+		40,  // 9
+		0,   // 10
+	}
+
+	var prev *plotter.BarChart
+	for i := 10; i >= 5; i-- {
+		var vals plotter.Values
+
+		for _, n := range names {
+			f := freq[n]
+			vals = append(vals, float64(f[i])/float64(sum[n]))
+		}
+
+		bars, err := plotter.NewBarChart(vals, w)
+		if err != nil {
+			return fmt.Errorf("while building chart: %v", err)
+		}
+		bars.LineStyle.Width = vg.Length(0)
+		bars.Color = color.Gray{grayScale[i]}
+
+		if prev != nil {
+			bars.StackOn(prev)
+		}
+		p.Add(bars)
+		prev = bars
+	}
+
+	if err := p.Save(5*vg.Inch, 3*vg.Inch, plotFile); err != nil {
+		return err
+	}
+	return nil
 }
