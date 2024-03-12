@@ -51,7 +51,7 @@ number of processors.
 
 By default, the output file will have the name of the input file with the
 prefix "freq" or "kde" if the --kde flag is used. With the flag --output, or
--o, a different prefix can be defined.
+-o, a different file name can be defined.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -60,15 +60,15 @@ prefix "freq" or "kde" if the --kde flag is used. With the flag --output, or
 var numCPU int
 var kdeLambda float64
 var inputFile string
-var outPrefix string
+var output string
 
 func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 	c.Flags().Float64Var(&kdeLambda, "kde", 0, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
-	c.Flags().StringVar(&outPrefix, "output", "", "")
-	c.Flags().StringVar(&outPrefix, "o", "", "")
+	c.Flags().StringVar(&output, "output", "", "")
+	c.Flags().StringVar(&output, "o", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -77,6 +77,12 @@ func run(c *command.Command, args []string) error {
 	}
 	if inputFile == "" {
 		return c.UsageError("expecting input file, flag --input")
+	}
+	if output == "" {
+		output = fmt.Sprintf("freq-%s", inputFile)
+		if kdeLambda > 0 {
+			output = fmt.Sprintf("kde-%s", inputFile)
+		}
 	}
 
 	p, err := project.Read(args[0])
@@ -99,13 +105,6 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	if outPrefix == "" {
-		outPrefix = "freq"
-		if kdeLambda > 0 {
-			outPrefix = "kde"
-		}
-	}
-
 	tp := "freq"
 	if kdeLambda > 0 {
 		var pp pixprob.Pixel
@@ -125,8 +124,7 @@ func run(c *command.Command, args []string) error {
 		scale(rt)
 	}
 
-	name := fmt.Sprintf("%s-%s-%s.tab", outPrefix, args[0], inputFile)
-	if err := writeFrequencies(rt, name, args[0], tp, landscape.Pixelation().Len(), landscape.Pixelation().Equator()); err != nil {
+	if err := writeFrequencies(rt, output, args[0], tp, landscape.Pixelation().Len(), landscape.Pixelation().Equator()); err != nil {
 		return err
 	}
 
