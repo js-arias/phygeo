@@ -32,6 +32,7 @@ import (
 var Command = &command.Command{
 	Usage: `sim [-o|--output <file>]
 	[--trees <number>] [--terms <range>] [-p|--particles <number>]
+	[--name <string>]
 	--age <range> --lambda <range> <project-file>`,
 	Short: "simulate data",
 	Long: `
@@ -68,6 +69,9 @@ default, the particles that make the range will be spread around the centroid
 of the distribution, using a spherical normal of lambda 100. Use the flag
 --spread to change the spreading of the particles.
 
+By default, trees will be named as "random-<number>". Use the flag --name to
+set a different tree name prefix.
+
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -77,6 +81,7 @@ var output string
 var ageFlag string
 var termFlag string
 var lambdaFlag string
+var treeName string
 var spread float64
 var numTrees int
 var numParticles int
@@ -87,6 +92,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&ageFlag, "age", "", "")
 	c.Flags().StringVar(&termFlag, "terms", "40,80", "")
 	c.Flags().StringVar(&lambdaFlag, "lambda", "", "")
+	c.Flags().StringVar(&treeName, "name", "random", "")
 	c.Flags().IntVar(&numTrees, "trees", 100, "")
 	c.Flags().IntVar(&numParticles, "p", 100, "")
 	c.Flags().IntVar(&numParticles, "particles", 100, "")
@@ -181,7 +187,7 @@ func run(c *command.Command, args []string) (err error) {
 	coll := timetree.NewCollection()
 	vals := make(map[string]float64, numTrees)
 	for i := 0; i < numTrees; i++ {
-		name := fmt.Sprintf("random-%d", i)
+		name := fmt.Sprintf("%s-%d", treeName, i)
 
 		// simulate the tree
 		var t *timetree.Tree
