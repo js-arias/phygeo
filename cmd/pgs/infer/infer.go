@@ -20,6 +20,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
@@ -194,11 +195,17 @@ func run(c *command.Command, args []string) (err error) {
 		r.df = diffusion.New(r.tree, param)
 		r.mlLambda = param.Lambda
 		r.logLike = r.df.DownPass()
-		r.goUp(param, 100.0)
+		r.goUp(param, 500.0)
 
-		for step := 50.0; ; step = step / 2 {
+		for step := 250.0; ; step = step / 2 {
 			r.search(param, step)
 			if step < 0.5 {
+				break
+			}
+
+			n := dist.NewNormal(r.mlLambda/5.0, param.Landscape.Pixelation())
+			if n.Prob(0) > 0.99 {
+				// the lambda value is too big
 				break
 			}
 		}
@@ -241,6 +248,12 @@ func (sr *simResults) goUp(p diffusion.Param, step float64) {
 		sr.mlLambda = p.Lambda
 		sr.logLike = like
 		sr.df = df
+
+		n := dist.NewNormal(sr.mlLambda/5.0, p.Landscape.Pixelation())
+		if n.Prob(0) > 0.99 {
+			// the lambda value is too big
+			return
+		}
 	}
 }
 
