@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/js-arias/command"
+	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/timetree"
@@ -120,6 +121,7 @@ func run(c *command.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	pix := landscape.Pixelation()
 
 	got, err := readRecon(gotFile, landscape, tc)
 	if err != nil {
@@ -146,7 +148,7 @@ func run(c *command.Command, args []string) (err error) {
 	date := time.Now().Format(time.RFC3339)
 	fmt.Fprintf(f, "# results from simulated data from project %q\n", args[0])
 	fmt.Fprintf(f, "# date: %s\n", date)
-	fmt.Fprintf(f, "tree\tnode\tage\tpixels\n")
+	fmt.Fprintf(f, "tree\tnode\tage\tpixels\tfarthest\n")
 	for _, tn := range tc.Names() {
 		gt, ok := got[tn]
 		if !ok {
@@ -191,18 +193,33 @@ func run(c *command.Command, args []string) (err error) {
 					continue
 				}
 
-				var sum, scale float64
-				for px := range ws.rec {
-					sum += gs.rec[px]
-				}
-				for _, v := range gs.rec {
+				var sum, scale, far float64
+				for px, v := range ws.rec {
 					scale += v
+					if _, ok := gs.rec[px]; ok {
+						sum += v
+						continue
+					}
+
+					// calculates distance range
+					pt1 := pix.ID(px).Point()
+					dist := math.Pi * 2
+					for p2 := range gs.rec {
+						pt2 := pix.ID(p2).Point()
+						d := earth.Distance(pt1, pt2)
+						if d < dist {
+							dist = d
+						}
+					}
+					if dist > far {
+						far = dist
+					}
 				}
 
 				i := int(math.Round(sum * 10 / scale))
 				fv[i]++
 
-				fmt.Fprintf(f, "%s\t%d\t%d\t%.6f\n", tn, id, a, sum/scale)
+				fmt.Fprintf(f, "%s\t%d\t%d\t%.6f\t%.6f\n", tn, id, a, sum/scale, far)
 			}
 		}
 		freq[tn] = fv
@@ -439,7 +456,13 @@ func makePlot(freq map[string][]int) error {
 	p := plot.New()
 	p.Y.Label.Text = "nodes (proportion)"
 
-	w := vg.Points(3)
+	// width of each column
+	w := 300.0 / float64(len(freq))
+	if w < 3 {
+		w = 3
+	}
+
+	width := vg.Points(w)
 	sum := make(map[string]int, len(freq))
 	names := make([]string, 0, len(freq))
 	for n, f := range freq {
@@ -486,7 +509,7 @@ func makePlot(freq map[string][]int) error {
 			vals = append(vals, float64(f[i])/float64(sum[n]))
 		}
 
-		bars, err := plotter.NewBarChart(vals, w)
+		bars, err := plotter.NewBarChart(vals, width)
 		if err != nil {
 			return fmt.Errorf("while building chart: %v", err)
 		}
@@ -499,6 +522,8 @@ func makePlot(freq map[string][]int) error {
 		p.Add(bars)
 		prev = bars
 	}
+	p.Y.Min = 0
+	p.Y.Max = 1
 
 	if err := p.Save(5*vg.Inch, 3*vg.Inch, plotFile); err != nil {
 		return err
