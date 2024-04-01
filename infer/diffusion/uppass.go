@@ -79,9 +79,9 @@ func (n *node) scaleLike(t *Tree, p int) {
 
 		max := -math.MaxFloat64
 		for px, p := range st.logLike {
+			v := tp[px]
 			// skip pixels with 0 prior
-			prior, ok := t.logPrior[tp[px]]
-			if !ok {
+			if pp := t.pp.Prior(v); pp == 0 {
 				continue
 			}
 
@@ -92,7 +92,7 @@ func (n *node) scaleLike(t *Tree, p int) {
 				}
 			}
 
-			p += prior
+			p += t.pp.LogPrior(v)
 			st.scaled[px] = p
 			if p > max {
 				max = p

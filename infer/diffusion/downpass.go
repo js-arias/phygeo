@@ -11,6 +11,7 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
+	"github.com/js-arias/earth/stat/pixprob"
 )
 
 type likeChanType struct {
@@ -28,7 +29,7 @@ type answerChan struct {
 	logLike float64
 }
 
-func pixLike(likeChan chan likeChanType, answer chan answerChan, size int) {
+func pixLike(likeChan chan likeChanType, answer chan answerChan) {
 	for c := range likeChan {
 		var sum float64
 		nMax := c.pdf.LogProbRingDist(0)
@@ -139,7 +140,7 @@ func (n *node) conditional(t *Tree, pixTmp []likePix) {
 		// set the pixels priors at the root
 		rs := n.stages[0]
 		tp := t.landscape.Stage(t.landscape.ClosestStageAge(rs.age))
-		rs.logLike = addPrior(rs.logLike, t.logPrior, tp)
+		rs.logLike = addPrior(rs.logLike, t.pp, tp)
 	}
 }
 
@@ -163,19 +164,19 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix) map[int]f
 	likeChan := make(chan likeChanType, numCPU*2)
 	answer := make(chan answerChan, numCPU*2)
 	for i := 0; i < numCPU; i++ {
-		go pixLike(likeChan, answer, t.landscape.Pixelation().Len())
+		go pixLike(likeChan, answer)
 	}
 
 	// update descendant log like
 	// with the arrival priors
-	endLike, max := prepareLogLikePix(ts.logLike, t.logPrior, stage, pixTmp)
+	endLike, max := prepareLogLikePix(ts.logLike, t.pp, stage, pixTmp)
 
 	go func() {
 		// send the pixels
 		var wg sync.WaitGroup
 		for px := range stage {
 			// skip pixels with 0 prior
-			if _, ok := t.logPrior[stage[px]]; !ok {
+			if t.pp.Prior(stage[px]) == 0 {
 				continue
 			}
 
@@ -214,14 +215,14 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix) map[int]f
 	return logLike
 }
 
-func addPrior(logLike, logPrior map[int]float64, tp map[int]int) map[int]float64 {
+func addPrior(logLike map[int]float64, prior pixprob.Pixel, tp map[int]int) map[int]float64 {
 	add := make(map[int]float64, len(logLike))
 	for px, p := range logLike {
-		prior, ok := logPrior[tp[px]]
-		if !ok {
+		v := tp[px]
+		if pp := prior.Prior(v); pp == 0 {
 			continue
 		}
-		add[px] = p + prior
+		add[px] = p + prior.LogPrior(v)
 	}
 
 	return add
@@ -231,15 +232,15 @@ func addPrior(logLike, logPrior map[int]float64, tp map[int]int) map[int]float64
 // add the prior of each pixel
 // and return an array with the pixels and its normalized (non-log) conditional likelihoods,
 // and the normalization factor (in log form).
-func prepareLogLikePix(logLike, logPrior map[int]float64, tp map[int]int, lp []likePix) ([]likePix, float64) {
+func prepareLogLikePix(logLike map[int]float64, prior pixprob.Pixel, tp map[int]int, lp []likePix) ([]likePix, float64) {
 	max := -math.MaxFloat64
 	lp = lp[:0]
 	for px, p := range logLike {
-		prior, ok := logPrior[tp[px]]
-		if !ok {
+		v := tp[px]
+		if pp := prior.Prior(v); pp == 0 {
 			continue
 		}
-		p += prior
+		p += prior.LogPrior(v)
 		lp = append(lp, likePix{
 			px:      px,
 			like:    p,
