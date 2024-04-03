@@ -6,7 +6,7 @@ package mapcmd
 
 import "github.com/js-arias/earth/model"
 
-func richnessOnTime(name string, landscape *model.TimePix) (map[int64]*recStage, error) {
+func richnessOnTime(landscape *model.TimePix) (map[int64]*recStage, error) {
 	rt, err := getRec(inputFile, landscape)
 	if err != nil {
 		return nil, err

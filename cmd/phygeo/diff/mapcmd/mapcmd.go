@@ -164,7 +164,7 @@ func run(c *command.Command, args []string) error {
 		if outPrefix == "" {
 			outPrefix = "richness-" + inputFile
 		}
-		stages, err := richnessOnTime(inputFile, landscape)
+		stages, err := richnessOnTime(landscape)
 		if err != nil {
 			return err
 		}
