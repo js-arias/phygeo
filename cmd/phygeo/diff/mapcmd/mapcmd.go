@@ -15,6 +15,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,7 @@ var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
 	[--bound <value>] [--richness]
 	[--unrot] [--present] [--contour <image-file>]
+	[--recent] [--trees <tree-list>] [--nodes <node-list>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map reconstruction",
 	Long: `
@@ -54,12 +56,20 @@ given image will be used as a contour of the output map. The contour map will
 set the size of the output image and should be fully transparent, except for
 the contour, which will always be drawn in black.
 
-By default, it will output the results of each node. If the flag --richness is
-defined, then it will output the relative richness over time, that is, the
-number of lineages alive at the end of each time stage. This number is
-calculated using the scaled pixel values of each node alive at each time (so
-each pixel can add a number between 1 and 0). For each map, the output is
-scaled to the maximum value at that time stage.
+By default, it will output the results of each node. If the flag --recent is
+defined, only the most recent time stage for each node (i.e., splits and
+terminals) will be used for output. If the flag trees is defined, only the
+indicated trees will be used for output, the format is the tree names
+separated by commas, for example "tree-1,tree-2" will produce maps for nodes
+on trees tree-1 and tree-2. If the flag --nodes is defined, only the indicated
+nodes will be used for output, the format is the node IDs separated by commas,
+for example "0,1,6,10" will produce maps for nodes 0, 1, 6 and 10.
+
+If the flag --richness is defined, then it will output the relative richness
+over time, that is, the number of lineages alive at the end of each time
+stage. This number is calculated using the scaled pixel values of each node
+alive at each time (so each pixel can add a number between 1 and 0). For each
+map, the output is scaled to the maximum value at that time stage.
 
 By default, the output image will have the input file name as a prefix. To
 change the prefix, use the flag --output or -o. The suffix of the file will be
@@ -78,8 +88,11 @@ var grayFlag bool
 var unRot bool
 var present bool
 var richnessFlag bool
+var recentFlag bool
 var colsFlag int
 var bound float64
+var treesFlag string
+var nodesFlag string
 var contourFile string
 var keyFile string
 var inputFile string
@@ -90,10 +103,13 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&unRot, "unrot", false, "")
 	c.Flags().BoolVar(&present, "present", false, "")
 	c.Flags().BoolVar(&richnessFlag, "richness", false, "")
+	c.Flags().BoolVar(&recentFlag, "recent", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().Float64Var(&bound, "bound", 0.95, "")
 	c.Flags().StringVar(&keyFile, "key", "", "")
+	c.Flags().StringVar(&nodesFlag, "nodes", "", "")
+	c.Flags().StringVar(&treesFlag, "trees", "", "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
@@ -197,14 +213,48 @@ func run(c *command.Command, args []string) error {
 		outPrefix = inputFile
 	}
 
+	nodes, err := parseNodes()
+	if err != nil {
+		return err
+	}
+	trees := parseTreeNames()
+
 	rt, err := getRec(inputFile, landscape)
 	if err != nil {
 		return err
 	}
 
-	for _, t := range rt {
-		for _, n := range t.nodes {
-			for _, s := range n.stages {
+	if len(trees) == 0 {
+		trees = make([]string, 0, len(rt))
+		for _, t := range rt {
+			trees = append(trees, t.name)
+		}
+		slices.Sort(trees)
+	}
+
+	for _, tn := range trees {
+		t := rt[tn]
+		nodeList := nodes
+		if len(nodeList) == 0 {
+			nodeList = make([]int, 0, len(t.nodes))
+			for id := range t.nodes {
+				nodeList = append(nodeList, id)
+			}
+			slices.Sort(nodeList)
+		}
+		for _, id := range nodeList {
+			n := t.nodes[id]
+			stages := make([]int64, 0, len(n.stages))
+			for a := range n.stages {
+				stages = append(stages, a)
+			}
+			slices.Sort(stages)
+			if recentFlag {
+				stages = stages[:1]
+			}
+
+			for _, a := range stages {
+				s := n.stages[a]
 				age := float64(s.age) / 1_000_000
 				out := fmt.Sprintf("%s-%s-n%d-%.3f.png", outPrefix, t.name, n.id, age)
 
@@ -502,4 +552,36 @@ func writeImage(name string, m *probmap.Image) (err error) {
 		return fmt.Errorf("when encoding image file %q: %v", name, err)
 	}
 	return nil
+}
+
+func parseTreeNames() []string {
+	if treesFlag == "" {
+		return nil
+	}
+	trees := strings.Split(treesFlag, ",")
+	for i, t := range trees {
+		trees[i] = strings.ToLower(t)
+	}
+	slices.Sort(trees)
+
+	return trees
+}
+
+func parseNodes() ([]int, error) {
+	if nodesFlag == "" {
+		return nil, nil
+	}
+
+	ids := strings.Split(nodesFlag, ",")
+	nodes := make([]int, 0, len(ids))
+	for _, id := range ids {
+		n, err := strconv.Atoi(id)
+		if err != nil {
+			return nil, fmt.Errorf("on flag --nodes: %v", err)
+		}
+		nodes = append(nodes, n)
+	}
+	slices.Sort(nodes)
+
+	return nodes, nil
 }
