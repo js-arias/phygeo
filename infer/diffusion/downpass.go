@@ -31,14 +31,15 @@ type answerChan struct {
 
 func pixLike(likeChan chan likeChanType, answer chan answerChan) {
 	for c := range likeChan {
-		var sum float64
-		nMax := c.pdf.LogProbRingDist(0)
+		var sum, scale float64
 		max := -math.MaxFloat64
 		if c.dm != nil {
 			// use the distance matrix
 			for _, cL := range c.like {
 				dist := c.dm.At(c.pixel, cL.px)
-				sum += c.pdf.ScaledProbRingDist(dist) * cL.like
+				p := c.pdf.ScaledProbRingDist(dist)
+				scale += p * cL.prior
+				sum += p * cL.like
 				if sum > 0 {
 					continue
 				}
@@ -52,7 +53,9 @@ func pixLike(likeChan chan likeChanType, answer chan answerChan) {
 			for _, cL := range c.like {
 				pt2 := c.pix.ID(cL.px).Point()
 				dist := earth.Distance(pt1, pt2)
-				sum += c.pdf.ScaledProb(dist) * cL.like
+				p := c.pdf.ScaledProb(dist)
+				scale += p * cL.prior
+				sum += p * cL.like
 				if sum > 0 {
 					continue
 				}
@@ -65,7 +68,7 @@ func pixLike(likeChan chan likeChanType, answer chan answerChan) {
 		if sum > 0 {
 			answer <- answerChan{
 				pixel:   c.pixel,
-				logLike: math.Log(sum) + c.max + nMax,
+				logLike: math.Log(sum) + c.max - math.Log(scale),
 			}
 			c.wg.Done()
 			continue
@@ -149,6 +152,7 @@ type likePix struct {
 	px      int     // Pixel ID
 	like    float64 // conditional likelihood
 	logLike float64
+	prior   float64 // pixel prior
 }
 
 // Conditional calculates the conditional likelihood
@@ -235,16 +239,24 @@ func addPrior(logLike map[int]float64, prior pixprob.Pixel, tp map[int]int) map[
 func prepareLogLikePix(logLike map[int]float64, prior pixprob.Pixel, tp map[int]int, lp []likePix) ([]likePix, float64) {
 	max := -math.MaxFloat64
 	lp = lp[:0]
-	for px, p := range logLike {
-		v := tp[px]
-		if pp := prior.Prior(v); pp == 0 {
+
+	for px, v := range tp {
+		pp := prior.Prior(v)
+		if pp == 0 {
 			continue
 		}
-		p += prior.LogPrior(v)
+
+		p, ok := logLike[px]
+		if !ok {
+			p = -math.MaxFloat64
+		} else {
+			p += prior.LogPrior(v)
+		}
 		lp = append(lp, likePix{
 			px:      px,
 			like:    p,
 			logLike: p,
+			prior:   pp,
 		})
 		if p > max {
 			max = p
