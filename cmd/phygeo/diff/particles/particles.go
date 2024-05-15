@@ -481,7 +481,7 @@ func upPass(t *diffusion.Tree, name, p string, lambda, standard float64, particl
 	}
 
 	for i := 0; i < particles; i++ {
-		if err := writeUpPass(tsv, i, t, eq); err != nil {
+		if err := writeUpPass(tsv, i, t, lambda, eq); err != nil {
 			return fmt.Errorf("while writing data on %q: %v", name, err)
 		}
 	}
@@ -507,14 +507,14 @@ func outHeader(w io.Writer, t, p string, lambda, standard, logLike float64) (*cs
 	tsv := csv.NewWriter(w)
 	tsv.Comma = '\t'
 	tsv.UseCRLF = true
-	if err := tsv.Write([]string{"tree", "particle", "node", "age", "equator", "from", "to"}); err != nil {
+	if err := tsv.Write([]string{"tree", "particle", "node", "age", "lambda", "equator", "from", "to"}); err != nil {
 		return nil, err
 	}
 
 	return tsv, nil
 }
 
-func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree, eq int) error {
+func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree, lambda float64, eq int) error {
 	nodes := t.Nodes()
 
 	for _, n := range nodes {
@@ -532,6 +532,7 @@ func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree, eq int) error {
 				strconv.Itoa(p),
 				strconv.Itoa(n),
 				strconv.FormatInt(a, 10),
+				strconv.FormatFloat(lambda, 'f', 6, 64),
 				strconv.Itoa(eq),
 				strconv.Itoa(st.From),
 				strconv.Itoa(st.To),

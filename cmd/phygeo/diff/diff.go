@@ -113,6 +113,7 @@ following columns:
 	-particle  the ID of a particular simulation
 	-node      the ID of the node
 	-age       the age of the time stage, in years
+	-lambda    the lambda value used for the likelihood calculations.
 	-equator   the number of pixels in the equator for the pixelation used
 	           in the simulations.
 	-from      the ID of the pixel location at the start of the time stage.
@@ -121,13 +122,13 @@ following columns:
 Here is an example of a stochastic-mapping file:
 
 	# stochastic mapping
-	tree	particle	node	age	equator	from	to
-	vireya	0	0	16590000	120	970	1175
-	vireya	0	1	15000000	120	1175	1075
-	vireya	0	1	10000000	120	1075	1074
-	vireya	0	2	15000000	120	1175	1503
-	vireya	0	2	12300000	120	1503	2094
-	vireya	0	3	10000000	120	2094	2095
+	tree	particle	node	age	lambda	equator	from	to
+	vireya	0	0	16590000	100.0	120	970	1175
+	vireya	0	1	15000000	100.0	120	1175	1075
+	vireya	0	1	10000000	100.0	120	1075	1074
+	vireya	0	2	15000000	100.0	120	1175	1503
+	vireya	0	2	12300000	100.0	120	1503	2094
+	vireya	0	3	10000000	100.0	120	2094	2095
 
 Nielsen (Syst. Biol. 51:729, 2002) proposed stochastic mapping based on Yang
 et al. (Genetics 141:1641, 1995). Dupin et al. (J. Biogeogr. 44: 887, 2017)
