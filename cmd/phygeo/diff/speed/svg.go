@@ -123,21 +123,25 @@ func (s *svgTree) prepare(n *node) {
 	n.y = topY + (botY-topY)/2
 }
 
-func (s *svgTree) setColor(sp map[int]float64, min, max float64) {
-	s.root.setColor(sp, min, max)
+func (s *svgTree) setColor(sp map[int]float64, min, max, avg float64) {
+	s.root.setColor(sp, min, max, avg)
 	s.root.color = color.RGBA{102, 102, 102, 255}
 }
 
-func (n *node) setColor(sp map[int]float64, min, max float64) {
+func (n *node) setColor(sp map[int]float64, min, max, avg float64) {
 	n.color = color.RGBA{0, 0, 255, 255}
 	if v, ok := sp[n.id]; ok {
-		n.color = blind.Gradient((v - min) / (max - min))
+		if v > avg {
+			n.color = blind.Gradient(0.5 + 0.5*(v-avg)/(max-avg))
+		} else {
+			n.color = blind.Gradient(0.5 * (v - min) / (avg - min))
+		}
 	} else {
 		n.color = blind.Gradient(0)
 	}
 
 	for _, d := range n.desc {
-		d.setColor(sp, min, max)
+		d.setColor(sp, min, max, avg)
 	}
 
 }

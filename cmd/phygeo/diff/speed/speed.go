@@ -20,6 +20,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/timetree"
 	"golang.org/x/exp/slices"
@@ -31,6 +32,7 @@ var Command = &command.Command{
 	[--tree <file-prefix>] [--step <number>]
 	[--box <number>] [--tick <tick-value>]
 	[--time] [--plot <file-prefix>]
+	[--null <number>]
 	-i|--input <file> <project-file>`,
 	Short: "calculates speed and distance for a reconstruction",
 	Long: `
@@ -42,6 +44,14 @@ The distance is a 'biological' distance, in the sense that the distance is the
 product of the diffusion process. It is calculated using the great circle
 distances between the beginning and ending pixel on each time segment in a
 branch.
+
+To test if particles move faster or slower than expected, a simulation is made
+with the lambda value used for stochastic sampling and the branch segments of
+each lineage. Then it reports the fraction of particles that move more than
+95% of the simulations (i.e., they are faster) and the fraction of particles
+that move less than 5% of the simulations (i.e., they are slowest). By
+default, the number of simulations is 1000; this can be changed with the flag
+--null.
 
 The argument of the command is the name of the project file.
 
@@ -74,6 +84,10 @@ with the following columns:
 	d-975     the 97.5% of the empirical CDF
 	brLen     the length of the branch in million years
 	speed     the median of the speed in kilometers per million year
+	x-050     the 5% of the distance for simulated CDF
+	x-950     the 95% of the distance for simulated CDF
+	slower    fraction of particles slower than the 5% of the simulations
+	faster    fraction of particles faster than the 95% of the simulations
 
 If the flag --time is used, instead of calculating the speed per branch, the
 speed will be calculated for each time slice. In this case the whole traveled
@@ -99,6 +113,7 @@ will be produced, using the speed of each time segment.
 var useTime bool
 var stepX float64
 var timeBox float64
+var nullFlag int
 var treePrefix string
 var inputFile string
 var plotPrefix string
@@ -108,6 +123,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().Float64Var(&timeBox, "box", 0, "")
+	c.Flags().IntVar(&nullFlag, "null", 1000, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&treePrefix, "tree", "", "")
@@ -178,7 +194,19 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	if err := writeRecBranch(c.Stdout(), tc, tBranch); err != nil {
+	// make the simulations
+	tSim := make(map[string]*recTree, len(tBranch))
+	for _, name := range tc.Names() {
+		dt, ok := tBranch[name]
+		if !ok {
+			continue
+		}
+
+		t := tc.Tree(name)
+		tSim[name] = nullRec(landscape.Pixelation(), dt, t.Root())
+	}
+
+	if err := writeRecBranch(c.Stdout(), tc, tBranch, tSim); err != nil {
 		return err
 	}
 
@@ -235,14 +263,16 @@ func getBranches(name string, tc *timetree.Collection, landscape *model.TimePix)
 }
 
 type recTree struct {
-	name  string
-	nodes map[int]*recNode
+	name   string
+	nodes  map[int]*recNode
+	lambda float64
 }
 
 type recNode struct {
 	id   int
 	tree *recTree
 	recs map[int]*recBranch
+	ages map[int64]bool
 }
 
 type recBranch struct {
@@ -257,6 +287,7 @@ var headerFields = []string{
 	"particle",
 	"node",
 	"age",
+	"lambda",
 	"to",
 }
 
@@ -323,8 +354,12 @@ func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (m
 				id:   id,
 				tree: t,
 				recs: make(map[int]*recBranch),
+				ages: make(map[int64]bool),
 			}
 			t.nodes[id] = n
+			if !tv.IsRoot(id) {
+				n.ages[tv.Age(tv.Parent(id))] = true
+			}
 		}
 		if tv.IsRoot(id) {
 			continue
@@ -375,6 +410,14 @@ func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (m
 		if age == tv.Age(id) {
 			p.endPt = to
 		}
+		n.ages[age] = true
+
+		f = "lambda"
+		lambda, err := strconv.ParseFloat(row[fields[f]], 64)
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		t.lambda = lambda
 
 		// add to the whole tree reconstruction
 		root := t.nodes[tv.Root()]
@@ -396,12 +439,78 @@ func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (m
 	return rt, nil
 }
 
-func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree) error {
+func nullRec(pix *earth.Pixelation, t *recTree, root int) *recTree {
+	st := &recTree{
+		name:   t.name,
+		lambda: t.lambda,
+		nodes:  make(map[int]*recNode, len(t.nodes)),
+	}
+	for id, n := range t.nodes {
+		sn := &recNode{
+			id:   id,
+			tree: st,
+			recs: make(map[int]*recBranch, nullFlag),
+		}
+		st.nodes[id] = sn
+		if root == id {
+			for i := 0; i < nullFlag; i++ {
+				sn.recs[i] = &recBranch{
+					id:   i,
+					node: sn,
+				}
+			}
+			continue
+		}
+		ages := make([]float64, 0, len(n.ages))
+		for a := range n.ages {
+			ages = append(ages, float64(a)/millionYears)
+		}
+		slices.Sort(ages)
+
+		PDFs := make([]dist.Normal, 0, len(ages)-1)
+		for i, a := range ages {
+			if i == 0 {
+				continue
+			}
+			brLen := a - ages[i-1]
+			PDFs = append(PDFs, dist.NewNormal(st.lambda/brLen, pix))
+		}
+		for i := 0; i < nullFlag; i++ {
+			var sum float64
+			px := pix.ID(0)
+			for _, p := range PDFs {
+				nx := p.Rand(px)
+				sum += earth.Distance(px.Point(), nx.Point())
+				px = nx
+			}
+			sn.recs[i] = &recBranch{
+				id:   i,
+				node: sn,
+				dist: sum,
+			}
+		}
+	}
+
+	// distances for the whole tree
+	rn := st.nodes[root]
+	for i, r := range rn.recs {
+		for id, n := range st.nodes {
+			if id == root {
+				continue
+			}
+			r.dist += n.recs[i].dist
+		}
+	}
+
+	return st
+}
+
+func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*recTree) error {
 	tab := csv.NewWriter(w)
 	tab.Comma = '\t'
 	tab.UseCRLF = true
 
-	if err := tab.Write([]string{"tree", "node", "distance", "d-025", "d-975", "brLen", "speed"}); err != nil {
+	if err := tab.Write([]string{"tree", "node", "distance", "d-025", "d-975", "brLen", "speed", "x-005", "x-095", "slower", "faster"}); err != nil {
 		return err
 	}
 	for _, name := range tc.Names() {
@@ -409,8 +518,9 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 		if !ok {
 			continue
 		}
-
 		t := tc.Tree(name)
+		st := rSim[name]
+
 		for _, nID := range t.Nodes() {
 			n := dt.nodes[nID]
 			dist := make([]float64, 0, len(n.recs))
@@ -430,6 +540,26 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
 			s := d / brLen
 
+			sn := st.nodes[nID]
+			nullDist := make([]float64, 0, len(sn.recs))
+			nullWeights := make([]float64, 0, len(sn.recs))
+			for _, r := range sn.recs {
+				nullDist = append(nullDist, r.dist*earth.Radius/1000)
+				nullWeights = append(nullWeights, 1.0)
+			}
+			slices.Sort(nullDist)
+			n05 := stat.Quantile(0.05, stat.Empirical, nullDist, nullWeights)
+			n95 := stat.Quantile(0.95, stat.Empirical, nullDist, nullWeights)
+			var fast, slow int
+			for _, od := range dist {
+				if od > n95 {
+					fast++
+				}
+				if od < n05 {
+					slow++
+				}
+			}
+
 			row := []string{
 				name,
 				strconv.Itoa(nID),
@@ -438,6 +568,10 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt map[string]*recTree
 				strconv.FormatFloat(stat.Quantile(0.975, stat.Empirical, dist, weights), 'f', 3, 64),
 				strconv.FormatFloat(brLen, 'f', 3, 64),
 				strconv.FormatFloat(s, 'f', 3, 64),
+				strconv.FormatFloat(n05, 'f', 3, 64),
+				strconv.FormatFloat(n95, 'f', 3, 64),
+				strconv.FormatFloat(float64(slow)/float64(len(dist)), 'f', 3, 64),
+				strconv.FormatFloat(float64(fast)/float64(len(dist)), 'f', 3, 64),
 			}
 			if nID == 0 {
 				// root node is the whole tree
@@ -472,15 +606,10 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 		st := copyTree(t, stepX, tv.min, tv.max, tv.label)
 
 		sp := make(map[int]float64)
+		var avg float64
 		min := math.MaxFloat64
 		max := math.SmallestNonzeroFloat64
 		for _, nID := range t.Nodes() {
-			// skip root node
-			pN := t.Parent(nID)
-			if pN < 0 {
-				continue
-			}
-
 			n := rec.nodes[nID]
 			dist := make([]float64, 0, len(n.recs))
 			weights := make([]float64, 0, len(n.recs))
@@ -489,6 +618,15 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 				weights = append(weights, 1.0)
 			}
 			slices.Sort(dist)
+
+			// root node
+			pN := t.Parent(nID)
+			if pN < 0 {
+				brLen := float64(t.Len()) / millionYears
+				d := stat.Quantile(0.5, stat.Empirical, dist, weights)
+				avg = math.Log10(d / brLen)
+				continue
+			}
 
 			brLen := float64(t.Age(pN)-t.Age(nID)) / millionYears
 			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
@@ -505,7 +643,7 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 			}
 			sp[nID] = s
 		}
-		st.setColor(sp, min, max)
+		st.setColor(sp, min, max, avg)
 
 		fName := treePrefix + "-" + name + ".svg"
 		if err := writeSVGTree(fName, st); err != nil {
