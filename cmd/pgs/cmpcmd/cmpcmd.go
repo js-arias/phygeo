@@ -7,7 +7,6 @@
 package cmpcmd
 
 import (
-	"cmp"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -473,18 +472,7 @@ func makePlot(freq map[string][]int) error {
 		sum[n] = s
 		names = append(names, n)
 	}
-	slices.SortFunc(names, func(a, b string) int {
-		fA := freq[a]
-		fB := freq[b]
-
-		var xA, xB float64
-		for i := 10; i >= 5; i-- {
-			xA += float64(fA[i])
-			xB += float64(fB[i])
-		}
-
-		return cmp.Compare(xA/float64(sum[a]), xB/float64(sum[b]))
-	})
+	slices.Sort(names)
 
 	grayScale := []uint8{
 		255, // 0
