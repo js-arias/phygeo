@@ -15,71 +15,73 @@ import (
 )
 
 type likeChanType struct {
-	pixel int
-	pix   *earth.Pixelation
-	dm    *earth.DistMat
-	like  []likePix
-	max   float64
-	pdf   dist.Normal
-	wg    *sync.WaitGroup
+	start, end int
 }
 
-type answerChan struct {
-	pixel   int
+type likeResult struct {
+	px      int
 	logLike float64
 }
 
-func pixLike(likeChan chan likeChanType, answer chan answerChan) {
+type likePixData struct {
+	pix *earth.Pixelation
+	dm  *earth.DistMat
+
+	like []likePix
+	max  float64
+	pdf  dist.Normal
+}
+
+func pixLike(likeChan chan likeChanType, wg *sync.WaitGroup, data likePixData, r []likeResult) {
 	for c := range likeChan {
-		var sum, scale float64
-		max := -math.MaxFloat64
-		if c.dm != nil {
-			// use the distance matrix
-			for _, cL := range c.like {
-				dist := c.dm.At(c.pixel, cL.px)
-				p := c.pdf.ScaledProbRingDist(dist)
-				scale += p * cL.prior
-				sum += p * cL.like
-				if sum > 0 {
-					continue
-				}
-				if lp := c.pdf.LogProbRingDist(dist) + cL.logLike; lp > max {
-					max = lp
-				}
-			}
-		} else {
-			// use raw distance
-			pt1 := c.pix.ID(c.pixel).Point()
-			for _, cL := range c.like {
-				pt2 := c.pix.ID(cL.px).Point()
-				dist := earth.Distance(pt1, pt2)
-				p := c.pdf.ScaledProb(dist)
-				scale += p * cL.prior
-				sum += p * cL.like
-				if sum > 0 {
-					continue
-				}
-				if lp := c.pdf.LogProb(dist) + cL.logLike; lp > max {
-					max = lp
-				}
-			}
+		for i := c.start; i < c.end; i++ {
+			px := r[i].px
+			logLike := calcPixLike(data, px)
+			r[i].logLike = logLike
 		}
-
-		if sum > 0 {
-			answer <- answerChan{
-				pixel:   c.pixel,
-				logLike: math.Log(sum) + c.max - math.Log(scale),
-			}
-			c.wg.Done()
-			continue
-		}
-
-		answer <- answerChan{
-			pixel:   c.pixel,
-			logLike: max,
-		}
-		c.wg.Done()
+		wg.Done()
 	}
+}
+
+func calcPixLike(c likePixData, pix int) float64 {
+	var sum, scale float64
+	max := -math.MaxFloat64
+	if c.dm != nil {
+		// use the distance matrix
+		for _, cL := range c.like {
+			dist := c.dm.At(pix, cL.px)
+			p := c.pdf.ScaledProbRingDist(dist)
+			scale += p * cL.prior
+			sum += p * cL.like
+			if sum > 0 {
+				continue
+			}
+			if lp := c.pdf.LogProbRingDist(dist) + cL.logLike; lp > max {
+				max = lp
+			}
+		}
+	} else {
+		// use raw distance
+		pt1 := c.pix.ID(pix).Point()
+		for _, cL := range c.like {
+			pt2 := c.pix.ID(cL.px).Point()
+			dist := earth.Distance(pt1, pt2)
+			p := c.pdf.ScaledProb(dist)
+			scale += p * cL.prior
+			sum += p * cL.like
+			if sum > 0 {
+				continue
+			}
+			if lp := c.pdf.LogProb(dist) + cL.logLike; lp > max {
+				max = lp
+			}
+		}
+	}
+
+	if sum > 0 {
+		return math.Log(sum) + c.max - math.Log(scale)
+	}
+	return max
 }
 
 var numCPU = 1
@@ -97,10 +99,11 @@ func (n *node) fullDownPass(t *Tree) {
 	}
 
 	pixTmp := make([]likePix, 0, t.landscape.Pixelation().Len())
-	n.conditional(t, pixTmp)
+	resTmp := make([]likeResult, 0, t.landscape.Pixelation().Len())
+	n.conditional(t, pixTmp, resTmp)
 }
 
-func (n *node) conditional(t *Tree, pixTmp []likePix) {
+func (n *node) conditional(t *Tree, pixTmp []likePix, resTmp []likeResult) {
 	if !t.t.IsTerm(n.id) {
 		// In an split node
 		// the conditional likelihood is the product of the
@@ -128,7 +131,7 @@ func (n *node) conditional(t *Tree, pixTmp []likePix) {
 		age := t.rot.ClosestStageAge(ts.age)
 		next := n.stages[i+1]
 		nextAge := t.rot.ClosestStageAge(next.age)
-		logLike := next.conditional(t, age, pixTmp)
+		logLike := next.conditional(t, age, pixTmp, resTmp)
 
 		// Rotate if there is an stage change
 		if nextAge != age {
@@ -155,9 +158,12 @@ type likePix struct {
 	prior   float64 // pixel prior
 }
 
+// pixel blocks
+var pixBlocks = 1000
+
 // Conditional calculates the conditional likelihood
 // at a time stage.
-func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix) map[int]float64 {
+func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix, resTmp []likeResult) map[int]float64 {
 	age := t.landscape.ClosestStageAge(ts.age)
 	var rot *model.Rotation
 	if age != old {
@@ -165,56 +171,64 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix) map[int]f
 	}
 	stage := t.landscape.Stage(age)
 
-	likeChan := make(chan likeChanType, numCPU*2)
-	answer := make(chan answerChan, numCPU*2)
-	for i := 0; i < numCPU; i++ {
-		go pixLike(likeChan, answer)
-	}
-
 	// update descendant log like
 	// with the arrival priors
 	endLike, max := prepareLogLikePix(ts.logLike, t.pp, stage, pixTmp)
 
-	go func() {
-		// send the pixels
-		var wg sync.WaitGroup
-		for px := range stage {
-			// skip pixels with 0 prior
-			if t.pp.Prior(stage[px]) == 0 {
-				continue
-			}
-
-			// the pixel must be valid at oldest time stage
-			if rot != nil {
-				if _, ok := rot.Rot[px]; !ok {
-					continue
-				}
-			}
-
-			wg.Add(1)
-			likeChan <- likeChanType{
-				pixel: px,
-				pix:   t.landscape.Pixelation(),
-				dm:    t.dm,
-				like:  endLike,
-				max:   max,
-				pdf:   ts.pdf,
-				wg:    &wg,
-			}
-		}
-		wg.Wait()
-		close(answer)
-	}()
-
-	logLike := make(map[int]float64, len(stage))
-	for a := range answer {
-		// skip invalid pixels
-		if a.pixel < 0 {
+	// reset result slice
+	resTmp = resTmp[:0]
+	for px := range stage {
+		// skip pixels with 0 prior
+		if t.pp.Prior(stage[px]) == 0 {
 			continue
 		}
-		logLike[a.pixel] = a.logLike
+
+		// the pixel must be valid at the oldest stage
+		if rot != nil {
+			if _, ok := rot.Rot[px]; !ok {
+				continue
+			}
+		}
+
+		resTmp = append(resTmp, likeResult{px: px})
 	}
+
+	data := likePixData{
+		pix:  t.landscape.Pixelation(),
+		dm:   t.dm,
+		like: endLike,
+		max:  max,
+		pdf:  ts.pdf,
+	}
+
+	// parallel part
+	likeChan := make(chan likeChanType, numCPU*2)
+	var wg sync.WaitGroup
+	for i := 0; i < numCPU; i++ {
+		go pixLike(likeChan, &wg, data, resTmp)
+	}
+	for i := 0; i < len(resTmp); i += pixBlocks {
+		wg.Add(1)
+		end := i + pixBlocks
+		if end > len(resTmp) {
+			end = len(resTmp)
+		}
+		likeChan <- likeChanType{
+			start: i,
+			end:   end,
+		}
+	}
+	wg.Wait()
 	close(likeChan)
+
+	logLike := make(map[int]float64, len(stage))
+	for _, r := range resTmp {
+		// skip invalid pixels
+		if r.px < 0 {
+			continue
+		}
+		logLike[r.px] = r.logLike
+	}
 
 	return logLike
 }
