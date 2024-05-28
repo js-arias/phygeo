@@ -72,12 +72,11 @@ func calcPixLike(c likePixData, pix int) float64 {
 	// pixels are quite far away
 	// use only the maximum likelihood point
 	maxLike := -math.MaxFloat64
-	logScale := math.Log(scale)
 	if c.dm != nil {
 		// use the distance matrix
 		for _, cL := range c.like {
 			dist := c.dm.At(pix, cL.px)
-			lp := c.pdf.LogProbRingDist(dist) + cL.logLike - logScale
+			lp := c.pdf.LogProbRingDist(dist) + cL.logLike
 			if lp > maxLike {
 				maxLike = lp
 			}
@@ -88,7 +87,7 @@ func calcPixLike(c likePixData, pix int) float64 {
 		for _, cL := range c.like {
 			pt2 := c.pix.ID(cL.px).Point()
 			dist := earth.Distance(pt1, pt2)
-			lp := c.pdf.LogProb(dist) + cL.logLike - logScale
+			lp := c.pdf.LogProb(dist) + cL.logLike
 			if lp > maxLike {
 				maxLike = lp
 			}
