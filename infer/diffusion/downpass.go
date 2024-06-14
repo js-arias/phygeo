@@ -33,17 +33,18 @@ type likePixData struct {
 }
 
 func pixLike(likeChan chan likeChanType, wg *sync.WaitGroup, data likePixData, r []likeResult) {
+	lnLike := make([]float64, data.pix.Len())
 	for c := range likeChan {
 		for i := c.start; i < c.end; i++ {
 			px := r[i].px
-			logLike := calcPixLike(data, px)
+			logLike := calcPixLike(data, px, lnLike)
 			r[i].logLike = logLike
 		}
 		wg.Done()
 	}
 }
 
-func calcPixLike(c likePixData, pix int) float64 {
+func calcPixLike(c likePixData, pix int, lnLike []float64) float64 {
 	var sum, scale float64
 	if c.dm != nil {
 		// use the distance matrix
@@ -70,16 +71,19 @@ func calcPixLike(c likePixData, pix int) float64 {
 	}
 
 	// pixels are quite far away
-	// use only the maximum likelihood point
-	maxLike := -math.MaxFloat64
+	scale = 0
+	lnLike = lnLike[:0]
+	maxLn := -math.MaxFloat64
 	if c.dm != nil {
 		// use the distance matrix
 		for _, cL := range c.like {
 			dist := c.dm.At(pix, cL.px)
-			lp := c.pdf.LogProbRingDist(dist) + cL.logLike
-			if lp > maxLike {
-				maxLike = lp
+			p := c.pdf.LogProbRingDist(dist) + cL.logLike
+			scale += c.pdf.ProbRingDist(dist) * cL.prior
+			if p > maxLn {
+				maxLn = p
 			}
+			lnLike = append(lnLike, p)
 		}
 	} else {
 		// use raw distance
@@ -87,13 +91,20 @@ func calcPixLike(c likePixData, pix int) float64 {
 		for _, cL := range c.like {
 			pt2 := c.pix.ID(cL.px).Point()
 			dist := earth.Distance(pt1, pt2)
-			lp := c.pdf.LogProb(dist) + cL.logLike
-			if lp > maxLike {
-				maxLike = lp
+			p := c.pdf.LogProb(dist) + cL.logLike
+			scale += c.pdf.Prob(dist) * cL.prior
+			if p > maxLn {
+				maxLn = p
 			}
+			lnLike = append(lnLike, p)
 		}
 	}
-	return maxLike
+
+	sum = 0
+	for _, p := range lnLike {
+		sum += math.Exp(p - maxLn)
+	}
+	return math.Log(sum) + maxLn - math.Log(scale)
 }
 
 var numCPU = 1
