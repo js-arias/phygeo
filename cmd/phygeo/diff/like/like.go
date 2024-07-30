@@ -191,6 +191,7 @@ func run(c *command.Command, args []string) error {
 		if err := writeTreeConditional(dt, name, args[0], lambdaFlag, standard, landscape.Pixelation().Len(), landscape.Pixelation().Equator()); err != nil {
 			return err
 		}
+		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, dt.LogLike())
 	}
 	return nil
 }
