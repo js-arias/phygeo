@@ -33,8 +33,8 @@ By default, the command will print the currently defined pixel priors into the
 standard output. If the flag --add is defined, the indicated file will be used
 as the pixel prior of the project.
 
-If the flag --set is defined, it will set a pixel prior to a raster value. Th
- sintaxis of the definition is:
+If the flag --set is defined, it will set a pixel prior to a raster value. The
+sintaxis of the definition is:
 
 	<value>=<probability>
 
@@ -105,6 +105,12 @@ func run(c *command.Command, args []string) error {
 
 	ppF := p.Path(project.PixPrior)
 	if ppF == "" {
+		if tp := p.Path(project.Landscape); tp != "" {
+			pp := pixprob.New()
+			if err := reportWithLandscape(c.Stderr(), tp, pp); err != nil {
+				return err
+			}
+		}
 		return fmt.Errorf("pixel prior undefined for project %q", args[0])
 	}
 
@@ -139,6 +145,16 @@ func reportWithLandscape(w io.Writer, name string, pp pixprob.Pixel) error {
 			val[v] = true
 		}
 	}
+	val[0] = true
+
+	notLand := make(map[int]bool)
+	for _, v := range pp.Values() {
+		if val[v] {
+			continue
+		}
+		notLand[v] = true
+		val[v] = true
+	}
 
 	pv := make([]int, 0, len(val))
 	for v := range val {
@@ -147,7 +163,16 @@ func reportWithLandscape(w io.Writer, name string, pp pixprob.Pixel) error {
 	slices.Sort(pv)
 
 	for _, v := range pv {
-		fmt.Fprintf(w, "%d\t%.6f\n", v, pp.Prior(v))
+		p := pp.Prior(v)
+		if notLand[v] {
+			fmt.Fprintf(w, "%d\t%.6f\tpixel value not in landscape\n", v, p)
+			continue
+		}
+		if p == 0 {
+			fmt.Fprintf(w, "%d\t%.6f\tpixel prior undefined\n", v, p)
+			continue
+		}
+		fmt.Fprintf(w, "%d\t%.6f\n", v, p)
 	}
 
 	return nil
