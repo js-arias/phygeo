@@ -1,6 +1,6 @@
 module github.com/js-arias/phygeo
 
-go 1.21.0
+go 1.22
 
 require (
 	github.com/js-arias/blind v0.0.0-20230608213033-66946442796b

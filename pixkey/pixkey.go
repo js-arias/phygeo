@@ -52,6 +52,14 @@ func (pk *PixKey) Gray(v int) (color.Color, bool) {
 	return color.RGBA{g, g, g, 255}, true
 }
 
+// SetColor sets a color to be associated with a given value.
+func (pk *PixKey) SetColor(c color.Color, v int) {
+	if pk.color == nil {
+		pk.color = make(map[int]color.Color)
+	}
+	pk.color[v] = c
+}
+
 // Read reads a key file used to define the colors
 // for pixel values in a time pixelation.
 //
