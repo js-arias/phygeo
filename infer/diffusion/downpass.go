@@ -131,17 +131,16 @@ func (n *node) conditional(t *Tree, pixTmp []likePix, resTmp []likeResult) {
 		// In an split node
 		// the conditional likelihood is the product of the
 		// conditional likelihoods of each descendant
-
 		desc := t.t.Children(n.id)
-		left := t.nodes[desc[0]]
-		right := t.nodes[desc[1]]
-		logLike := make(map[int]float64, len(left.stages[0].logLike))
-		for px, p := range left.stages[0].logLike {
-			op, ok := right.stages[0].logLike[px]
-			if !ok {
-				continue
+		var logLike map[int]float64
+		for i, d := range desc {
+			c := t.nodes[d]
+			if i == 0 {
+				logLike = make(map[int]float64, len(c.stages[0].logLike))
 			}
-			logLike[px] = p + op
+			for px, p := range c.stages[0].logLike {
+				logLike[px] += p
+			}
 		}
 
 		ts := n.stages[len(n.stages)-1]
