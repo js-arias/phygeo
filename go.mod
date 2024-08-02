@@ -7,7 +7,7 @@ require (
 	github.com/js-arias/command v0.0.0-20220321160405-bad66700a180
 	github.com/js-arias/earth v0.0.0-20240329220349-26dca7edf9ea
 	github.com/js-arias/ranges v0.0.0-20240305173047-29b4d2c279fb
-	github.com/js-arias/timetree v0.0.0-20240705191256-3d7dca3e910e
+	github.com/js-arias/timetree v0.0.0-20240801201359-113df68a4b1c
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 )
 

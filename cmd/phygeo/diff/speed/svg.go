@@ -52,7 +52,7 @@ func copyTree(t *timetree.Tree, xStep float64, minTick, maxTick, labelTick int) 
 	maxSz := 0
 	var root *node
 	ids := make(map[int]*node)
-	minAge := float64(t.Age(t.Root())) / millionYears
+	minAge := float64(t.Age(t.Root())) / scale
 	for _, id := range t.Nodes() {
 		var anc *node
 		p := t.Parent(id)
@@ -64,7 +64,7 @@ func copyTree(t *timetree.Tree, xStep float64, minTick, maxTick, labelTick int) 
 			id:  id,
 			tax: t.Taxon(id),
 			anc: anc,
-			age: float64(t.Age(id)) / millionYears,
+			age: float64(t.Age(id)) / scale,
 		}
 		if anc == nil {
 			root = n

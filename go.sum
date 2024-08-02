@@ -35,6 +35,8 @@ github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e h1:rxzavLgUHk/kH
 github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e/go.mod h1:EBuYaZyL6w29nSSRUQJ0I8XOruByTBYUptRZSXaRvi8=
 github.com/js-arias/timetree v0.0.0-20240705191256-3d7dca3e910e h1:M4D0X6CeFt2vKcva3ID8UXQYK9gNEXOc9iElsLsq9Pc=
 github.com/js-arias/timetree v0.0.0-20240705191256-3d7dca3e910e/go.mod h1:gidgK3qn5hkmQbFxqN2HAcAFS31UN7sVMFwaTKpD7s0=
+github.com/js-arias/timetree v0.0.0-20240801201359-113df68a4b1c h1:7UydGWOx00HA/We1IijnSibgLD5kQAA8lF2P4xapCPo=
+github.com/js-arias/timetree v0.0.0-20240801201359-113df68a4b1c/go.mod h1:gidgK3qn5hkmQbFxqN2HAcAFS31UN7sVMFwaTKpD7s0=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

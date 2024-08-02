@@ -29,7 +29,8 @@ import (
 
 var Command = &command.Command{
 	Usage: `speed 
-	[--tree <file-prefix>] [--step <number>]
+	[--tree <file-prefix>]
+	[--step <number>] [--scale <value>]
 	[--box <number>] [--tick <tick-value>]
 	[--time] [--plot <file-prefix>]
 	[--null <number>]
@@ -62,17 +63,19 @@ SVG with each branch colored by the speed of the branch in a red(=fast)-green-
 blue(=slow), scale. The scale was made using the log10 of the speed in
 kilometers per million year. If the speed of the branch is zero, the minimum
 value will used for the branch. The tree will be stored using the indicated
-file prefix and the tree name. By default, 10 pixels units will be used per
-million year, use the flag --step to define a different value (it can have
-decimal points). The flag --box defines shaded boxes each indicated time
-steps. The size of the box is in million years. By default, a timescale with
-ticks every million years will be added at the bottom of the drawing. Use the
-flag --tick to define the tick lines, using the following format:
+file prefix and the tree name. By default, the time scale is set in million
+years. To change the time scale, use the flag --scale with the value in years
+of the scale. By default, 10 pixels units will be used per units of the time
+scale, use the flag --step to define a different value (it can have decimal
+points). The flag --box defines shaded boxes each indicated time steps. The
+size of the box is in time scale units. By default, a timescale with ticks
+every time scale unit will be added at the bottom of the drawing. Use the flag
+--tick to define the tick lines, using the following format:
 "<min-tick>,<max-tick>,<label-tick>", in which min-tick indicates minor ticks,
 max-tick indicates major ticks, and label-tick the ticks that will be labeled;
 for example, the default is "1,5,5" which means that small ticks will be added
-each million years, major ticks will be added every 5 million years, and
-labels will be added every 5 million years.
+each time scale units, major ticks will be added every 5 time scale units, and
+labels will be added every 5 time scale units.
 
 The output will be printed in the standard output, as a Tab-delimited table
 with the following columns:
@@ -113,6 +116,7 @@ will be produced, using the speed of each time segment.
 var useTime bool
 var stepX float64
 var timeBox float64
+var scale float64
 var nullFlag int
 var treePrefix string
 var inputFile string
@@ -123,6 +127,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().Float64Var(&timeBox, "box", 0, "")
+	c.Flags().Float64Var(&scale, "scale", millionYears, "")
 	c.Flags().IntVar(&nullFlag, "null", 1000, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
