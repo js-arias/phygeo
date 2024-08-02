@@ -33,6 +33,8 @@ github.com/js-arias/ranges v0.0.0-20240305173047-29b4d2c279fb h1:on8KQaym8+rcs4w
 github.com/js-arias/ranges v0.0.0-20240305173047-29b4d2c279fb/go.mod h1:SfAwrwWkCy1eugm1tu6bvwrMD+tAm/yX7H5aSrv3YgQ=
 github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e h1:rxzavLgUHk/kHK9gVy6wcZH9iMAiKGxW3OjMI8AIO8I=
 github.com/js-arias/timetree v0.0.0-20240229190836-c74b0de5678e/go.mod h1:EBuYaZyL6w29nSSRUQJ0I8XOruByTBYUptRZSXaRvi8=
+github.com/js-arias/timetree v0.0.0-20240705191256-3d7dca3e910e h1:M4D0X6CeFt2vKcva3ID8UXQYK9gNEXOc9iElsLsq9Pc=
+github.com/js-arias/timetree v0.0.0-20240705191256-3d7dca3e910e/go.mod h1:gidgK3qn5hkmQbFxqN2HAcAFS31UN7sVMFwaTKpD7s0=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
