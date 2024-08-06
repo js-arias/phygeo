@@ -11,6 +11,7 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/add"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/prior"
+	"github.com/js-arias/phygeo/cmd/phygeo/geo/stages"
 )
 
 var Command = &command.Command{
@@ -22,6 +23,7 @@ func init() {
 	Command.Add(add.Command)
 	Command.Add(mapcmd.Command)
 	Command.Add(prior.Command)
+	Command.Add(stages.Command)
 
 	// help guides
 	Command.Add(landscapeModelGuide)

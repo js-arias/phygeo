@@ -17,6 +17,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -45,9 +46,11 @@ func run(c *command.Command, args []string) error {
 
 	var pix *earth.Pixelation
 
+	stages := timestage.New()
+
 	rotF := p.Path(project.GeoMotion)
 	if rotF != "" {
-		pix, err = readRotation(c.Stdout(), rotF)
+		pix, err = readRotation(c.Stdout(), rotF, stages)
 		if err != nil {
 			return err
 		}
@@ -55,10 +58,15 @@ func run(c *command.Command, args []string) error {
 
 	lsF := p.Path(project.Landscape)
 	if lsF != "" {
-		pix, err = readLandscape(c.Stdout(), lsF, pix)
+		pix, err = readLandscape(c.Stdout(), lsF, pix, stages)
 		if err != nil {
 			return err
 		}
+	}
+
+	stF := p.Path(project.Stages)
+	if err := readTimeStages(c.Stdout(), stF, stages); err != nil {
+		return err
 	}
 
 	ppF := p.Path(project.PixPrior)
@@ -92,9 +100,7 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-const million = 1_000_000
-
-func readRotation(w io.Writer, name string) (*earth.Pixelation, error) {
+func readRotation(w io.Writer, name string, st timestage.Stages) (*earth.Pixelation, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
@@ -111,16 +117,17 @@ func readRotation(w io.Writer, name string) (*earth.Pixelation, error) {
 	fmt.Fprintf(w, "\tfile: %s\n", name)
 	fmt.Fprintf(w, "\tpixelation: e%d\n", pix.Equator())
 
+	st.Add(rot)
 	stages := rot.Stages()
-	min := float64(stages[0]) / million
-	max := float64(stages[len(stages)-1]) / million
+	min := float64(stages[0]) / timestage.MillionYears
+	max := float64(stages[len(stages)-1]) / timestage.MillionYears
 	fmt.Fprintf(w, "\tstages: %d [%.3f-%.3f Ma]\n", len(stages), min, max)
 	fmt.Fprintf(w, "\n")
 
 	return pix, nil
 }
 
-func readLandscape(w io.Writer, name string, pix *earth.Pixelation) (*earth.Pixelation, error) {
+func readLandscape(w io.Writer, name string, pix *earth.Pixelation, st timestage.Stages) (*earth.Pixelation, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
@@ -139,13 +146,42 @@ func readLandscape(w io.Writer, name string, pix *earth.Pixelation) (*earth.Pixe
 	fmt.Fprintf(w, "\tfile: %s\n", name)
 	fmt.Fprintf(w, "\tpixelation: e%d\n", pix.Equator())
 
+	st.Add(tp)
 	stages := tp.Stages()
-	min := float64(stages[0]) / million
-	max := float64(stages[len(stages)-1]) / million
+	min := float64(stages[0]) / timestage.MillionYears
+	max := float64(stages[len(stages)-1]) / timestage.MillionYears
 	fmt.Fprintf(w, "\tstages: %d [%.3f-%.3f Ma]\n", len(stages), min, max)
 	fmt.Fprintf(w, "\n")
 
 	return pix, nil
+}
+
+func readTimeStages(w io.Writer, name string, stages timestage.Stages) error {
+	fmt.Fprintf(w, "Time stages:\n")
+
+	if name != "" {
+		fmt.Fprintf(w, "\tfile: %s\n", name)
+
+		f, err := os.Open(name)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		st, err := timestage.Read(f)
+		if err != nil {
+			return fmt.Errorf("on file %q: %v", name, err)
+		}
+		stages.Add(st)
+	}
+
+	st := stages.Stages()
+	min := float64(st[0]) / timestage.MillionYears
+	max := float64(st[len(st)-1]) / timestage.MillionYears
+	fmt.Fprintf(w, "\tstages: %d [%.3f-%.3f Ma]\n", len(stages), min, max)
+	fmt.Fprintf(w, "\n")
+
+	return nil
 }
 
 func readPriors(w io.Writer, name string) error {
@@ -211,7 +247,7 @@ func readTrees(w io.Writer, name string) error {
 		if t == nil {
 			continue
 		}
-		ra := float64(t.Age(t.Root())) / million
+		ra := float64(t.Age(t.Root())) / timestage.MillionYears
 		if ra > max {
 			max = ra
 		}
@@ -222,7 +258,7 @@ func readTrees(w io.Writer, name string) error {
 			if !ok {
 				continue
 			}
-			ta := float64(t.Age(id)) / million
+			ta := float64(t.Age(id)) / timestage.MillionYears
 			if ta < min {
 				min = ta
 			}

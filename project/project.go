@@ -49,6 +49,9 @@ const (
 
 	// File for phylogenetic trees.
 	Trees Dataset = "trees"
+
+	// File for the time stages.
+	Stages Dataset = "stages"
 )
 
 // A Project represents a collection of paths

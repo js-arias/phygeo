@@ -28,6 +28,7 @@ func TestProject(t *testing.T) {
 		{project.Ranges, "ranges.tab"},
 		{project.Landscape, "landscape.tab"},
 		{project.Trees, "trees.tab"},
+		{project.Stages, "stages.tab"},
 	}
 
 	for _, s := range sets {
