@@ -31,7 +31,8 @@ import (
 
 var Command = &command.Command{
 	Usage: `freq [--kde <value>] [--cpu <number>]
-	-i|--input <file> [-o|--output <file>] <project-file>`,
+	[-i|--input <file>] [--freq <file>]
+	[-o|--output <file>] <project-file>`,
 	Short: "calculate pixel frequencies",
 	Long: `
 Command freq reads a file from a stochastic mapping reconstruction for the
@@ -40,7 +41,9 @@ pixel frequencies.
 
 The argument of the command is the name of the project file.
 
-The flag --input, or -i, is required and indicates the input file.
+The flag --input, or -i, indicates the input file from a stochastic mapping.
+The flag --freq, indicates the input file from a frequency file as produced by
+this command.
 
 By default, the ranges are taken as given. If the flag --kde is defined, a
 kernel density estimation using a spherical normal will be used to smooth the
@@ -60,6 +63,7 @@ prefix "freq" or "kde" if the --kde flag is used. With the flag --output, or
 var numCPU int
 var kdeLambda float64
 var inputFile string
+var freqFile string
 var outPrefix string
 
 func setFlags(c *command.Command) {
@@ -67,6 +71,7 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&kdeLambda, "kde", 0, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
+	c.Flags().StringVar(&freqFile, "freq", "", "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 }
@@ -75,8 +80,8 @@ func run(c *command.Command, args []string) error {
 	if len(args) < 1 {
 		return c.UsageError("expecting project file")
 	}
-	if inputFile == "" {
-		return c.UsageError("expecting input file, flag --input")
+	if inputFile == "" && freqFile == "" {
+		return c.UsageError("expecting input file, flags --input, or --freq")
 	}
 
 	p, err := project.Read(args[0])
@@ -94,7 +99,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rt, err := getRec(inputFile, landscape)
+	rt, err := getRec(landscape)
 	if err != nil {
 		return err
 	}
@@ -133,16 +138,28 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func getRec(name string, landscape *model.TimePix) (map[string]*recTree, error) {
+func getRec(landscape *model.TimePix) (map[string]*recTree, error) {
+	name := inputFile
+	if inputFile == "" {
+		name = freqFile
+	}
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	rt, err := readRecon(f, landscape)
+	if inputFile != "" {
+		rt, err := readRecon(f, landscape)
+		if err != nil {
+			return nil, fmt.Errorf("on input file %q: %v", name, err)
+		}
+		return rt, nil
+	}
+
+	rt, err := readFreq(f, landscape)
 	if err != nil {
-		return nil, fmt.Errorf("on input file %q: %v", name, err)
+		return nil, fmt.Errorf("on freq file %q: %v", name, err)
 	}
 	return rt, nil
 }
@@ -296,6 +313,130 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 		return nil, fmt.Errorf("while reading data: %v", io.EOF)
 	}
 
+	return rt, nil
+}
+
+var headerFreq = []string{
+	"tree",
+	"node",
+	"age",
+	"type",
+	"equator",
+	"pixel",
+	"value",
+}
+
+func readFreq(r io.Reader, landscape *model.TimePix) (map[string]*recTree, error) {
+	tsv := csv.NewReader(r)
+	tsv.Comma = '\t'
+	tsv.Comment = '#'
+
+	head, err := tsv.Read()
+	if err != nil {
+		return nil, fmt.Errorf("while reading header: %v", err)
+	}
+	fields := make(map[string]int, len(head))
+	for i, h := range head {
+		h = strings.ToLower(h)
+		fields[h] = i
+	}
+	for _, h := range headerFreq {
+		if _, ok := fields[h]; !ok {
+			return nil, fmt.Errorf("expecting field %q", h)
+		}
+	}
+
+	rt := make(map[string]*recTree)
+	for {
+		row, err := tsv.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		ln, _ := tsv.FieldPos(0)
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: %v", ln, err)
+		}
+
+		f := "tree"
+		tn := strings.Join(strings.Fields(row[fields[f]]), " ")
+		if tn == "" {
+			continue
+		}
+		tn = strings.ToLower(tn)
+		t, ok := rt[tn]
+		if !ok {
+			t = &recTree{
+				name:  tn,
+				nodes: make(map[int]*recNode),
+			}
+			rt[tn] = t
+		}
+
+		f = "node"
+		id, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		n, ok := t.nodes[id]
+		if !ok {
+			n = &recNode{
+				id:     id,
+				tree:   t,
+				stages: make(map[int64]*recStage),
+			}
+			t.nodes[id] = n
+		}
+
+		f = "age"
+		age, err := strconv.ParseInt(row[fields[f]], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		st, ok := n.stages[age]
+		if !ok {
+			st = &recStage{
+				node: n,
+				age:  age,
+				rec:  make(map[int]float64),
+			}
+			n.stages[age] = st
+		}
+
+		f = "type"
+		tpV := strings.ToLower(strings.Join(strings.Fields(row[fields[f]]), " "))
+		if tpV != "freq" {
+			return nil, fmt.Errorf("on row %d: field %q: expecting 'freq' type", ln, f)
+		}
+
+		f = "equator"
+		eq, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		if eq != landscape.Pixelation().Equator() {
+			return nil, fmt.Errorf("on row %d: field %q: invalid equator value %d", ln, f, eq)
+		}
+
+		f = "pixel"
+		px, err := strconv.Atoi(row[fields[f]])
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		if px >= landscape.Pixelation().Len() {
+			return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
+		}
+
+		f = "value"
+		v, err := strconv.ParseFloat(row[fields[f]], 64)
+		if err != nil {
+			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
+		st.rec[px] = v
+		st.sum += v
+	}
+	if len(rt) == 0 {
+		return nil, fmt.Errorf("while reading data: %v", io.EOF)
+	}
 	return rt, nil
 }
 
