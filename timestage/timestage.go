@@ -94,6 +94,18 @@ func (s Stages) AddStage(a int64) {
 	s[a] = true
 }
 
+// ClosestStageAge returns the closest stage age
+// for a time
+// (i.e., the age of the oldest state
+// younger than the indicated age).
+func (s Stages) ClosestStageAge(age int64) int64 {
+	st := s.Stages()
+	if i, ok := slices.BinarySearch(st, age); !ok {
+		return st[i-1]
+	}
+	return age
+}
+
 // Stages returns a sorted slice
 // of the defined time stages
 func (s Stages) Stages() []int64 {

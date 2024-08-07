@@ -21,14 +21,14 @@ import (
 	"gonum.org/v1/gonum/stat"
 )
 
-func getTimeSlice(name string, tc *timetree.Collection, tp *model.TimePix) (map[string]*treeSlice, error) {
+func getTimeSlice(name string, tc *timetree.Collection, tp *model.TimePix, stages timestage.Stages) (map[string]*treeSlice, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	ts, err := readTimeSlices(f, tc, tp)
+	ts, err := readTimeSlices(f, tc, tp, stages)
 	if err != nil {
 		return nil, fmt.Errorf("on input file %q: %v", name, err)
 	}
@@ -46,7 +46,7 @@ type recSlice struct {
 	distances map[int]float64
 }
 
-func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[string]*treeSlice, error) {
+func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix, stages timestage.Stages) (map[string]*treeSlice, error) {
 	tsv := csv.NewReader(r)
 	tsv.Comma = '\t'
 	tsv.Comment = '#'
@@ -93,7 +93,7 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 				name:       tn,
 				timeSlices: make(map[int64]*recSlice),
 			}
-			t.addSlices(tv, tp, tv.Root())
+			t.addSlices(tv, stages, tv.Root())
 			ts[tn] = t
 		}
 
@@ -119,7 +119,7 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 		if err != nil {
 			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 		}
-		age = tp.ClosestStageAge(age)
+		age = stages.ClosestStageAge(age)
 		rs := t.timeSlices[age]
 
 		f = "from"
@@ -151,10 +151,10 @@ func readTimeSlices(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (ma
 	return ts, nil
 }
 
-func (s *treeSlice) addSlices(t *timetree.Tree, tp *model.TimePix, n int) {
+func (s *treeSlice) addSlices(t *timetree.Tree, stages timestage.Stages, n int) {
 	children := t.Children(n)
 	for _, c := range children {
-		s.addSlices(t, tp, c)
+		s.addSlices(t, stages, c)
 	}
 
 	if t.IsRoot(n) {
@@ -165,7 +165,7 @@ func (s *treeSlice) addSlices(t *timetree.Tree, tp *model.TimePix, n int) {
 	prev := t.Age(t.Parent(n))
 
 	// add time stages
-	for a := tp.ClosestStageAge(prev - 1); a > nAge; a = tp.ClosestStageAge(a - 1) {
+	for a := stages.ClosestStageAge(prev - 1); a > nAge; a = stages.ClosestStageAge(a - 1) {
 		ts, ok := s.timeSlices[a]
 		if !ok {
 			ts = &recSlice{
@@ -179,7 +179,7 @@ func (s *treeSlice) addSlices(t *timetree.Tree, tp *model.TimePix, n int) {
 	}
 
 	// add the last segment
-	age := tp.ClosestStageAge(nAge)
+	age := stages.ClosestStageAge(nAge)
 	ts, ok := s.timeSlices[age]
 	if !ok {
 		ts = &recSlice{

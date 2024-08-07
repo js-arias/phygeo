@@ -171,7 +171,19 @@ func run(c *command.Command, args []string) error {
 	}
 
 	if useTime {
-		tSlice, err := getTimeSlice(inputFile, tc, landscape)
+		rotF := p.Path(project.GeoMotion)
+		if rotF == "" {
+			msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
+			return c.UsageError(msg)
+		}
+
+		stF := p.Path(project.Stages)
+		stages, err := readStages(stF, rotF, landscape)
+		if err != nil {
+			return err
+		}
+
+		tSlice, err := getTimeSlice(inputFile, tc, landscape, stages)
 		if err != nil {
 			return err
 		}
@@ -238,6 +250,49 @@ func readLandscape(name string) (*model.TimePix, error) {
 	}
 
 	return tp, nil
+}
+
+func readStages(name, rotF string, landscape *model.TimePix) (timestage.Stages, error) {
+	rot, err := readRotation(rotF, landscape.Pixelation())
+	if err != nil {
+		return nil, err
+	}
+
+	stages := timestage.New()
+	stages.Add(rot)
+	stages.Add(landscape)
+
+	if name == "" {
+		return stages, nil
+	}
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	st, err := timestage.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+	stages.Add(st)
+
+	return stages, nil
+}
+
+func readRotation(name string, pix *earth.Pixelation) (*model.StageRot, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	rot, err := model.ReadStageRot(f, pix)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+
+	return rot, nil
 }
 
 func readTreeFile(name string) (*timetree.Collection, error) {

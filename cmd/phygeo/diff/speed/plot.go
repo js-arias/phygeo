@@ -39,7 +39,13 @@ func (tp *speedTimePlot) DataRange() (xMin, xMax, yMin, yMax float64) {
 	}
 	slices.Sort(ages)
 
-	return float64(ages[0]) / timestage.MillionYears, float64(ages[len(ages)-1])/timestage.MillionYears + 5, 0, yMax
+	maxAge := ages[len(ages)-1]
+	xMax = float64(maxAge)/timestage.MillionYears + 5
+	if maxAge < timestage.MillionYears {
+		xMax = float64(maxAge)/timestage.MillionYears + 0.05
+	}
+
+	return float64(ages[0]) / timestage.MillionYears, xMax, 0, yMax
 }
 
 // Plot implements the plot.Plotter interface.
@@ -57,6 +63,8 @@ func (tp *speedTimePlot) Plot(c draw.Canvas, plt *plot.Plot) {
 		next := float64(a)/timestage.MillionYears + 5
 		if i < len(ages)-1 {
 			next = float64(ages[i+1]) / timestage.MillionYears
+		} else if a < timestage.MillionYears {
+			next = float64(a)/timestage.MillionYears + 0.05
 		}
 
 		pts := []vg.Point{
@@ -83,6 +91,8 @@ func (tp *speedTimePlot) Plot(c draw.Canvas, plt *plot.Plot) {
 		next := float64(a)/timestage.MillionYears + 5
 		if i < len(ages)-1 {
 			next = float64(ages[i+1]) / timestage.MillionYears
+		} else if a < timestage.MillionYears {
+			next = float64(a)/timestage.MillionYears + 0.05
 		}
 		p.Line(vg.Point{X: trX(next), Y: y})
 	}
