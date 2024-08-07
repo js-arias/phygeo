@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
-	"golang.org/x/exp/slices"
 	"gonum.org/v1/gonum/stat"
 )
 

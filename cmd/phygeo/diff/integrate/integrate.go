@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"os"
 	"runtime"
 	"strconv"
@@ -28,7 +29,6 @@ import (
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
-	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
@@ -201,9 +201,6 @@ func run(c *command.Command, args []string) error {
 			}
 		}
 	}
-
-	// Start random number generator
-	rand.Seed(uint64(time.Now().UnixNano()))
 
 	// Set the number of parallel processors
 	diffusion.SetCPU(numCPU)

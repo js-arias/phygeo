@@ -6,16 +6,11 @@ package diffusion
 
 import (
 	"math"
+	"math/rand/v2"
 	"sync"
-	"time"
 
 	"github.com/js-arias/earth"
-	"golang.org/x/exp/rand"
 )
-
-func init() {
-	rand.Seed(uint64(time.Now().UnixNano()))
-}
 
 type simChan struct {
 	particle int
@@ -242,7 +237,7 @@ func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
 func (ts *timeStage) pick(p, source int, scale float64, density []likePix) int {
 	var dest int
 	for {
-		i := rand.Intn(len(density))
+		i := rand.IntN(len(density))
 		accept := density[i].like / scale
 		if rand.Float64() < accept {
 			dest = density[i].px

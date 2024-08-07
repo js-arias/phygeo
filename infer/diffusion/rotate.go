@@ -5,9 +5,10 @@
 package diffusion
 
 import (
+	"math/rand/v2"
+
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/pixprob"
-	"golang.org/x/exp/rand"
 )
 
 // Rotate rotates a log-map using a rotation map.
@@ -57,7 +58,7 @@ func rotPix(rot *model.StageRot, ts *model.TimePix, pix int, age int64, pp pixpr
 	}
 
 	for {
-		px := pxs[rand.Intn(len(pxs))]
+		px := pxs[rand.IntN(len(pxs))]
 		accept := pp.Prior(tp[px]) / max
 		if rand.Float64() < accept {
 			return px
