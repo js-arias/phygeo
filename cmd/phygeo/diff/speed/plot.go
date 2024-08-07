@@ -9,6 +9,7 @@ import (
 	"image/color"
 
 	"github.com/js-arias/earth"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 	"golang.org/x/exp/slices"
 	"gonum.org/v1/gonum/stat"
@@ -38,7 +39,7 @@ func (tp *speedTimePlot) DataRange() (xMin, xMax, yMin, yMax float64) {
 	}
 	slices.Sort(ages)
 
-	return float64(ages[0]) / millionYears, float64(ages[len(ages)-1])/millionYears + 5, 0, yMax
+	return float64(ages[0]) / timestage.MillionYears, float64(ages[len(ages)-1])/timestage.MillionYears + 5, 0, yMax
 }
 
 // Plot implements the plot.Plotter interface.
@@ -52,10 +53,10 @@ func (tp *speedTimePlot) Plot(c draw.Canvas, plt *plot.Plot) {
 	trX, trY := plt.Transforms(&c)
 
 	for i, a := range ages {
-		x := trX(float64(a) / millionYears)
-		next := float64(a)/millionYears + 5
+		x := trX(float64(a) / timestage.MillionYears)
+		next := float64(a)/timestage.MillionYears + 5
 		if i < len(ages)-1 {
-			next = float64(ages[i+1]) / millionYears
+			next = float64(ages[i+1]) / timestage.MillionYears
 		}
 
 		pts := []vg.Point{
@@ -71,7 +72,7 @@ func (tp *speedTimePlot) Plot(c draw.Canvas, plt *plot.Plot) {
 	c.SetLineStyle(tp.style)
 	var p vg.Path
 	for i, a := range ages {
-		x := trX(float64(a) / millionYears)
+		x := trX(float64(a) / timestage.MillionYears)
 		y := trY(tp.speed[a])
 		if i == 0 {
 			p.Move(vg.Point{X: x, Y: y})
@@ -79,9 +80,9 @@ func (tp *speedTimePlot) Plot(c draw.Canvas, plt *plot.Plot) {
 			p.Line(vg.Point{X: x, Y: y})
 		}
 
-		next := float64(a)/millionYears + 5
+		next := float64(a)/timestage.MillionYears + 5
 		if i < len(ages)-1 {
-			next = float64(ages[i+1]) / millionYears
+			next = float64(ages[i+1]) / timestage.MillionYears
 		}
 		p.Line(vg.Point{X: trX(next), Y: y})
 	}

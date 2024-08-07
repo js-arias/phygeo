@@ -22,6 +22,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 	"golang.org/x/exp/slices"
 	"gonum.org/v1/gonum/stat"
@@ -127,7 +128,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().Float64Var(&timeBox, "box", 0, "")
-	c.Flags().Float64Var(&scale, "scale", millionYears, "")
+	c.Flags().Float64Var(&scale, "scale", timestage.MillionYears, "")
 	c.Flags().IntVar(&nullFlag, "null", 1000, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
@@ -295,8 +296,6 @@ var headerFields = []string{
 	"lambda",
 	"to",
 }
-
-const millionYears = 1_000_000
 
 func readRecBranches(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[string]*recTree, error) {
 	tsv := csv.NewReader(r)
@@ -468,7 +467,7 @@ func nullRec(pix *earth.Pixelation, t *recTree, root int) *recTree {
 		}
 		ages := make([]float64, 0, len(n.ages))
 		for a := range n.ages {
-			ages = append(ages, float64(a)/millionYears)
+			ages = append(ages, float64(a)/timestage.MillionYears)
 		}
 		slices.Sort(ages)
 
@@ -536,10 +535,10 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 			}
 			slices.Sort(dist)
 
-			brLen := float64(t.Len()) / millionYears
+			brLen := float64(t.Len()) / timestage.MillionYears
 			pN := t.Parent(nID)
 			if pN >= 0 {
-				brLen = float64(t.Age(pN)-t.Age(nID)) / millionYears
+				brLen = float64(t.Age(pN)-t.Age(nID)) / timestage.MillionYears
 			}
 
 			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
@@ -627,13 +626,13 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 			// root node
 			pN := t.Parent(nID)
 			if pN < 0 {
-				brLen := float64(t.Len()) / millionYears
+				brLen := float64(t.Len()) / timestage.MillionYears
 				d := stat.Quantile(0.5, stat.Empirical, dist, weights)
 				avg = math.Log10(d / brLen)
 				continue
 			}
 
-			brLen := float64(t.Age(pN)-t.Age(nID)) / millionYears
+			brLen := float64(t.Age(pN)-t.Age(nID)) / timestage.MillionYears
 			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
 			s := math.Log10(d / brLen)
 

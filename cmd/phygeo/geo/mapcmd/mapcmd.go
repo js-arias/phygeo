@@ -20,6 +20,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/pixkey"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 )
 
 var Command = &command.Command{
@@ -71,11 +72,6 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 }
 
-// MillionYears is used to transform ages
-// (a float in million years)
-// to an integer in years.
-const millionYears = 1_000_000
-
 func run(c *command.Command, args []string) error {
 	if len(args) < 1 {
 		return c.UsageError("expecting project file")
@@ -104,7 +100,7 @@ func run(c *command.Command, args []string) error {
 
 		var ages []int64
 		if atFlag >= 0 {
-			ages = []int64{int64(atFlag * millionYears)}
+			ages = []int64{int64(atFlag * timestage.MillionYears)}
 		} else {
 			ages = rec.Stages()
 		}
@@ -115,7 +111,7 @@ func run(c *command.Command, args []string) error {
 		}
 
 		for _, a := range ages {
-			name := fmt.Sprintf("%s-%d.png", outPrefix, a/millionYears)
+			name := fmt.Sprintf("%s-%d.png", outPrefix, a/timestage.MillionYears)
 			if err := writeImage(name, makePlatesStage(rec, a, pc)); err != nil {
 				return err
 			}
@@ -136,7 +132,7 @@ func run(c *command.Command, args []string) error {
 
 	var ages []int64
 	if atFlag >= 0 {
-		ages = []int64{int64(atFlag * millionYears)}
+		ages = []int64{int64(atFlag * timestage.MillionYears)}
 	} else {
 		ages = landscape.Stages()
 	}
@@ -157,7 +153,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	for _, a := range ages {
-		name := fmt.Sprintf("%s-%d.png", outPrefix, a/millionYears)
+		name := fmt.Sprintf("%s-%d.png", outPrefix, a/timestage.MillionYears)
 		if err := writeImage(name, makeLandscapeStage(landscape, a, keys)); err != nil {
 			return err
 		}

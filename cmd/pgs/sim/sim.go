@@ -100,8 +100,6 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&spread, "spread", 100, "")
 }
 
-const millionYears = 1_000_000
-
 func run(c *command.Command, args []string) (err error) {
 	if len(args) < 1 {
 		return c.UsageError("expecting project file")
@@ -161,8 +159,8 @@ func run(c *command.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	minAge := int64(min * millionYears)
-	maxAge := int64(max * millionYears)
+	minAge := int64(min * timestage.MillionYears)
+	maxAge := int64(max * timestage.MillionYears)
 
 	minTerm, maxTerm, err := parseIntRange(termFlag)
 	if err != nil {
@@ -204,7 +202,7 @@ func run(c *command.Command, args []string) (err error) {
 				root = rand.Int64N(d) + minAge
 			}
 
-			spRate := (math.Log(float64(avgTerm)) - math.Log(2)) / (float64(root) / millionYears)
+			spRate := (math.Log(float64(avgTerm)) - math.Log(2)) / (float64(root) / timestage.MillionYears)
 			t, _ = simulate.Yule(name, spRate, root, maxTerm*2)
 			if tm := len(t.Terms()); tm >= minTerm && tm <= maxTerm {
 				break

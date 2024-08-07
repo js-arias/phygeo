@@ -13,6 +13,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -91,7 +92,7 @@ func run(c *command.Command, args []string) error {
 			}
 		}
 		if len(n) == 0 {
-			fmt.Fprintf(c.Stderr(), "WARNING: taxon %q: undefined pixels at age %.6f\n", tax, float64(a)/millionYears)
+			fmt.Fprintf(c.Stderr(), "WARNING: taxon %q: undefined pixels at age %.6f\n", tax, float64(a)/timestage.MillionYears)
 		}
 		pts.SetPixels(tax, a, n)
 	}
@@ -106,8 +107,6 @@ func run(c *command.Command, args []string) error {
 	}
 	return nil
 }
-
-const millionYears = 1_000_000
 
 func readTermAges(name string) (map[string]int64, error) {
 	f, err := os.Open(name)

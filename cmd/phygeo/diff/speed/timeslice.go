@@ -15,6 +15,7 @@ import (
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 	"golang.org/x/exp/slices"
 	"gonum.org/v1/gonum/stat"
@@ -173,7 +174,7 @@ func (s *treeSlice) addSlices(t *timetree.Tree, tp *model.TimePix, n int) {
 			}
 			s.timeSlices[a] = ts
 		}
-		ts.sumBrLen += float64(prev-a) / millionYears
+		ts.sumBrLen += float64(prev-a) / timestage.MillionYears
 		prev = a
 	}
 
@@ -187,7 +188,7 @@ func (s *treeSlice) addSlices(t *timetree.Tree, tp *model.TimePix, n int) {
 		}
 		s.timeSlices[age] = ts
 	}
-	ts.sumBrLen += float64(prev-nAge) / millionYears
+	ts.sumBrLen += float64(prev-nAge) / timestage.MillionYears
 }
 
 func writeTimeSlice(w io.Writer, ts map[string]*treeSlice) error {

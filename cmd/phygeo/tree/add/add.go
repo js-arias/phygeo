@@ -14,6 +14,7 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 )
 
@@ -181,11 +182,6 @@ func writeTrees(tc *timetree.Collection) (err error) {
 	return nil
 }
 
-// millionYears is used transform the age flag
-// (a float in million years)
-// into an integer in years.
-const millionYears = 1_000_000
-
 func readNewick(r io.Reader, newickFile, treeName string) (*timetree.Collection, error) {
 	if newickFile != "" {
 		f, err := os.Open(newickFile)
@@ -198,7 +194,7 @@ func readNewick(r io.Reader, newickFile, treeName string) (*timetree.Collection,
 		newickFile = "stdin"
 	}
 
-	c, err := timetree.Newick(r, treeName, int64(rootAge*millionYears))
+	c, err := timetree.Newick(r, treeName, int64(rootAge*timestage.MillionYears))
 	if err != nil {
 		return nil, fmt.Errorf("while reading file %q: %v", treeFile, err)
 	}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 )
 
@@ -68,17 +69,12 @@ var outPrefix string
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().Float64Var(&timeBox, "time", 0, "")
-	c.Flags().Float64Var(&scale, "scale", millionYears, "")
+	c.Flags().Float64Var(&scale, "scale", timestage.MillionYears, "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 	c.Flags().StringVar(&treeName, "tree", "", "")
 	c.Flags().StringVar(&tickFlag, "tick", "", "")
 }
-
-// millionYears is used to transform ages
-// (an integer in years)
-// to a float in million years.
-const millionYears = 1_000_000
 
 func run(c *command.Command, args []string) error {
 	if len(args) < 1 {

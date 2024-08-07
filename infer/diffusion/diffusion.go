@@ -15,6 +15,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
 	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -287,8 +288,6 @@ type node struct {
 	lambda float64
 }
 
-const millionYears = 1_000_000
-
 func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64, stages []int64) {
 	children := t.t.Children(n.id)
 	for _, c := range children {
@@ -323,7 +322,7 @@ func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64, stages []int64
 		ts := &timeStage{
 			node:     n,
 			age:      a,
-			duration: float64(prev-a) / millionYears,
+			duration: float64(prev-a) / timestage.MillionYears,
 		}
 		n.stages = append(n.stages, ts)
 		prev = a
@@ -334,7 +333,7 @@ func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64, stages []int64
 		node:     n,
 		isTerm:   t.t.IsTerm(n.id),
 		age:      nAge,
-		duration: float64(prev-nAge) / millionYears,
+		duration: float64(prev-nAge) / timestage.MillionYears,
 	}
 	n.stages = append(n.stages, ts)
 }

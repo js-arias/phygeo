@@ -17,6 +17,7 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 )
 
@@ -123,8 +124,6 @@ func readTreeFile(name string) (*timetree.Collection, error) {
 	return c, nil
 }
 
-const millionYears = 1_000_000
-
 func setAges(c *timetree.Collection) error {
 	f, err := os.Open(input)
 	if err != nil {
@@ -175,7 +174,7 @@ func setAges(c *timetree.Collection) error {
 			return fmt.Errorf("%q: on row %d: field %q: %v", input, ln, f, err)
 		}
 
-		age := int64(ageF * millionYears)
+		age := int64(ageF * timestage.MillionYears)
 		if err := t.Set(id, age); err != nil {
 			return fmt.Errorf("%q: on row %d: %v", input, ln, err)
 		}
