@@ -35,7 +35,7 @@ import (
 var Command = &command.Command{
 	Usage: `particles [-p|--particles <number>]
 	-i|--input <file> [-o|--output <file>]
-	[--cpu <number>] [--nomat] <project-file>`,
+	[--cpu <number>] <project-file>`,
 	Short: "perform a stochastic mapping",
 	Long: `
 Command particles reads a file with the conditional likelihoods of one or more
@@ -60,10 +60,6 @@ pixel location of the particle at the beginning and end of the stage.
 
 By default, all available CPUs will be used in the processing. Set the --cpu
 flag to use a different number of CPUs.
-
-By default, if the base pixelation is smaller than 500 pixels at the equator,
-it will build a distance matrix to speed up the simulation. As this matrix
-consumes a lot of memory, it can be disabled using the flag --nomat.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -73,7 +69,6 @@ var numCPU int
 var numParticles int
 var inputFile string
 var outPrefix string
-var noDMatrix bool
 
 func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
@@ -83,7 +78,6 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
-	c.Flags().BoolVar(&noDMatrix, "nomat", false, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -154,10 +148,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	var dm *earth.DistMat
-	if !noDMatrix {
-		dm, _ = earth.NewDistMatRingScale(landscape.Pixelation())
-	}
+	dm, _ := earth.NewDistMatRingScale(landscape.Pixelation())
 
 	rt, err := getRec(inputFile, landscape)
 	if err != nil {

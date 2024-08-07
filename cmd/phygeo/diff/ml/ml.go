@@ -28,8 +28,8 @@ import (
 
 var Command = &command.Command{
 	Usage: `ml [--ranges] [--stem <age>]
-	[--lambda <value>] [--step <value>] [--stop <value>]
-	[--cpu <number>] [--nomat] <project-file>`,
+	[--lambda <value>ep <value>] [--stop <value>]
+	[--cpu <number>] <project-file>`,
 	Short: "search the maximum likelihood estimate",
 	Long: `
 Command ml reads a PhyGeo project, and search for the maximum likelihood
@@ -51,11 +51,6 @@ million years.
 
 By default, all available CPUs will be used in the processing. Set --cpu flag
 to use a different number of CPUs.
-
-By default, if the base pixelation is smaller than 500 pixels at the equator,
-it will build a distance matrix to speed up the search. As this matrix
-consumes a lot of memory, this procedure can be disabled using the flag
---nomat.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -67,7 +62,6 @@ var stepFlag float64
 var stopFlag float64
 var numCPU int
 var useRanges bool
-var noDMatrix bool
 
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&lambdaFlag, "lambda", 0, "")
@@ -76,7 +70,6 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.NumCPU(), "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
-	c.Flags().BoolVar(&noDMatrix, "nomat", false, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -156,10 +149,7 @@ func run(c *command.Command, args []string) error {
 	// Set the number of parallel processors
 	diffusion.SetCPU(numCPU)
 
-	var dm *earth.DistMat
-	if !noDMatrix {
-		dm, _ = earth.NewDistMatRingScale(landscape.Pixelation())
-	}
+	dm, _ := earth.NewDistMatRingScale(landscape.Pixelation())
 
 	param := diffusion.Param{
 		Landscape: landscape,

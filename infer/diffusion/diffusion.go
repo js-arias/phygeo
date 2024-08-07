@@ -62,6 +62,10 @@ type Tree struct {
 
 // New creates a new tree by copying the indicated source tree.
 func New(t *timetree.Tree, p Param) *Tree {
+	if p.DM == nil {
+		panic("undefined distance matrix")
+	}
+
 	nt := &Tree{
 		t:         t,
 		nodes:     make(map[int]*node, len(t.Nodes())),

@@ -36,7 +36,7 @@ var Command = &command.Command{
 	Usage: `integrate [--ranges] [--stem <age>]
 	[--distribution <distribution>] [-p|--particles <number>]
 	[--min <float>] [--max <float>] [--mc <number>] [--parts <number>]
-	[--cpu <number>] [--nomat] <project-file>`,
+	[--cpu <number>] <project-file>`,
 	Short: "integrate numerically the likelihood curve",
 	Long: `
 Command integrate reads a PhyGeo project, and makes a numerical integration of
@@ -90,11 +90,6 @@ following columns:
 
 By default, all available CPUs will be used in the processing. Set --cpu flag
 to use a different number of CPUs.
-
-By default, if the base pixelation is smaller than 500 pixels at the equator,
-it will build a distance matrix to speed up the search. As this matrix
-consumes a lot of memory, this procedure can be disabled using the flag
---nomat.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -108,7 +103,6 @@ var numCPU int
 var particles int
 var stemAge float64
 var useRanges bool
-var noDMatrix bool
 var distribution string
 var output string
 
@@ -122,7 +116,6 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&particles, "p", 1000, "")
 	c.Flags().IntVar(&particles, "particles", 1000, "")
 	c.Flags().BoolVar(&useRanges, "ranges", false, "")
-	c.Flags().BoolVar(&noDMatrix, "nomat", false, "")
 	c.Flags().StringVar(&distribution, "distribution", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
@@ -205,10 +198,7 @@ func run(c *command.Command, args []string) error {
 	// Set the number of parallel processors
 	diffusion.SetCPU(numCPU)
 
-	var dm *earth.DistMat
-	if !noDMatrix {
-		dm, _ = earth.NewDistMatRingScale(landscape.Pixelation())
-	}
+	dm, _ := earth.NewDistMatRingScale(landscape.Pixelation())
 
 	param := diffusion.Param{
 		Landscape: landscape,
