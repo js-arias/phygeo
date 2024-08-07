@@ -21,6 +21,7 @@ import (
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -118,6 +119,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
+	stF := p.Path(project.Stages)
+	stages, err := readStages(stF, rot, landscape)
+	if err != nil {
+		return err
+	}
+
 	ppF := p.Path(project.PixPrior)
 	if ppF == "" {
 		msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
@@ -160,6 +167,7 @@ func run(c *command.Command, args []string) error {
 		DM:        dm,
 		PP:        pp,
 		Ranges:    rc,
+		Stages:    stages.Stages(),
 	}
 
 	fmt.Fprintf(c.Stdout(), "tree\tlambda\tstdDev\tlogLike\tstep\n")
@@ -328,6 +336,29 @@ func readRotation(name string, pix *earth.Pixelation) (*model.StageRot, error) {
 	}
 
 	return rot, nil
+}
+
+func readStages(name string, rot *model.StageRot, landscape *model.TimePix) (timestage.Stages, error) {
+	stages := timestage.New()
+	stages.Add(rot)
+	stages.Add(landscape)
+
+	if name == "" {
+		return stages, nil
+	}
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	st, err := timestage.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+	stages.Add(st)
+
+	return stages, nil
 }
 
 func readPriors(name string) (pixprob.Pixel, error) {

@@ -34,7 +34,7 @@ func NewSimData(t *timetree.Tree, p Param, spread float64) *Tree {
 		id: t.Root(),
 	}
 	nt.nodes[root.id] = root
-	root.copySource(nt, p.Landscape, p.Stem)
+	root.copySource(nt, p.Landscape, p.Stem, p.Stages)
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {

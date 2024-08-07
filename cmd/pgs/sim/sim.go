@@ -25,6 +25,7 @@ import (
 	"github.com/js-arias/earth/stat/pixprob"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
 	"github.com/js-arias/timetree/simulate"
 )
@@ -135,6 +136,12 @@ func run(c *command.Command, args []string) (err error) {
 		return err
 	}
 
+	stF := p.Path(project.Stages)
+	stages, err := readStages(stF, rot, landscape)
+	if err != nil {
+		return err
+	}
+
 	dm, err := earth.NewDistMatRingScale(landscape.Pixelation())
 	if err != nil {
 		return err
@@ -222,6 +229,7 @@ func run(c *command.Command, args []string) (err error) {
 			PP:        pp,
 			Stem:      rootAge / 10,
 			Lambda:    lambda,
+			Stages:    stages.Stages(),
 		}
 
 		sim := diffusion.NewSimData(t, param, spread)
@@ -276,6 +284,29 @@ func readRotation(name string, pix *earth.Pixelation) (*model.StageRot, error) {
 	}
 
 	return rot, nil
+}
+
+func readStages(name string, rot *model.StageRot, landscape *model.TimePix) (timestage.Stages, error) {
+	stages := timestage.New()
+	stages.Add(rot)
+	stages.Add(landscape)
+
+	if name == "" {
+		return stages, nil
+	}
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	st, err := timestage.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+	stages.Add(st)
+
+	return stages, nil
 }
 
 func readPriors(name string) (pixprob.Pixel, error) {

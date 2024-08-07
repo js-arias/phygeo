@@ -43,6 +43,9 @@ type Param struct {
 	// Lambda is the concentration parameter per million years
 	// in 1/radian units
 	Lambda float64
+
+	// Stages is the time stages used to split branches.
+	Stages []int64
 }
 
 // A Tree os a phylogenetic tree for biogeography.
@@ -71,7 +74,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		id: t.Root(),
 	}
 	nt.nodes[root.id] = root
-	root.copySource(nt, p.Landscape, p.Stem)
+	root.copySource(nt, p.Landscape, p.Stem, p.Stages)
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {
@@ -286,13 +289,13 @@ type node struct {
 
 const millionYears = 1_000_000
 
-func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64) {
+func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64, stages []int64) {
 	children := t.t.Children(n.id)
 	for _, c := range children {
 		nc := &node{
 			id: c,
 		}
-		nc.copySource(t, tp, stem)
+		nc.copySource(t, tp, stem, stages)
 		t.nodes[nc.id] = nc
 	}
 
@@ -309,7 +312,14 @@ func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64) {
 	})
 
 	// add time stage
-	for a := tp.ClosestStageAge(prev - 1); a > nAge; a = tp.ClosestStageAge(a - 1) {
+	for i := len(stages) - 1; i >= 0; i-- {
+		a := stages[i]
+		if a >= prev {
+			continue
+		}
+		if a <= nAge {
+			break
+		}
 		ts := &timeStage{
 			node:     n,
 			age:      a,
