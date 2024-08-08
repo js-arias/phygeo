@@ -41,13 +41,10 @@ in the pixelation used for the project.
 By default, only the pixel at 0.95 of the spherical normal CDF will be used.
 Use the flag --bound to set the bound of the normal CDF.
 	
-By default, the range maps will be stored in the continuous range file
-currently defined for the project. If the project does not have a range file,
-a new one will be created with the name 'ranges.tab'. A different file name
-can be defined with the flag --file or -f. If this flag is used and there is
-already a continuous range file defined, then a new file will be created and
-used as the continuous range file of the project (previously defined ranges
-will be kept).
+By default, the range maps will be stored in the range file currently defined
+for the project. A different file name can be defined with the flag --file or
+-f. If this flag is used a new file will be created and used as the range file
+of the project (previously defined ranges will be kept).
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -94,12 +91,6 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	pf := p.Path(project.Points)
-	pts, err := readRanges(pf)
-	if err != nil {
-		return err
-	}
-
 	var rng *ranges.Collection
 	rf := p.Path(project.Ranges)
 	if rf != "" {
@@ -108,13 +99,10 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 	} else {
-		rng = ranges.New(landscape.Pixelation())
+		return fmt.Errorf("%s: undefined range file", pFile)
 	}
 	if outFile == "" {
-		outFile = "ranges.tab"
-		if rf != "" {
-			outFile = rf
-		}
+		outFile = rf
 	}
 
 	if lambdaFlag == 0 {
@@ -124,12 +112,13 @@ func run(c *command.Command, args []string) error {
 	}
 	n := dist.NewNormal(lambdaFlag, landscape.Pixelation())
 
-	for _, tax := range pts.Taxa() {
-		if rng.HasTaxon(tax) {
+	for _, tax := range rng.Taxa() {
+		if rng.Type(tax) == ranges.Range {
 			continue
 		}
-		px := pts.Range(tax)
-		age := pts.Age(tax)
+
+		px := rng.Range(tax)
+		age := rng.Age(tax)
 		kde := stat.KDE(n, px, landscape, age, pp)
 		taxKDE := make(map[int]float64)
 		for pt, p := range kde {
@@ -150,7 +139,6 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 	return nil
-
 }
 
 func openProject(name string) (*project.Project, error) {

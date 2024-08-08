@@ -22,7 +22,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: "taxa [--count] [--ranges] [--val] <project-file>",
+	Usage: "taxa [--count] [--val] <project-file>",
 	Short: "print a list of taxa with distribution ranges",
 	Long: `
 Command taxa reads the geographic ranges from a PhyGeo project and print the
@@ -30,14 +30,10 @@ name of the taxa in the standard output.
 
 The argument of the command is the name of the project file.
 
-By default the taxa of the points (presence-absence pixels) dataset will be
-printed. If the flag --ranges is set, it will print the taxa of the continuous
-distribution range file.
-
-If the flag --count is defined, the number of valid and total amount of pixels
-in the range will be printed in front of each taxon name that is defined in at
-least one tree. To be valid a pixel must be defined over a landscape value
-with a prior probability greater than zero.
+If the flag --count is defined, the number of valid, the total amount of
+pixels, and the type of the range will be printed in front of each taxon name
+that is defined in at least one tree. To be valid a pixel must be defined over
+a landscape value with a prior probability greater than zero.
 
 If the flag --val is defined, and all the taxa has valid records, the command
 will finish silently. Otherwise, any invalid taxon (a taxon without valid
@@ -68,10 +64,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if rangeFlag {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	if rf == "" {
 		return nil
 	}
@@ -214,7 +207,7 @@ func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimeP
 				fmt.Fprintf(w, "INVALID TAXON: no records: %s\n", tax)
 				continue
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\n", tax, 0, 0)
+			fmt.Fprintf(w, "%s\t%d\t%d\tNA\n", tax, 0, 0)
 			continue
 		}
 
@@ -237,6 +230,6 @@ func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimeP
 			continue
 		}
 
-		fmt.Fprintf(w, "%s\t%d\t%d\n", tax, val, len(rng))
+		fmt.Fprintf(w, "%s\t%d\t%d\t%s\n", tax, val, len(rng), coll.Type(tax))
 	}
 }

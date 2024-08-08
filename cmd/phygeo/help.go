@@ -58,10 +58,10 @@ The valid file types are:
   contains the pixels that indicate the presence of one or more taxons in the
   form of a tab-delimited file. The recommended way to add a presence-absence
   file is by using the command 'phygeo range add'.
-- Range models. Defined by the dataset keyword "ranges". This file contains
-  the distribution range models of one or more taxons in the form of a
-  tab-delimited file. The recommended way to add a presence-absence file is by
-  using the command 'phygeo range add'.
+- Geographic distribution ranges. Defined by the dataset keyword "ranges".
+  This file contains the distribution range models of one or more taxons in
+  the form of a tab-delimited file. The recommended way to add geographic
+  range data is by using the command 'phygeo range add'.
 	`,
 }
 

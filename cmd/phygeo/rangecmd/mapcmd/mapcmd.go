@@ -25,7 +25,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
-	[-t|--taxon <name>] [--ranges]
+	[-t|--taxon <name>]
 	[--unrot] [--present] [--contour <image-file>]
 	[-o|--output <file-prefix] <project-file>`,
 	Short: "draw a map of the taxa with distribution ranges",
@@ -54,9 +54,7 @@ images will have a gray background. Use the flag --key to define the landscape
 colors of the image. If the flag --gray is set, then gray colors will be used.
 
 By default, map images for all taxa will be produced; use the flag --taxon to
-define the map of a particular taxon. By default, maps will be produced using
-the ranges defined as points; to make maps based on continuous range maps, use
-the flag --ranges.
+define the map of a particular taxon.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -65,7 +63,6 @@ the flag --ranges.
 var grayFlag bool
 var unRot bool
 var present bool
-var rangeFlag bool
 var colsFlag int
 var contourFile string
 var keyFile string
@@ -74,7 +71,6 @@ var taxFlag string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
-	c.Flags().BoolVar(&rangeFlag, "ranges", false, "")
 	c.Flags().BoolVar(&unRot, "unrot", false, "")
 	c.Flags().BoolVar(&present, "present", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
@@ -132,10 +128,7 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
-	rf := p.Path(project.Points)
-	if rangeFlag {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	if rf == "" {
 		return nil
 	}

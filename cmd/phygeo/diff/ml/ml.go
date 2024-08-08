@@ -27,7 +27,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `ml [--ranges] [--stem <age>]
+	Usage: `ml [--stem <age>]
 	[--lambda <value>ep <value>] [--stop <value>]
 	[--cpu <number>] <project-file>`,
 	Short: "search the maximum likelihood estimate",
@@ -40,10 +40,6 @@ lambda value of zero. The flag --lambda changes this starting point. By
 default, the initial step has a value of 100, use the flag --step to change
 the value. At each cycle the step value is reduced a 50%, and stop when step
 has a size of 1. Use flag --stop to set a different stop value.
-
-By default, it will use geographic distributions stored as points (presence-
-absence maps). If no there are no point distribution, or the flags --ranges is
-defined, the continuous range maps will be used.
 
 By default, an stem branch will be added to each tree using the 10% of the root
 age. To set a different stem age use the flag --stem, the value should be in
@@ -61,7 +57,6 @@ var stemAge float64
 var stepFlag float64
 var stopFlag float64
 var numCPU int
-var useRanges bool
 
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&lambdaFlag, "lambda", 0, "")
@@ -69,7 +64,6 @@ func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&stepFlag, "step", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.NumCPU(), "")
-	c.Flags().BoolVar(&useRanges, "ranges", false, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -128,10 +122,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if useRanges || rf == "" {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	rc, err := readRanges(rf)
 	if err != nil {
 		return err

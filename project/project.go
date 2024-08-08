@@ -35,10 +35,6 @@ const (
 	// File for pixel prior probability values.
 	PixPrior Dataset = "pixprior"
 
-	// File for presence-absence points
-	// of the taxa in the project.
-	Points Dataset = "points"
-
 	// File for geographic distribution ranges
 	// of the taxa in the project.
 	Ranges Dataset = "ranges"

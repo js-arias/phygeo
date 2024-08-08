@@ -18,29 +18,18 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: "remove [--ranges] <project-file>",
+	Usage: "remove <project-file>",
 	Short: "remove distribution ranges absent in tree",
 	Long: `
 Package remove reads the geographic ranges from a PhyGeo project and removes
 all ranges that are not defined as terminals of the phylogenetic trees of the
 project.
 
-By default, it will check for the project distribution points. If there are no
-points in the project or the flag --ranges is defined, it will check the
-distribution range maps.
-
 The name of the removed distribution ranges will be printed on the screen.
 
 The argument of the command is the name of the project file.
 	`,
-	SetFlags: setFlags,
-	Run:      run,
-}
-
-var rangeFlag bool
-
-func setFlags(c *command.Command) {
-	c.Flags().BoolVar(&rangeFlag, "ranges", false, "")
+	Run: run,
 }
 
 func run(c *command.Command, args []string) error {
@@ -53,10 +42,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if rangeFlag || rf == "" {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	if rf == "" {
 		return nil
 	}

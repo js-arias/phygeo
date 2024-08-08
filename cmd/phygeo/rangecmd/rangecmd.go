@@ -46,8 +46,8 @@ indicates the relative likelihood of the species presence. In traditional
 range maps, all densities are equal, whereas in distribution models, the
 densities might be different.
 
-In PhyGeo, both kinds of distribution ranges are kept separate. By default,
-commands that use distribution ranges use the points.
+In PhyGeo, both kinds of distribution ranges are kept in a single file, but
+for each taxon only a single type will be used.
 
 The recommended way to interact with distribution range files is with the
 commands in "phygeo range". Type "phygeo range" to see the distribution range
@@ -64,28 +64,22 @@ A distribution range file is a tab-delimited file with the following columns:
 	-pixel    the ID of a pixel (from the pixelation)
 	-density  the density for the presence at that pixel
 
-Here is an example file for a presence-absence pixels:
+Here is an example file:
 
 	# pixel presences
 	taxon	type	age	equator	pixel	density
 	Brontostoma discus	points	0	360	17319	1.000000
 	Brontostoma discus	points	0	360	19117	1.000000
-	Rhododendron ericoides	points	0	360	18588	1.000000
-	Rhododendron ericoides	points	0	360	19305	1.000000
-	Rhododendron ericoides	points	0	360	19308	1.000000
-
-And an example file for a continuous distribution range map:
-
-	# continuous distribution range models
-	taxon	type	age	equator	pixel	density
 	E. lunensis	range	230000000	360	34661	0.200000
 	E. lunensis	range	230000000	360	34662	0.500000
 	E. lunensis	range	230000000	360	34663	1.000000
 	E. lunensis	range	230000000	360	34664	0.500000
 	E. lunensis	range	230000000	360	34665	0.200000
+	Rhododendron ericoides	points	0	360	18588	1.000000
+	Rhododendron ericoides	points	0	360	19305	1.000000
+	Rhododendron ericoides	points	0	360	19308	1.000000
 
-In a PhyGeo project, the file that contains the presence-absence pixels is
-indicated with the "points" keyword, and continuous range files with the
-"ranges" keyword.
+In a PhyGeo project, the file that contains the geographic distribution range
+data is indicated with the "ranges" keyword.
 	`,
 }

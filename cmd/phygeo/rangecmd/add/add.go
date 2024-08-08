@@ -27,8 +27,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `add [-f|--file <range-file>]
-	[--type <file-type>] [--format <format>]
-	[--filter]
+	[--format <format>] [--filter]
 	<project-file> [<range-file>...]`,
 	Short: "add taxon ranges to a PhyGeo project",
 	Long: `
@@ -45,16 +44,9 @@ already defined for the project, either a rotation model, or a paleolandscape
 model, and the pixelation of the input files must be consistent with that
 pixelation model.
 
-By default, only the taxon with ranges defined as presence-absence will be
-read. Use the flag --type to define the type of the ranges to be read. The
-type can be:
-
-	points	presence-absence taxon ranges
-	ranges	continuous range map
-
-By default, the command adds presence-absence files using a tab-delimited
-files with the pixel IDs. Using the flag --format, it is possible to define a
-different file format. Valid formats are:
+By default, the command adds presence-absence or geographic range maps files
+using a tab-delimited files with the pixel IDs. Using the flag --format, it is
+possible to define a different file format. Valid formats are:
 
 	phygeo  the default phygeo format
 	darwin  DarwinCore format using tab characters as delimiters (e.g.,
@@ -76,12 +68,11 @@ records that match a taxon name in the trees.
 
 By default the range maps will be stored in the range files currently defined
 for the project. If the project does not have a range file, a new one will be
-created with the name 'points.tab' for presence-absence taxon ranges, or
-'ranges.tab' for continuous range maps. A different file name can be defined
-with the flag --file or -f. If this flag is used, and there is a range file
-already defined, then a new file will be created, and used as the range file
-for the added type of range map for the project (previously defined ranges
-will be kept).
+created with the name 'ranges.tab'. A different file name can be defined with
+the flag --file or -f. If this flag is used, and there is a range file already
+defined, then a new file will be created, and used as the range file for the
+added type of range map for the project (previously defined ranges will be
+kept).
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -89,14 +80,12 @@ will be kept).
 
 var format string
 var outFile string
-var typeFlag string
 var filterFlag bool
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outFile, "file", "", "")
 	c.Flags().StringVar(&outFile, "f", "", "")
 	c.Flags().StringVar(&format, "format", "phygeo", "")
-	c.Flags().StringVar(&typeFlag, "type", "", "")
 	c.Flags().BoolVar(&filterFlag, "filter", false, "")
 }
 
@@ -110,22 +99,8 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	typeFlag = strings.ToLower(typeFlag)
-	if typeFlag == "" {
-		typeFlag = string(project.Points)
-	}
-	switch d := project.Dataset(typeFlag); d {
-	case project.Points:
-		if err := addPoints(c.Stdin(), p, args[1:]); err != nil {
-			return err
-		}
-	case project.Ranges:
-		if err := addRanges(c.Stdin(), p, args[1:]); err != nil {
-			return err
-		}
-	default:
-		msg := fmt.Sprintf("flag --type: unknown value %q", typeFlag)
-		return c.UsageError(msg)
+	if err := addRangeData(c.Stdin(), p, args[1:]); err != nil {
+		return err
 	}
 
 	if err := p.Write(pFile); err != nil {
@@ -176,21 +151,18 @@ func makeFilter(p *project.Project) (map[string]bool, error) {
 	return terms, nil
 }
 
-func addPoints(r io.Reader, p *project.Project, files []string) error {
+func addRangeData(r io.Reader, p *project.Project, files []string) error {
 	pix, err := openPixelation(p)
 	if err != nil {
 		return err
 	}
 
 	var coll *ranges.Collection
-	if pf := p.Path(project.Points); pf != "" {
+	if pf := p.Path(project.Ranges); pf != "" {
 		var err error
-		coll, err = readCollection(r, pf)
+		coll, err = readCollection(r, pf, pix)
 		if err != nil {
 			return err
-		}
-		if eq1, eq2 := pix.Equator(), coll.Pixelation().Equator(); eq1 != eq2 {
-			return fmt.Errorf("invalid project file %q: got %d equatorial pixel, want %d", pf, eq2, eq1)
 		}
 	} else {
 		coll = ranges.New(pix)
@@ -204,24 +176,20 @@ func addPoints(r io.Reader, p *project.Project, files []string) error {
 		}
 	}
 
-	readPtsFunc := readCollection
+	readRangeFunc := readCollection
 	switch strings.ToLower(format) {
 	case "csv":
-		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
-			return readTextData(r, pix, name, ',')
+		readRangeFunc = func(r io.Reader, name string, pix *earth.Pixelation) (*ranges.Collection, error) {
+			return readTextData(r, name, pix, ',')
 		}
 	case "darwin":
-		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
-			return readGBIFData(r, pix, name)
-		}
+		readRangeFunc = readGBIFData
 	case "pbdb":
-		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
-			return readPaleoDBData(r, pix, name)
-		}
+		readRangeFunc = readPaleoDBData
 	case "phygeo":
 	case "text":
-		readPtsFunc = func(r io.Reader, name string) (*ranges.Collection, error) {
-			return readTextData(r, pix, name, '\t')
+		readRangeFunc = func(r io.Reader, name string, pix *earth.Pixelation) (*ranges.Collection, error) {
+			return readTextData(r, name, pix, '\t')
 		}
 	default:
 		return fmt.Errorf("format %q unknown", format)
@@ -231,11 +199,10 @@ func addPoints(r io.Reader, p *project.Project, files []string) error {
 		files = append(files, "-")
 	}
 	for _, f := range files {
-		c, err := readPtsFunc(r, f)
+		c, err := readRangeFunc(r, f, pix)
 		if err != nil {
 			return err
 		}
-		cp := c.Pixelation()
 
 		for _, nm := range c.Taxa() {
 			if filterFlag {
@@ -243,91 +210,22 @@ func addPoints(r io.Reader, p *project.Project, files []string) error {
 					continue
 				}
 			}
-			if c.Type(nm) != ranges.Points {
-				continue
-			}
 			age := c.Age(nm)
 			rng := c.Range(nm)
+
+			// a geographic range map
+			if c.Type(nm) == ranges.Range {
+				coll.Set(nm, age, rng)
+				continue
+			}
+
+			// presence-absence points
 			for id := range rng {
-				pt := cp.ID(id).Point()
+				pt := pix.ID(id).Point()
 				coll.Add(nm, age, pt.Latitude(), pt.Longitude())
 			}
 		}
 	}
-	if len(coll.Taxa()) == 0 {
-		return nil
-	}
-
-	ptsFile := p.Path(project.Points)
-	if outFile != "" {
-		ptsFile = outFile
-	}
-	if ptsFile == "" {
-		ptsFile = "points.tab"
-	}
-
-	if err := writeCollection(ptsFile, coll); err != nil {
-		return err
-	}
-	p.Add(project.Points, ptsFile)
-	return nil
-}
-
-func addRanges(r io.Reader, p *project.Project, files []string) error {
-	pix, err := openPixelation(p)
-	if err != nil {
-		return err
-	}
-
-	var filter map[string]bool
-	if filterFlag {
-		filter, err = makeFilter(p)
-		if err != nil {
-			return err
-		}
-	}
-
-	var coll *ranges.Collection
-	if rf := p.Path(project.Ranges); rf != "" {
-		var err error
-		coll, err = readCollection(r, rf)
-		if err != nil {
-			return err
-		}
-		if eq1, eq2 := pix.Equator(), coll.Pixelation().Equator(); eq1 != eq2 {
-			return fmt.Errorf("invalid project file %q: got %d equatorial pixel, want %d", rf, eq2, eq1)
-		}
-	} else {
-		coll = ranges.New(pix)
-	}
-
-	if len(files) == 0 {
-		files = append(files, "-")
-	}
-	for _, f := range files {
-		c, err := readCollection(r, f)
-		if err != nil {
-			return err
-		}
-		if eq1, eq2 := pix.Equator(), c.Pixelation().Equator(); eq1 != eq2 {
-			return fmt.Errorf("invalid range file %q: got %d equatorial pixel, want %d", f, eq2, eq1)
-		}
-
-		for _, nm := range c.Taxa() {
-			if filterFlag {
-				if !filter[nm] {
-					continue
-				}
-			}
-			if c.Type(nm) != ranges.Range {
-				continue
-			}
-			age := c.Age(nm)
-			rng := c.Range(nm)
-			coll.Set(nm, age, rng)
-		}
-	}
-
 	if len(coll.Taxa()) == 0 {
 		return nil
 	}
@@ -375,7 +273,7 @@ func openPixelation(p *project.Project) (*earth.Pixelation, error) {
 	return nil, errors.New("undefined pixelation model")
 }
 
-func readCollection(r io.Reader, name string) (*ranges.Collection, error) {
+func readCollection(r io.Reader, name string, pix *earth.Pixelation) (*ranges.Collection, error) {
 	if name != "-" {
 		f, err := os.Open(name)
 		if err != nil {
@@ -387,7 +285,7 @@ func readCollection(r io.Reader, name string) (*ranges.Collection, error) {
 		name = "stdin"
 	}
 
-	coll, err := ranges.ReadTSV(r, nil)
+	coll, err := ranges.ReadTSV(r, pix)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
@@ -401,7 +299,7 @@ var textHeaderFields = []string{
 	"longitude",
 }
 
-func readTextData(r io.Reader, pix *earth.Pixelation, name string, comma rune) (*ranges.Collection, error) {
+func readTextData(r io.Reader, name string, pix *earth.Pixelation, comma rune) (*ranges.Collection, error) {
 	if name != "-" {
 		f, err := os.Open(name)
 		if err != nil {
@@ -475,7 +373,7 @@ var gbifFields = []string{
 	"decimallongitude",
 }
 
-func readGBIFData(r io.Reader, pix *earth.Pixelation, name string) (*ranges.Collection, error) {
+func readGBIFData(r io.Reader, name string, pix *earth.Pixelation) (*ranges.Collection, error) {
 	if name != "-" {
 		f, err := os.Open(name)
 		if err != nil {
@@ -548,7 +446,7 @@ var pbdbFields = []string{
 	"lng",
 }
 
-func readPaleoDBData(r io.Reader, pix *earth.Pixelation, name string) (*ranges.Collection, error) {
+func readPaleoDBData(r io.Reader, name string, pix *earth.Pixelation) (*ranges.Collection, error) {
 	if name != "-" {
 		f, err := os.Open(name)
 		if err != nil {

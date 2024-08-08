@@ -139,10 +139,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if rf == "" {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	rc, err := readRanges(rf)
 	if err != nil {
 		return err

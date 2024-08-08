@@ -76,13 +76,6 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
-	ptF := p.Path(project.Points)
-	if ptF != "" {
-		if err := readRanges(c.Stdout(), ptF, pix, project.Points); err != nil {
-			return err
-		}
-	}
-
 	ptR := p.Path(project.Ranges)
 	if ptR != "" {
 		if err := readRanges(c.Stdout(), ptR, pix, project.Ranges); err != nil {

@@ -33,7 +33,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `integrate [--ranges] [--stem <age>]
+	Usage: `integrate [--stem <age>]
 	[--distribution <distribution>] [-p|--particles <number>]
 	[--min <float>] [--max <float>] [--mc <number>] [--parts <number>]
 	[--cpu <number>] <project-file>`,
@@ -42,10 +42,6 @@ var Command = &command.Command{
 Command integrate reads a PhyGeo project, and makes a numerical integration of
 the likelihood function, using a diffusion model over a sphere, by reporting
 the log likelihood values of different values of lambda.
-
-By default, it will use geographic distributions stored as points (presence-
-absence maps). If no there are no point distribution, or the flags --ranges is
-defined, the continuous range maps will be used.
 
 By default, an stem branch will be added to each tree using the 10% of the root
 age. To set a different stem age use the flag --stem, the value should be in
@@ -102,7 +98,6 @@ var parts int
 var numCPU int
 var particles int
 var stemAge float64
-var useRanges bool
 var distribution string
 var output string
 
@@ -115,7 +110,6 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&parts, "parts", 1000, "")
 	c.Flags().IntVar(&particles, "p", 1000, "")
 	c.Flags().IntVar(&particles, "particles", 1000, "")
-	c.Flags().BoolVar(&useRanges, "ranges", false, "")
 	c.Flags().StringVar(&distribution, "distribution", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
@@ -177,10 +171,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if useRanges || rf == "" {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	rc, err := readRanges(rf)
 	if err != nil {
 		return err

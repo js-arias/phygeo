@@ -30,6 +30,9 @@ The argument of the command is the name of the project file.
 
 The command requires that the project have a defined tree file, and the age of
 the terminals will be used to define the time stage for the rotation.
+
+Only terminals in which the distribution ranges are defined as points will be
+rotated.
 	`,
 	Run: run,
 }
@@ -64,7 +67,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	pf := p.Path(project.Points)
+	pf := p.Path(project.Ranges)
 	pts, err := readRanges(pf)
 	if err != nil {
 		return err
@@ -73,6 +76,11 @@ func run(c *command.Command, args []string) error {
 	for _, tax := range pts.Taxa() {
 		a := ages[tax]
 		if a == 0 {
+			continue
+		}
+
+		// only rotate taxa defined as presence-absence points
+		if pts.Type(tax) != ranges.Points {
 			continue
 		}
 
@@ -100,7 +108,7 @@ func run(c *command.Command, args []string) error {
 	if err := writeCollection(pf, pts); err != nil {
 		return err
 	}
-	p.Add(project.Points, pf)
+	p.Add(project.Ranges, pf)
 
 	if err := p.Write(pFile); err != nil {
 		return err

@@ -29,7 +29,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `like [--ranges] [--stem <age>] [--lambda <value>]
+	Usage: `like [--stem <age>] [--lambda <value>]
 	[-o|--output <file>]
 	[--cpu <number>] <project-file>`,
 	Short: "perform a likelihood reconstruction",
@@ -38,10 +38,6 @@ Command like reads a PhyGeo project and performs a likelihood reconstruction
 for the trees in the project.
 
 The argument of the command is the name of the project file.
-
-By default, it will use geographic distributions stored as points
-(presence-absence maps). If there are no point distributions or the flag
---ranges is defined, the continuous range maps will be used.
 
 By default, a stem branch will be added to each tree using 10% of the root
 age. To set a different stem age, use the flag --stem; the value should be in
@@ -70,7 +66,6 @@ var lambdaFlag float64
 var stemAge float64
 var numCPU int
 var output string
-var useRanges bool
 
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
@@ -78,7 +73,6 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numCPU, "cpu", runtime.GOMAXPROCS(0), "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
-	c.Flags().BoolVar(&useRanges, "ranges", false, "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -137,10 +131,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if useRanges || rf == "" {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	rc, err := readRanges(rf)
 	if err != nil {
 		return err

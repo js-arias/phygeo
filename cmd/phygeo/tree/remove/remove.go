@@ -20,7 +20,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: "remove [--ranges] <project-file>",
+	Usage: "remove <project-file>",
 	Short: "remove terminals without data",
 	Long: `
 Command remove reads the trees and geographic ranges from a PhyGeo project and
@@ -29,20 +29,9 @@ removes all tree terminals without a valid records.
 To be valid, a terminal must have at least a single record defined on a pixel
 in which the landscape value has a prior greater than zero.
 
-By default, the terminals will be checked against the distribution points
-(presence-absence pixels). If there are no points or the flag --ranges is set,
-it will check against the distribution range maps.
-
 The name of the removed terminal will be printed on the screen.
 	`,
-	SetFlags: setFlags,
-	Run:      run,
-}
-
-var rangeFlag bool
-
-func setFlags(c *command.Command) {
-	c.Flags().BoolVar(&rangeFlag, "ranges", false, "")
+	Run: run,
 }
 
 func run(c *command.Command, args []string) error {
@@ -55,10 +44,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Points)
-	if rangeFlag || rf == "" {
-		rf = p.Path(project.Ranges)
-	}
+	rf := p.Path(project.Ranges)
 	if rf == "" {
 		return nil
 	}
