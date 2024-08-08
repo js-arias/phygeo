@@ -8,9 +8,12 @@
 package kde
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
@@ -24,7 +27,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `kde [--lambda <value>] [--bound <value>]
-	[-f|--file <file>] <project-file>`,
+	[-f|--file <file>] <project-file> [<taxon-list>]`,
 	Short: "estimate geographic ranges using a KDE",
 	Long: `
 Command kde reads the point locations from a PhyGeo project and produces new
@@ -32,6 +35,11 @@ range maps using a kernel density estimation based on a spherical normal. It
 will only add taxa without a defined range map.
 
 The argument of the command is the name of the project file.
+
+By default, all taxa with ranges defined as points will be transformed, but if
+a file with taxon names is given as a second argument, only the taxa in that
+file will be updated. The format of the file is a single name per line, while
+ignoring empty lines and lines starting with '#' .
 	
 The flag --lambda defines the concentration parameter of the spherical normal
 (equivalent to the kappa parameter in the von Mises-Fisher distribution) in
@@ -112,7 +120,21 @@ func run(c *command.Command, args []string) error {
 	}
 	n := dist.NewNormal(lambdaFlag, landscape.Pixelation())
 
+	var lsTaxa map[string]bool
+	if len(args) > 1 {
+		lsTaxa, err = readTaxonNames(args[1])
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, tax := range rng.Taxa() {
+		if lsTaxa != nil {
+			if nm := strings.ToLower(tax); !lsTaxa[nm] {
+				continue
+			}
+		}
+
 		if rng.Type(tax) == ranges.Range {
 			continue
 		}
@@ -213,4 +235,40 @@ func writeCollection(name string, coll *ranges.Collection) (err error) {
 		return fmt.Errorf("while writing to %q: %v", name, err)
 	}
 	return nil
+}
+
+func readTaxonNames(name string) (map[string]bool, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	r := bufio.NewReader(f)
+	ls := make(map[string]bool)
+	for i := 1; ; i++ {
+		ln, err := r.ReadString('\n')
+		if ln == "" {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				return nil, fmt.Errorf("file %q: line %d: %v", name, i, err)
+			}
+			continue
+		}
+
+		if ln[0] == '#' {
+			continue
+		}
+		nm := strings.Join(strings.Fields(ln), " ")
+		if nm == "" {
+			continue
+		}
+
+		nm = strings.ToLower(nm)
+		ls[nm] = true
+	}
+
+	return ls, nil
 }
