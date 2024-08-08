@@ -66,6 +66,24 @@ func run(c *command.Command, args []string) error {
 
 	rf := p.Path(project.Ranges)
 	if rf == "" {
+		if !valFlag {
+			return nil
+		}
+
+		tf := p.Path(project.Trees)
+		if tf == "" {
+			return nil
+		}
+
+		// all terminal taxa are "invalid":
+		// no distribution data defined.
+		ls, err := makeTermList(tf)
+		if err != nil {
+			return nil
+		}
+		for _, tax := range ls {
+			fmt.Fprintf(c.Stdout(), "INVALID TAXON: no records: %s\n", tax)
+		}
 		return nil
 	}
 
