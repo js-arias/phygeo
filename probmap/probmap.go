@@ -46,6 +46,9 @@ type Image struct {
 	// it will use a gray scale.
 	Gray bool
 
+	// A Gradient color scheme
+	Gradient Gradienter
+
 	step float64
 	cAge int64
 }
@@ -63,6 +66,10 @@ func (i *Image) Format(tot *model.Total) {
 
 	if tot != nil {
 		i.Tot = tot.Rotation(i.cAge)
+	}
+
+	if i.Gradient == nil {
+		i.Gradient = RainbowPurpleToRed{}
 	}
 }
 
@@ -109,7 +116,7 @@ func (i *Image) At(x, y int) color.Color {
 			}
 		}
 		if max > 0 {
-			return blind.Gradient(max)
+			return i.Gradient.Gradient(max)
 		}
 
 		// The taxon is absent,
@@ -141,8 +148,9 @@ func (i *Image) At(x, y int) color.Color {
 		return color.RGBA{211, 211, 211, 255}
 	}
 
+	// No rotation
 	if p, ok := i.Rng[pix.ID()]; ok {
-		return blind.Gradient(p)
+		return i.Gradient.Gradient(p)
 	}
 
 	v, _ := i.Landscape.At(i.cAge, pix.ID())
@@ -158,4 +166,75 @@ func (i *Image) At(x, y int) color.Color {
 		}
 	}
 	return color.RGBA{211, 211, 211, 255}
+}
+
+// Gradientes is an interface for types
+// that return a color gradient
+type Gradienter interface {
+	Gradient(v float64) color.Color
+}
+
+// HalfGrayScale returns a gray scale
+// between 0 and 128.
+type HalfGrayScale struct{}
+
+func (h HalfGrayScale) Gradient(v float64) color.Color {
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+
+	c := 128 - uint8(v*128)
+	return color.RGBA{c, c, c, 255}
+}
+
+// Incandescent is the incandescent color scheme
+// of Paul Tol
+// <https://personal.sron.nl/~pault/#fig:scheme_incandescent>.
+type Incandescent struct{}
+
+func (i Incandescent) Gradient(v float64) color.Color {
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+
+	return blind.Sequential(blind.Incandescent, v)
+}
+
+// Iridescent is the iridescent color scheme
+// of Paul Tol
+// <https://personal.sron.nl/~pault/#fig:scheme_iridescent>.
+type Iridescent struct{}
+
+func (i Iridescent) Gradient(v float64) color.Color {
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+
+	return blind.Sequential(blind.Iridescent, v)
+}
+
+// RainbowPurpleToRed is the rainbow color scheme
+// of Paul Tol
+// <https://personal.sron.nl/~pault/#fig:scheme_rainbow_smooth>
+// starting at purple and ending at red.
+type RainbowPurpleToRed struct{}
+
+func (r RainbowPurpleToRed) Gradient(v float64) color.Color {
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+
+	return blind.Sequential(blind.RainbowPurpleToRed, v)
 }

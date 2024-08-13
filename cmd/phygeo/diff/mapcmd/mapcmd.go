@@ -28,7 +28,8 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `map [-c|--columns <value>] [--key <key-file>] [--gray]
+	Usage: `map [-c|--columns <value>]
+	[--key <key-file>] [--gray] [--scale <color-scale>]
 	[--bound <value>] [--richness]
 	[--unrot] [--present] [--contour <image-file>]
 	[--recent] [--trees <tree-list>] [--nodes <node-list>]
@@ -79,6 +80,19 @@ By default, the resulting image will be 3600 pixels wide. Use the flag
 --column, or -c, to define a different number of columns. By default, the
 images will have a gray background. Use the flag --key to define the landscape
 colors of the image. If the flag --gray is set, then gray colors will be used.
+
+By default, a rainbow color scale will be used, other color scales can be
+defined using the --scale flag. Valid scale values are mostly based on Paul
+Tol color scales:
+
+	- iridescent  <https://personal.sron.nl/~pault/#fig:scheme_iridescent>
+	- rainbow     default value (from purple to red)
+	        <https://personal.sron.nl/~pault/#fig:scheme_rainbow_smooth>
+	- incandescent
+		<https://personal.sron.nl/~pault/#fig:scheme_incandescent>
+	- gray         a gray scale from black to mid gray, so it can be
+		coupled with a gray color key (gray values should be greater
+		than 128).
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -97,6 +111,7 @@ var contourFile string
 var keyFile string
 var inputFile string
 var outPrefix string
+var scale string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&grayFlag, "gray", false, "")
@@ -115,6 +130,7 @@ func setFlags(c *command.Command) {
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 	c.Flags().StringVar(&contourFile, "contour", "", "")
+	c.Flags().StringVar(&scale, "scale", "rainbow", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -175,6 +191,17 @@ func run(c *command.Command, args []string) error {
 			keys = nil
 		}
 	}
+	var gradient probmap.Gradienter
+	switch strings.ToLower(scale) {
+	case "gray":
+		gradient = probmap.HalfGrayScale{}
+	case "rainbow":
+		gradient = probmap.RainbowPurpleToRed{}
+	case "incandescent":
+		gradient = probmap.Incandescent{}
+	case "iridescent":
+		gradient = probmap.Iridescent{}
+	}
 
 	if richnessFlag {
 		if outPrefix == "" {
@@ -199,6 +226,7 @@ func run(c *command.Command, args []string) error {
 				Contour:   contour,
 				Present:   present,
 				Gray:      grayFlag,
+				Gradient:  gradient,
 			}
 			pm.Format(tot)
 
@@ -267,6 +295,7 @@ func run(c *command.Command, args []string) error {
 					Contour:   contour,
 					Present:   present,
 					Gray:      grayFlag,
+					Gradient:  gradient,
 				}
 				pm.Format(tot)
 
