@@ -189,7 +189,7 @@ func (s svgTree) drawTimeRecs(e *xml.Encoder) {
 				{Name: xml.Name{Local: "x"}, Value: strconv.Itoa(int(minX))},
 				{Name: xml.Name{Local: "width"}, Value: strconv.Itoa(int(maxX - minX))},
 				{Name: xml.Name{Local: "height"}, Value: strconv.Itoa(int(height))},
-				{Name: xml.Name{Local: "style"}, Value: "fill:rgb(200,200,200); stroke-width:0"},
+				{Name: xml.Name{Local: "style"}, Value: "fill:rgb(230,230,230); stroke-width:0"},
 			},
 		}
 		e.EncodeToken(rect)
@@ -299,33 +299,35 @@ func (n node) label(e *xml.Encoder) {
 	}
 
 	// draws a circle at the node
-	circ := xml.StartElement{
-		Name: xml.Name{Local: "circle"},
-		Attr: []xml.Attr{
-			{Name: xml.Name{Local: "cx"}, Value: strconv.Itoa(int(n.x))},
-			{Name: xml.Name{Local: "cy"}, Value: strconv.Itoa(int(n.y))},
-			{Name: xml.Name{Local: "r"}, Value: "7"},
-			{Name: xml.Name{Local: "fill"}, Value: "white"},
-			{Name: xml.Name{Local: "stroke"}, Value: "black"},
-			{Name: xml.Name{Local: "stroke-width"}, Value: "1"},
-		},
-	}
-	e.EncodeToken(circ)
-	e.EncodeToken(circ.End())
+	if !noNodes {
+		circ := xml.StartElement{
+			Name: xml.Name{Local: "circle"},
+			Attr: []xml.Attr{
+				{Name: xml.Name{Local: "cx"}, Value: strconv.Itoa(int(n.x))},
+				{Name: xml.Name{Local: "cy"}, Value: strconv.Itoa(int(n.y))},
+				{Name: xml.Name{Local: "r"}, Value: "7"},
+				{Name: xml.Name{Local: "fill"}, Value: "white"},
+				{Name: xml.Name{Local: "stroke"}, Value: "black"},
+				{Name: xml.Name{Local: "stroke-width"}, Value: "1"},
+			},
+		}
+		e.EncodeToken(circ)
+		e.EncodeToken(circ.End())
 
-	// put node ID
-	tx := xml.StartElement{
-		Name: xml.Name{Local: "text"},
-		Attr: []xml.Attr{
-			{Name: xml.Name{Local: "x"}, Value: strconv.Itoa(int(n.x - 5))},
-			{Name: xml.Name{Local: "y"}, Value: strconv.Itoa(int(n.y + 2))},
-			{Name: xml.Name{Local: "stroke-width"}, Value: "0"},
-			{Name: xml.Name{Local: "font-size"}, Value: "6"},
-		},
+		// put node ID
+		tx := xml.StartElement{
+			Name: xml.Name{Local: "text"},
+			Attr: []xml.Attr{
+				{Name: xml.Name{Local: "x"}, Value: strconv.Itoa(int(n.x - 5))},
+				{Name: xml.Name{Local: "y"}, Value: strconv.Itoa(int(n.y + 2))},
+				{Name: xml.Name{Local: "stroke-width"}, Value: "0"},
+				{Name: xml.Name{Local: "font-size"}, Value: "6"},
+			},
+		}
+		e.EncodeToken(tx)
+		e.EncodeToken(xml.CharData(strconv.Itoa(n.id)))
+		e.EncodeToken(tx.End())
 	}
-	e.EncodeToken(tx)
-	e.EncodeToken(xml.CharData(strconv.Itoa(n.id)))
-	e.EncodeToken(tx.End())
 
 	for _, d := range n.desc {
 		d.label(e)

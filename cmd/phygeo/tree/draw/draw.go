@@ -23,6 +23,7 @@ var Command = &command.Command{
 	Usage: `draw [--tree <tree>]
 	[--scale <value>]
 	[--step <value>] [--time <number>] [--tick <tick-value>]
+	[--nonodes]
 	[-o|--output <out-prefix>]
 	<project-file>`,
 	Short: "draw project trees as SVG files",
@@ -44,6 +45,9 @@ define a different value (it can have decimal points).
 By default, all trees in the project will be drawn. If the flag --tree is set,
 only the indicated tree will be printed.
 
+By default, node IDs will be drawn. If the flag --nonodes is given, then it
+will draw the tree without node IDs.
+
 By default, a timescale with ticks every scale unit will be added at the
 bottom of the drawing. Use the flag --tick to define the tick lines, using the
 following format: "<min-tick>,<max-tick>,<label-tick>", in which min-tick
@@ -59,6 +63,7 @@ the flag -o, or --output, to define a prefix for the resulting files.
 	Run:      run,
 }
 
+var noNodes bool
 var stepX float64
 var timeBox float64
 var scale float64
@@ -67,6 +72,7 @@ var tickFlag string
 var outPrefix string
 
 func setFlags(c *command.Command) {
+	c.Flags().BoolVar(&noNodes, "nonodes", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().Float64Var(&timeBox, "time", 0, "")
 	c.Flags().Float64Var(&scale, "scale", timestage.MillionYears, "")

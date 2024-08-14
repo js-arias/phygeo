@@ -33,7 +33,7 @@ var Command = &command.Command{
 	Usage: `speed 
 	[--tree <file-prefix>]
 	[--step <number>] [--scale <value>]
-	[--color <color-scale>]
+	[--color <color-scale>] [--width <value>]
 	[--box <number>] [--tick <tick-value>]
 	[--time] [--plot <file-prefix>]
 	[--null <number>]
