@@ -12,7 +12,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/js-arias/blind"
+	"github.com/js-arias/phygeo/probmap"
 	"github.com/js-arias/timetree"
 )
 
@@ -123,25 +123,25 @@ func (s *svgTree) prepare(n *node) {
 	n.y = topY + (botY-topY)/2
 }
 
-func (s *svgTree) setColor(sp map[int]float64, min, max, avg float64) {
-	s.root.setColor(sp, min, max, avg)
-	s.root.color = color.RGBA{102, 102, 102, 255}
+func (s *svgTree) setColor(sp map[int]float64, min, max, avg float64, gradient probmap.Gradienter) {
+	s.root.setColor(sp, min, max, avg, gradient)
+	s.root.color = color.RGBA{205, 205, 205, 255}
 }
 
-func (n *node) setColor(sp map[int]float64, min, max, avg float64) {
+func (n *node) setColor(sp map[int]float64, min, max, avg float64, gradient probmap.Gradienter) {
 	n.color = color.RGBA{0, 0, 255, 255}
 	if v, ok := sp[n.id]; ok {
 		if v > avg {
-			n.color = blind.Gradient(0.5 + 0.5*(v-avg)/(max-avg))
+			n.color = gradient.Gradient(0.5 + 0.5*(v-avg)/(max-avg)).(color.RGBA)
 		} else {
-			n.color = blind.Gradient(0.5 * (v - min) / (avg - min))
+			n.color = gradient.Gradient(0.5 * (v - min) / (avg - min)).(color.RGBA)
 		}
 	} else {
-		n.color = blind.Gradient(0)
+		n.color = gradient.Gradient(0).(color.RGBA)
 	}
 
 	for _, d := range n.desc {
-		d.setColor(sp, min, max, avg)
+		d.setColor(sp, min, max, avg, gradient)
 	}
 
 }
@@ -213,7 +213,7 @@ func (s svgTree) drawTimeRecs(e *xml.Encoder) {
 				{Name: xml.Name{Local: "x"}, Value: strconv.Itoa(int(minX))},
 				{Name: xml.Name{Local: "width"}, Value: strconv.Itoa(int(maxX - minX))},
 				{Name: xml.Name{Local: "height"}, Value: strconv.Itoa(int(height))},
-				{Name: xml.Name{Local: "style"}, Value: "fill:rgb(200,200,200); stroke-width:0"},
+				{Name: xml.Name{Local: "style"}, Value: "fill:rgb(230,230,230); stroke-width:0"},
 			},
 		}
 		e.EncodeToken(rect)
@@ -286,6 +286,7 @@ func (n node) draw(e *xml.Encoder) {
 			{Name: xml.Name{Local: "x2"}, Value: strconv.Itoa(int(n.x))},
 			{Name: xml.Name{Local: "y2"}, Value: strconv.Itoa(int(n.y))},
 			{Name: xml.Name{Local: "stroke"}, Value: rgb},
+			{Name: xml.Name{Local: "stroke-width"}, Value: strconv.FormatFloat(widthFlag, 'f', 2, 64)},
 		},
 	}
 	if n.anc != nil {

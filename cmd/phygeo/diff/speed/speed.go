@@ -22,6 +22,7 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
+	"github.com/js-arias/phygeo/probmap"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/timetree"
@@ -32,6 +33,7 @@ var Command = &command.Command{
 	Usage: `speed 
 	[--tree <file-prefix>]
 	[--step <number>] [--scale <value>]
+	[--color <color-scale>]
 	[--box <number>] [--tick <tick-value>]
 	[--time] [--plot <file-prefix>]
 	[--null <number>]
@@ -76,7 +78,20 @@ every time scale unit will be added at the bottom of the drawing. Use the flag
 max-tick indicates major ticks, and label-tick the ticks that will be labeled;
 for example, the default is "1,5,5" which means that small ticks will be added
 each time scale units, major ticks will be added every 5 time scale units, and
-labels will be added every 5 time scale units.
+labels will be added every 5 time scale units. By default, a rainbow color
+scale will be used, other color scales can be defined using the --scale flag.
+Valid scale values are mostly based on Paul Tol color scales:
+
+	- iridescent  <https://personal.sron.nl/~pault/#fig:scheme_iridescent>
+	- rainbow     default value (from purple to red)
+	        <https://personal.sron.nl/~pault/#fig:scheme_rainbow_smooth>
+	- incandescent
+		<https://personal.sron.nl/~pault/#fig:scheme_incandescent>
+	- gray         a gray scale from black to mid gray (RGB: 127).
+	- gray2        a gray scale from black to light gray (RBG: 200).
+
+By default, the tree branches will be draw with a 4 pixels, to change the
+width use the flag --width.	
 
 The output will be printed in the standard output, as a Tab-delimited table
 with the following columns:
@@ -118,23 +133,27 @@ var useTime bool
 var stepX float64
 var timeBox float64
 var scale float64
+var widthFlag float64
 var nullFlag int
 var treePrefix string
 var inputFile string
 var plotPrefix string
 var tickFlag string
+var colorScale string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&useTime, "time", false, "")
 	c.Flags().Float64Var(&stepX, "step", 10, "")
 	c.Flags().Float64Var(&timeBox, "box", 0, "")
 	c.Flags().Float64Var(&scale, "scale", timestage.MillionYears, "")
+	c.Flags().Float64Var(&widthFlag, "width", 4, "")
 	c.Flags().IntVar(&nullFlag, "null", 1000, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&treePrefix, "tree", "", "")
 	c.Flags().StringVar(&plotPrefix, "plot", "", "")
 	c.Flags().StringVar(&tickFlag, "tick", "", "")
+	c.Flags().StringVar(&colorScale, "color", "rainbow", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -212,6 +231,22 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
+	var gradient probmap.Gradienter
+	switch strings.ToLower(colorScale) {
+	case "gray":
+		gradient = probmap.HalfGrayScale{}
+	case "gray2":
+		gradient = probmap.LightGrayScale{}
+	case "rainbow":
+		gradient = probmap.RainbowPurpleToRed{}
+	case "incandescent":
+		gradient = probmap.Incandescent{}
+	case "iridescent":
+		gradient = probmap.Iridescent{}
+	default:
+		gradient = probmap.RainbowPurpleToRed{}
+	}
+
 	// make the simulations
 	tSim := make(map[string]*recTree, len(tBranch))
 	for _, name := range tc.Names() {
@@ -229,7 +264,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	if treePrefix != "" {
-		if err := plotTrees(tc, tBranch); err != nil {
+		if err := plotTrees(tc, tBranch, gradient); err != nil {
 			return err
 		}
 	}
@@ -649,7 +684,7 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 	return nil
 }
 
-func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
+func plotTrees(tc *timetree.Collection, rt map[string]*recTree, gradient probmap.Gradienter) error {
 	tv, err := parseTick()
 	if err != nil {
 		return err
@@ -702,7 +737,7 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree) error {
 			}
 			sp[nID] = s
 		}
-		st.setColor(sp, min, max, avg)
+		st.setColor(sp, min, max, avg, gradient)
 
 		fName := treePrefix + "-" + name + ".svg"
 		if err := writeSVGTree(fName, st); err != nil {

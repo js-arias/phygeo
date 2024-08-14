@@ -175,7 +175,8 @@ type Gradienter interface {
 }
 
 // HalfGrayScale returns a gray scale
-// between 0 and 128.
+// between 0 (black)
+// and 128 (gray).
 type HalfGrayScale struct{}
 
 func (h HalfGrayScale) Gradient(v float64) color.Color {
@@ -187,6 +188,23 @@ func (h HalfGrayScale) Gradient(v float64) color.Color {
 	}
 
 	c := 128 - uint8(v*128)
+	return color.RGBA{c, c, c, 255}
+}
+
+// LightGrayScale returns a gray scale
+// between 0 (black)
+// to 200 (light gray).
+type LightGrayScale struct{}
+
+func (l LightGrayScale) Gradient(v float64) color.Color {
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+
+	c := 200 - uint8(v*200)
 	return color.RGBA{c, c, c, 255}
 }
 
