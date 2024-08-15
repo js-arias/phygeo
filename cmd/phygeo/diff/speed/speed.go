@@ -99,14 +99,18 @@ with the following columns:
 	tree      the name of the tree
 	node      the ID of the node in the tree
 	distance  the median of the traveled distance in kilometers
-	d-025     the 2.5% of the empirical CDF
-	d-975     the 97.5% of the empirical CDF
+	d-025     the 2.5% of the empirical CDF of the distance in Km
+	d-975     the 97.5% of the empirical CDF of the distance in Km
+	dist-rad  the median of the traveled distance in radians
+	dr-025    the 2.5% of the empirical CDF of the distance in radians
+	dr-975    the 97.5% of the empirical CDF of the distance in radians
 	brLen     the length of the branch in million years
-	speed     the median of the speed in kilometers per million year
-	x-050     the 5% of the distance for simulated CDF
-	x-950     the 95% of the distance for simulated CDF
+	x-050     the 5% of the distance for simulated CDF in kilometers
+	x-950     the 95% of the distance for simulated CDF in kilometers
 	slower    fraction of particles slower than the 5% of the simulations
 	faster    fraction of particles faster than the 95% of the simulations
+	speed     the median of the speed in kilometers per million year
+	speed-rad the median of the speed in radians per million year
 
 If the flag --time is used, instead of calculating the speed per branch, the
 speed will be calculated for each time slice. In this case the whole traveled
@@ -604,7 +608,7 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 	tab.Comma = '\t'
 	tab.UseCRLF = true
 
-	if err := tab.Write([]string{"tree", "node", "distance", "d-025", "d-975", "brLen", "speed", "x-005", "x-095", "slower", "faster"}); err != nil {
+	if err := tab.Write([]string{"tree", "node", "distance", "d-025", "d-975", "dist-rad", "dr-025", "dr-975", "brLen", "x-005", "x-095", "slower", "faster", "speed", "speed-rad"}); err != nil {
 		return err
 	}
 	for _, name := range tc.Names() {
@@ -620,7 +624,7 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 			dist := make([]float64, 0, len(n.recs))
 			weights := make([]float64, 0, len(n.recs))
 			for _, r := range n.recs {
-				dist = append(dist, r.dist*earth.Radius/1000)
+				dist = append(dist, r.dist)
 				weights = append(weights, 1.0)
 			}
 			slices.Sort(dist)
@@ -631,7 +635,9 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 				brLen = float64(t.Age(pN)-t.Age(nID)) / timestage.MillionYears
 			}
 
-			d := stat.Quantile(0.5, stat.Empirical, dist, weights)
+			dR := stat.Quantile(0.5, stat.Empirical, dist, weights)
+			d := dR * earth.Radius / 1000
+			sR := dR / brLen
 			s := d / brLen
 
 			sn := st.nodes[nID]
@@ -646,6 +652,7 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 			n95 := stat.Quantile(0.95, stat.Empirical, nullDist, nullWeights)
 			var fast, slow int
 			for _, od := range dist {
+				od *= earth.Radius / 1000
 				if od > n95 {
 					fast++
 				}
@@ -658,14 +665,18 @@ func writeRecBranch(w io.Writer, tc *timetree.Collection, rt, rSim map[string]*r
 				name,
 				strconv.Itoa(nID),
 				strconv.FormatFloat(d, 'f', 3, 64),
+				strconv.FormatFloat(stat.Quantile(0.025, stat.Empirical, dist, weights)*earth.Radius/1000, 'f', 3, 64),
+				strconv.FormatFloat(stat.Quantile(0.975, stat.Empirical, dist, weights)*earth.Radius/1000, 'f', 3, 64),
+				strconv.FormatFloat(dR, 'f', 3, 64),
 				strconv.FormatFloat(stat.Quantile(0.025, stat.Empirical, dist, weights), 'f', 3, 64),
 				strconv.FormatFloat(stat.Quantile(0.975, stat.Empirical, dist, weights), 'f', 3, 64),
 				strconv.FormatFloat(brLen, 'f', 3, 64),
-				strconv.FormatFloat(s, 'f', 3, 64),
 				strconv.FormatFloat(n05, 'f', 3, 64),
 				strconv.FormatFloat(n95, 'f', 3, 64),
 				strconv.FormatFloat(float64(slow)/float64(len(dist)), 'f', 3, 64),
 				strconv.FormatFloat(float64(fast)/float64(len(dist)), 'f', 3, 64),
+				strconv.FormatFloat(s, 'f', 3, 64),
+				strconv.FormatFloat(sR, 'f', 3, 64),
 			}
 			if nID == 0 {
 				// root node is the whole tree
