@@ -156,19 +156,26 @@ func (t *Tree) DownPass() float64 {
 func (t *Tree) LogLike() float64 {
 	root := t.nodes[t.t.Root()]
 	ts := root.stages[0]
+	age := t.landscape.ClosestStageAge(ts.age)
+	stage := t.landscape.Stage(age)
 
 	max := -math.MaxFloat64
-	for _, p := range ts.logLike {
+	var scale float64
+	for px, p := range ts.logLike {
 		if p > max {
 			max = p
 		}
+		scale += t.pp.Prior(stage[px])
 	}
 
+	// We do not multiply the prior,
+	// as the prior is already taken into account
+	// in method (*node)conditional().
 	var sum float64
 	for _, p := range ts.logLike {
 		sum += math.Exp(p - max)
 	}
-	return math.Log(sum) + max
+	return math.Log(sum) + max - math.Log(scale)
 }
 
 // Name returns the name of the tree.
