@@ -8,7 +8,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 )
 
 // Rotate rotates a log-map using a rotation map.
@@ -35,8 +35,8 @@ func rotate(rot map[int][]int, rng map[int]float64) map[int]float64 {
 
 // RotPix rotates a pixel at a given age to the next age stage.
 // If there are multiple destinations,
-// it will pick a destination based on the prior of the destination pixels.
-func rotPix(rot *model.StageRot, ts *model.TimePix, pix int, age int64, pp pixprob.Pixel) int {
+// it will pick a destination based on the weight of the destination pixels.
+func rotPix(rot *model.StageRot, ts *model.TimePix, pix int, age int64, pw pixweight.Pixel) int {
 	rm := rot.OldToYoung(age)
 	if rm == nil {
 		return pix
@@ -51,15 +51,15 @@ func rotPix(rot *model.StageRot, ts *model.TimePix, pix int, age int64, pp pixpr
 	tp := ts.Stage(ts.ClosestStageAge(age - 1))
 	var max float64
 	for _, px := range pxs {
-		prior := pp.Prior(tp[px])
-		if prior > max {
-			max = prior
+		weight := pw.Weight(tp[px])
+		if weight > max {
+			max = weight
 		}
 	}
 
 	for {
 		px := pxs[rand.IntN(len(pxs))]
-		accept := pp.Prior(tp[px]) / max
+		accept := pw.Weight(tp[px]) / max
 		if rand.Float64() < accept {
 			return px
 		}

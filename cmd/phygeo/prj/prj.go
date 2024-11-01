@@ -15,7 +15,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
@@ -69,9 +69,9 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	ppF := p.Path(project.PixPrior)
-	if ppF != "" {
-		if err := readPriors(c.Stdout(), ppF); err != nil {
+	pwF := p.Path(project.PixWeight)
+	if pwF != "" {
+		if err := readPixWeights(c.Stdout(), pwF); err != nil {
 			return err
 		}
 	}
@@ -177,21 +177,21 @@ func readTimeStages(w io.Writer, name string, stages timestage.Stages) error {
 	return nil
 }
 
-func readPriors(w io.Writer, name string) error {
+func readPixWeights(w io.Writer, name string) error {
 	f, err := os.Open(name)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	pp, err := pixprob.ReadTSV(f)
+	pw, err := pixweight.ReadTSV(f)
 	if err != nil {
 		return fmt.Errorf("when reading %q: %v", name, err)
 	}
 
-	fmt.Fprintf(w, "Pixel priors:\n")
+	fmt.Fprintf(w, "Pixel weights:\n")
 	fmt.Fprintf(w, "\tfile: %s\n", name)
-	fmt.Fprintf(w, "\tdefined pixel types: %d\n", len(pp.Values()))
+	fmt.Fprintf(w, "\tdefined pixel types: %d\n", len(pw.Values()))
 	fmt.Fprintf(w, "\n")
 
 	return nil

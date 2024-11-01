@@ -2,9 +2,9 @@
 // All rights reserved.
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
-// Package prior implements a command to manage
-// pixel priors defined for a project.
-package prior
+// Package weights implements a command to manage
+// pixel weights defined for a project.
+package weights
 
 import (
 	"fmt"
@@ -17,40 +17,42 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 )
 
 var Command = &command.Command{
-	Usage: "prior [--add <file>] [--set <value>] <project-file>",
-	Short: "manage pixel priors",
+	Usage: "weights [--add <file>] [--set <value>] <project-file>",
+	Short: "manage pixel weights",
 	Long: `
-Command prior manage pixel priors defined for a PhyGeo project.
+Command prior manage pixel normalized weights defined for a PhyGeo project.
+The weight is a form of normalized prior for the pixel, so the maximum value
+is always 1.0.
 
 The argument of the command is the name of the project file.
 
-By default, the command will print the currently defined pixel priors into the
-standard output. If the flag --add is defined, the indicated file will be used
-as the pixel prior of the project.
+By default, the command will print the currently defined pixel weights into
+the standard output. If the flag --add is defined, the indicated file will be
+used as the pixel weights of the project.
 
-If the flag --set is defined, it will set a pixel prior to a raster value. The
-sintaxis of the definition is:
+If the flag --set is defined, it will set a pixel weight to a raster value.
+The sintaxis of the definition is:
 
 	<value>=<probability>
 
-If there is no pixel prior file defined in the project, a new file will be
-created using the project file name as a prefix and "-pix-prior.tab" as a
+If there is no pixel weights file defined in the project, a new file will be
+created using the project file name as a prefix and "-pix-weights.tab" as a
 suffix.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
-var priorFile string
+var weightsFile string
 var setFlag string
 
 func setFlags(c *command.Command) {
-	c.Flags().StringVar(&priorFile, "add", "", "")
+	c.Flags().StringVar(&weightsFile, "add", "", "")
 	c.Flags().StringVar(&setFlag, "set", "", "")
 }
 
@@ -64,11 +66,11 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	if priorFile != "" {
-		if _, err := readPriorFile(priorFile); err != nil {
+	if weightsFile != "" {
+		if _, err := readPriorFile(weightsFile); err != nil {
 			return err
 		}
-		p.Add(project.PixPrior, priorFile)
+		p.Add(project.PixWeight, weightsFile)
 		if err := p.Write(args[0]); err != nil {
 			return err
 		}
@@ -76,63 +78,63 @@ func run(c *command.Command, args []string) error {
 	}
 
 	if setFlag != "" {
-		pp := pixprob.New()
-		ppF := p.Path(project.PixPrior)
-		if ppF != "" {
-			pp, err = readPriorFile(p.Path(project.PixPrior))
+		pw := pixweight.New()
+		pwF := p.Path(project.PixWeight)
+		if pwF != "" {
+			pw, err = readPriorFile(p.Path(project.PixWeight))
 			if err != nil {
 				return err
 			}
 		} else {
-			ppF = makePixPriorFileName(args[0])
+			pwF = makePixPriorFileName(args[0])
 		}
 
 		k, prob, err := getKeyProb()
 		if err != nil {
 			return err
 		}
-		pp.Set(k, prob)
+		pw.Set(k, prob)
 
-		if err := writePPF(ppF, pp); err != nil {
+		if err := writePWF(pwF, pw); err != nil {
 			return err
 		}
-		p.Add(project.PixPrior, ppF)
+		p.Add(project.PixWeight, pwF)
 		if err := p.Write(args[0]); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	ppF := p.Path(project.PixPrior)
-	if ppF == "" {
+	pwF := p.Path(project.PixWeight)
+	if pwF == "" {
 		if tp := p.Path(project.Landscape); tp != "" {
-			pp := pixprob.New()
-			if err := reportWithLandscape(c.Stderr(), tp, pp); err != nil {
+			pw := pixweight.New()
+			if err := reportWithLandscape(c.Stderr(), tp, pw); err != nil {
 				return err
 			}
 		}
-		return fmt.Errorf("pixel prior undefined for project %q", args[0])
+		return fmt.Errorf("pixel weights undefined for project %q", args[0])
 	}
 
-	pp, err := readPriorFile(p.Path(project.PixPrior))
+	pw, err := readPriorFile(p.Path(project.PixWeight))
 	if err != nil {
 		return err
 	}
 	if tp := p.Path(project.Landscape); tp != "" {
-		if err := reportWithLandscape(c.Stdout(), tp, pp); err != nil {
+		if err := reportWithLandscape(c.Stdout(), tp, pw); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	for _, v := range pp.Values() {
-		fmt.Fprintf(c.Stdout(), "%d\t%.6f\n", v, pp.Prior(v))
+	for _, v := range pw.Values() {
+		fmt.Fprintf(c.Stdout(), "%d\t%.6f\n", v, pw.Weight(v))
 	}
 
 	return nil
 }
 
-func reportWithLandscape(w io.Writer, name string, pp pixprob.Pixel) error {
+func reportWithLandscape(w io.Writer, name string, pw pixweight.Pixel) error {
 	tp, err := readLandscape(name)
 	if err != nil {
 		return err
@@ -148,7 +150,7 @@ func reportWithLandscape(w io.Writer, name string, pp pixprob.Pixel) error {
 	val[0] = true
 
 	notLand := make(map[int]bool)
-	for _, v := range pp.Values() {
+	for _, v := range pw.Values() {
 		if val[v] {
 			continue
 		}
@@ -163,29 +165,29 @@ func reportWithLandscape(w io.Writer, name string, pp pixprob.Pixel) error {
 	slices.Sort(pv)
 
 	for _, v := range pv {
-		p := pp.Prior(v)
+		wt := pw.Weight(v)
 		if notLand[v] {
-			fmt.Fprintf(w, "%d\t%.6f\tpixel value not in landscape\n", v, p)
+			fmt.Fprintf(w, "%d\t%.6f\tpixel value not in landscape\n", v, wt)
 			continue
 		}
-		if p == 0 {
-			fmt.Fprintf(w, "%d\t%.6f\tpixel prior undefined\n", v, p)
+		if wt == 0 {
+			fmt.Fprintf(w, "%d\t%.6f\tpixel weight undefined\n", v, wt)
 			continue
 		}
-		fmt.Fprintf(w, "%d\t%.6f\n", v, p)
+		fmt.Fprintf(w, "%d\t%.6f\n", v, wt)
 	}
 
 	return nil
 }
 
-func readPriorFile(name string) (pixprob.Pixel, error) {
+func readPriorFile(name string) (pixweight.Pixel, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	pp, err := pixprob.ReadTSV(f)
+	pp, err := pixweight.ReadTSV(f)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
@@ -234,7 +236,7 @@ func getKeyProb() (key int, prob float64, err error) {
 	return key, prob, nil
 }
 
-func writePPF(name string, pp pixprob.Pixel) (err error) {
+func writePWF(name string, pw pixweight.Pixel) (err error) {
 	var f *os.File
 	f, err = os.Create(name)
 	if err != nil {
@@ -247,7 +249,7 @@ func writePPF(name string, pp pixprob.Pixel) (err error) {
 		}
 	}()
 
-	if err := pp.TSV(f); err != nil {
+	if err := pw.TSV(f); err != nil {
 		return err
 	}
 	return nil

@@ -11,7 +11,7 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 )
 
 type likeChanType struct {
@@ -49,7 +49,7 @@ func calcPixLike(c likePixData, pix int, lnLike []float64) float64 {
 	for _, cL := range c.like {
 		dist := c.dm.At(pix, cL.px)
 		p := c.pdf.ScaledProbRingDist(dist)
-		scale += p * cL.prior
+		scale += p * cL.weight
 		sum += p * cL.like
 	}
 
@@ -64,7 +64,7 @@ func calcPixLike(c likePixData, pix int, lnLike []float64) float64 {
 	for _, cL := range c.like {
 		dist := c.dm.At(pix, cL.px)
 		p := c.pdf.LogProbRingDist(dist) + cL.logLike
-		scale += c.pdf.ProbRingDist(dist) * cL.prior
+		scale += c.pdf.ProbRingDist(dist) * cL.weight
 		if p > maxLn {
 			maxLn = p
 		}
@@ -139,7 +139,7 @@ func (n *node) conditional(t *Tree, pixTmp []likePix, resTmp []likeResult) {
 		// set the pixels priors at the root
 		rs := n.stages[0]
 		tp := t.landscape.Stage(t.landscape.ClosestStageAge(rs.age))
-		rs.logLike = addPrior(rs.logLike, t.pp, tp)
+		rs.logLike = addWeights(rs.logLike, t.pw, tp)
 	}
 }
 
@@ -148,7 +148,7 @@ type likePix struct {
 	px      int     // Pixel ID
 	like    float64 // conditional likelihood
 	logLike float64
-	prior   float64 // pixel prior
+	weight  float64 // pixel weight
 }
 
 // pixel blocks
@@ -166,13 +166,13 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix, resTmp []
 
 	// update descendant log like
 	// with the arrival priors
-	endLike, max := prepareLogLikePix(ts.logLike, t.pp, stage, pixTmp)
+	endLike, max := prepareLogLikePix(ts.logLike, t.pw, stage, pixTmp)
 
 	// reset result slice
 	resTmp = resTmp[:0]
 	for px := range stage {
-		// skip pixels with 0 prior
-		if t.pp.Prior(stage[px]) == 0 {
+		// skip pixels with 0 weight
+		if t.pw.Weight(stage[px]) == 0 {
 			continue
 		}
 
@@ -226,30 +226,30 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix, resTmp []
 	return logLike
 }
 
-func addPrior(logLike map[int]float64, prior pixprob.Pixel, tp map[int]int) map[int]float64 {
+func addWeights(logLike map[int]float64, weight pixweight.Pixel, tp map[int]int) map[int]float64 {
 	add := make(map[int]float64, len(logLike))
 	for px, p := range logLike {
 		v := tp[px]
-		if pp := prior.Prior(v); pp == 0 {
+		if pw := weight.Weight(v); pw == 0 {
 			continue
 		}
-		add[px] = p + prior.LogPrior(v)
+		add[px] = p + weight.LogWeight(v)
 	}
 
 	return add
 }
 
 // PrepareLogLikePix takes a map of pixels and conditional likelihoods,
-// add the prior of each pixel
+// add the weight of each pixel
 // and return an array with the pixels and its normalized (non-log) conditional likelihoods,
 // and the normalization factor (in log form).
-func prepareLogLikePix(logLike map[int]float64, prior pixprob.Pixel, tp map[int]int, lp []likePix) ([]likePix, float64) {
+func prepareLogLikePix(logLike map[int]float64, weight pixweight.Pixel, tp map[int]int, lp []likePix) ([]likePix, float64) {
 	max := -math.MaxFloat64
 	lp = lp[:0]
 
 	for px, v := range tp {
-		pp := prior.Prior(v)
-		if pp == 0 {
+		pw := weight.Weight(v)
+		if pw == 0 {
 			continue
 		}
 
@@ -257,13 +257,13 @@ func prepareLogLikePix(logLike map[int]float64, prior pixprob.Pixel, tp map[int]
 		if !ok {
 			p = -math.MaxFloat64
 		} else {
-			p += prior.LogPrior(v)
+			p += weight.LogWeight(v)
 		}
 		lp = append(lp, likePix{
 			px:      px,
 			like:    p,
 			logLike: p,
-			prior:   pp,
+			weight:  pw,
 		})
 		if p > max {
 			max = p

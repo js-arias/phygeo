@@ -13,7 +13,7 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
@@ -27,7 +27,7 @@ Command remove reads the trees and geographic ranges from a PhyGeo project and
 removes all tree terminals without a valid records.
 
 To be valid, a terminal must have at least a single record defined on a pixel
-in which the landscape value has a prior greater than zero.
+in which the landscape value has a weight greater than zero.
 
 The name of the removed terminal will be printed on the screen.
 	`,
@@ -66,12 +66,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	ppF := p.Path(project.PixPrior)
-	if ppF == "" {
-		msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
+	pwF := p.Path(project.PixWeight)
+	if pwF == "" {
+		msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
 		return c.UsageError(msg)
 	}
-	pp, err := readPriors(ppF)
+	pw, err := readPixWeights(pwF)
 	if err != nil {
 		return err
 	}
@@ -101,8 +101,8 @@ func run(c *command.Command, args []string) error {
 				valid := false
 				for px := range rng {
 					v := lsc[px]
-					prior := pp.Prior(v)
-					if prior > 0 {
+					weight := pw.Weight(v)
+					if weight > 0 {
 						valid = true
 						break
 					}
@@ -164,19 +164,19 @@ func readLandscape(name string) (*model.TimePix, error) {
 	return tp, nil
 }
 
-func readPriors(name string) (pixprob.Pixel, error) {
+func readPixWeights(name string) (pixweight.Pixel, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	pp, err := pixprob.ReadTSV(f)
+	pw, err := pixweight.ReadTSV(f)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
 
-	return pp, nil
+	return pw, nil
 }
 
 func readTreeFile(name string) (*timetree.Collection, error) {

@@ -14,7 +14,7 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
@@ -32,8 +32,8 @@ type Param struct {
 	// Distance matrix
 	DM *earth.DistMat
 
-	// Pixel priors
-	PP pixprob.Pixel
+	// Pixel weights
+	PW pixweight.Pixel
 
 	// Ranges is the collection of terminal ranges
 	Ranges *ranges.Collection
@@ -57,7 +57,7 @@ type Tree struct {
 	landscape *model.TimePix
 	rot       *model.StageRot
 	dm        *earth.DistMat
-	pp        pixprob.Pixel
+	pw        pixweight.Pixel
 }
 
 // New creates a new tree by copying the indicated source tree.
@@ -72,7 +72,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		landscape: p.Landscape,
 		rot:       p.Rot,
 		dm:        p.DM,
-		pp:        p.PP,
+		pw:        p.PW,
 	}
 
 	root := &node{
@@ -165,11 +165,11 @@ func (t *Tree) LogLike() float64 {
 		if p > max {
 			max = p
 		}
-		scale += t.pp.Prior(stage[px])
+		scale += t.pw.Weight(stage[px])
 	}
 
-	// We do not multiply the prior,
-	// as the prior is already taken into account
+	// We do not multiply the pixel weights,
+	// as the weight is already taken into account
 	// in method (*node)conditional().
 	var sum float64
 	for _, p := range ts.logLike {

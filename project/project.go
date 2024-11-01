@@ -32,8 +32,9 @@ const (
 	// of the paleogeographic reconstruction.
 	GeoMotion Dataset = "geomotion"
 
-	// File for pixel prior probability values.
-	PixPrior Dataset = "pixprior"
+	// File for pixel normalized weights
+	// (a form of pixel prior).
+	PixWeight Dataset = "pixweight"
 
 	// File for geographic distribution ranges
 	// of the taxa in the project.
@@ -80,7 +81,7 @@ var header = []string{
 //	# phygeo project files
 //	dataset	path
 //	geomotion	geo-motion.tab
-//	pixprior	pix-prior.tab
+//	pixweight	pix-weights.tab
 //	ranges	ranges.tab
 //	landscape	landscape.tab
 //	trees	trees.tab

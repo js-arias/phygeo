@@ -25,7 +25,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 )
 
@@ -107,18 +107,18 @@ func run(c *command.Command, args []string) error {
 
 	tp := "freq"
 	if kdeLambda > 0 {
-		var pp pixprob.Pixel
-		ppF := p.Path(project.PixPrior)
-		if ppF == "" {
-			msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
+		var pw pixweight.Pixel
+		pwF := p.Path(project.PixWeight)
+		if pwF == "" {
+			msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
 			return c.UsageError(msg)
 		}
-		pp, err = readPriors(ppF)
+		pw, err = readPixWeights(pwF)
 		if err != nil {
 			return err
 		}
 
-		setKDE(rt, landscape, pp)
+		setKDE(rt, landscape, pw)
 		tp = "kde"
 	} else {
 		scale(rt)
@@ -160,19 +160,19 @@ func readLandscape(name string) (*model.TimePix, error) {
 	return tp, nil
 }
 
-func readPriors(name string) (pixprob.Pixel, error) {
+func readPixWeights(name string) (pixweight.Pixel, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	pp, err := pixprob.ReadTSV(f)
+	pw, err := pixweight.ReadTSV(f)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
 
-	return pp, nil
+	return pw, nil
 }
 
 type recTree struct {
@@ -316,9 +316,9 @@ type stageChan struct {
 	rec map[int]float64 // stage reconstruction
 }
 
-func makeKDE(in, out chan stageChan, wg *sync.WaitGroup, norm dist.Normal, landscape *model.TimePix, pp pixprob.Pixel) {
+func makeKDE(in, out chan stageChan, wg *sync.WaitGroup, norm dist.Normal, landscape *model.TimePix, pw pixweight.Pixel) {
 	for d := range in {
-		rec := stat.KDE(norm, d.rec, landscape, d.age, pp)
+		rec := stat.KDE(norm, d.rec, landscape, d.age, pw)
 		out <- stageChan{
 			t:   d.t,
 			n:   d.n,
@@ -329,10 +329,10 @@ func makeKDE(in, out chan stageChan, wg *sync.WaitGroup, norm dist.Normal, lands
 	}
 }
 
-func setKDE(rt map[string]*recTree, landscape *model.TimePix, prior pixprob.Pixel) {
-	pp := pixprob.New()
-	for _, v := range prior.Values() {
-		if prior.Prior(v) > 0 {
+func setKDE(rt map[string]*recTree, landscape *model.TimePix, weights pixweight.Pixel) {
+	pp := pixweight.New()
+	for _, v := range weights.Values() {
+		if weights.Weight(v) > 0 {
 			pp.Set(v, 1)
 		}
 	}

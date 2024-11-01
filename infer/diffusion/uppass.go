@@ -73,8 +73,8 @@ func (n *node) scaleLike(t *Tree, p int) {
 		max := -math.MaxFloat64
 		for px, p := range st.logLike {
 			v := tp[px]
-			// skip pixels with 0 prior
-			if pp := t.pp.Prior(v); pp == 0 {
+			// skip pixels with 0 weight
+			if pw := t.pw.Weight(v); pw == 0 {
 				continue
 			}
 
@@ -85,7 +85,7 @@ func (n *node) scaleLike(t *Tree, p int) {
 				}
 			}
 
-			p += t.pp.LogPrior(v)
+			p += t.pw.LogWeight(v)
 			st.scaled[px] = p
 			if p > max {
 				max = p
@@ -124,7 +124,7 @@ func (t *Tree) simulateRoot(p int, density []likePix) int {
 	}
 
 	dest := rs.pick(p, -1, max, density)
-	return rotPix(t.rot, t.landscape, dest, rs.age, t.pp)
+	return rotPix(t.rot, t.landscape, dest, rs.age, t.pw)
 }
 
 func (n *node) simulate(t *Tree, p, source int, density []likePix) {
@@ -165,7 +165,7 @@ func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
 
 	if len(density) > 0 {
 		dest := ts.pick(p, source, max, density)
-		return rotPix(t.rot, t.landscape, dest, ts.age, t.pp)
+		return rotPix(t.rot, t.landscape, dest, ts.age, t.pw)
 	}
 
 	// if density is 0 use an slow algorithm
@@ -187,7 +187,7 @@ func (ts *timeStage) simulate(t *Tree, p, source int, density []likePix) int {
 	}
 
 	dest := ts.pick(p, source, 1, density)
-	return rotPix(t.rot, t.landscape, dest, ts.age, t.pp)
+	return rotPix(t.rot, t.landscape, dest, ts.age, t.pw)
 }
 
 // Pick pixel picks a pixel from a destination density

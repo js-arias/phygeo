@@ -20,7 +20,7 @@ import (
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 )
@@ -89,12 +89,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	ppF := p.Path(project.PixPrior)
-	if ppF == "" {
-		msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
+	pwF := p.Path(project.PixWeight)
+	if pwF == "" {
+		msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
 		return c.UsageError(msg)
 	}
-	pp, err := readPriors(ppF)
+	pw, err := readPixWeights(pwF)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func run(c *command.Command, args []string) error {
 
 		px := rng.Range(tax)
 		age := rng.Age(tax)
-		kde := stat.KDE(n, px, landscape, age, pp)
+		kde := stat.KDE(n, px, landscape, age, pw)
 		taxKDE := make(map[int]float64)
 		for pt, p := range kde {
 			if p < 1-boundFlag {
@@ -189,19 +189,19 @@ func readLandscape(name string) (*model.TimePix, error) {
 	return tp, nil
 }
 
-func readPriors(name string) (pixprob.Pixel, error) {
+func readPixWeights(name string) (pixweight.Pixel, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	pp, err := pixprob.ReadTSV(f)
+	pw, err := pixweight.ReadTSV(f)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
 
-	return pp, nil
+	return pw, nil
 }
 
 func readRanges(name string) (*ranges.Collection, error) {

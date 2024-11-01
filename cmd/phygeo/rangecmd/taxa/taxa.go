@@ -15,7 +15,7 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
@@ -38,7 +38,7 @@ a landscape value with a prior probability greater than zero.
 If the flag --val is defined, and all the taxa has valid records, the command
 will finish silently. Otherwise, any invalid taxon (a taxon without valid
 records) will be reported. To be valid, a taxon must have, at least, one
-valid pixel.
+valid pixel (i.e. a pixel with a weight greater than zero).
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -106,12 +106,12 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 
-		ppF := p.Path(project.PixPrior)
-		if ppF == "" {
-			msg := fmt.Sprintf("pixel priors not defined in project %q", args[0])
+		pwF := p.Path(project.PixWeight)
+		if pwF == "" {
+			msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
 			return c.UsageError(msg)
 		}
-		pp, err := readPriors(ppF)
+		pw, err := readPixWeights(pwF)
 		if err != nil {
 			return err
 		}
@@ -127,7 +127,7 @@ func run(c *command.Command, args []string) error {
 			return nil
 		}
 
-		valCount(c.Stdout(), ls, coll, landscape, pp)
+		valCount(c.Stdout(), ls, coll, landscape, pw)
 		return nil
 	}
 
@@ -169,19 +169,19 @@ func readLandscape(name string) (*model.TimePix, error) {
 	return tp, nil
 }
 
-func readPriors(name string) (pixprob.Pixel, error) {
+func readPixWeights(name string) (pixweight.Pixel, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	pp, err := pixprob.ReadTSV(f)
+	pw, err := pixweight.ReadTSV(f)
 	if err != nil {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
 
-	return pp, nil
+	return pw, nil
 }
 
 func makeTermList(name string) ([]string, error) {
@@ -218,7 +218,7 @@ func makeTermList(name string) ([]string, error) {
 	return termList, nil
 }
 
-func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimePix, pp pixprob.Pixel) {
+func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimePix, pw pixweight.Pixel) {
 	for _, tax := range ls {
 		if !coll.HasTaxon(tax) {
 			if valFlag {
@@ -235,8 +235,8 @@ func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimeP
 		val := 0
 		for px := range rng {
 			v := lsc[px]
-			prior := pp.Prior(v)
-			if prior > 0 {
+			weight := pw.Weight(v)
+			if weight > 0 {
 				val++
 			}
 		}

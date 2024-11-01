@@ -10,7 +10,7 @@ import (
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixprob"
+	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/timetree"
 )
 
@@ -27,7 +27,7 @@ func NewSimData(t *timetree.Tree, p Param, spread float64) *Tree {
 		landscape: p.Landscape,
 		rot:       p.Rot,
 		dm:        p.DM,
-		pp:        p.PP,
+		pw:        p.PW,
 	}
 
 	root := &node{
@@ -61,19 +61,19 @@ func (t *Tree) startParticle(lambda float64) int {
 	px := -1
 	for {
 		px = pix.Random().ID()
-		accept := t.pp.Prior(stage[px])
+		accept := t.pw.Weight(stage[px])
 		if rand.Float64() < accept {
 			break
 		}
 	}
 
 	pdf := dist.NewNormal(lambda, pix)
-	prob := buildDensity(pix, pdf, t.dm, px, stage, t.pp)
+	prob := buildDensity(pix, pdf, t.dm, px, stage, t.pw)
 	rs.logLike = make(map[int]float64, len(prob))
 	for px, p := range prob {
 		rs.logLike[px] = math.Log(p)
 	}
-	return rotPix(t.rot, t.landscape, px, rs.age, t.pp)
+	return rotPix(t.rot, t.landscape, px, rs.age, t.pw)
 }
 
 func (n *node) centroidSimulation(t *Tree, source int, spread float64) {
@@ -99,32 +99,32 @@ func (ts *timeStage) centroidSimulation(t *Tree, source int, spread float64) int
 	stage := t.landscape.Stage(age)
 
 	pix := t.landscape.Pixelation()
-	density := buildDensity(pix, ts.pdf, t.dm, source, stage, t.pp)
+	density := buildDensity(pix, ts.pdf, t.dm, source, stage, t.pw)
 
 	centroid := pick(density)
 	pdf := dist.NewNormal(spread, pix)
-	prob := buildDensity(pix, pdf, t.dm, centroid, stage, t.pp)
+	prob := buildDensity(pix, pdf, t.dm, centroid, stage, t.pw)
 	ts.logLike = make(map[int]float64, len(prob))
 	for px, p := range prob {
 		ts.logLike[px] = math.Log(p)
 	}
-	return rotPix(t.rot, t.landscape, centroid, ts.age, t.pp)
+	return rotPix(t.rot, t.landscape, centroid, ts.age, t.pw)
 
 }
 
-func buildDensity(pix *earth.Pixelation, pdf dist.Normal, dm *earth.DistMat, source int, stage map[int]int, pp pixprob.Pixel) []float64 {
+func buildDensity(pix *earth.Pixelation, pdf dist.Normal, dm *earth.DistMat, source int, stage map[int]int, pw pixweight.Pixel) []float64 {
 	density := make([]float64, 0, pix.Len())
 	var max float64
 
 	if dm != nil {
 		// use distance matrix
 		for px := 0; px < pix.Len(); px++ {
-			prior := pp.Prior(stage[px])
-			if prior == 0 {
+			weight := pw.Weight(stage[px])
+			if weight == 0 {
 				density = append(density, 0)
 				continue
 			}
-			p := pdf.ProbRingDist(dm.At(source, px)) * prior
+			p := pdf.ProbRingDist(dm.At(source, px)) * weight
 			density = append(density, p)
 			if p > max {
 				max = p
@@ -134,14 +134,14 @@ func buildDensity(pix *earth.Pixelation, pdf dist.Normal, dm *earth.DistMat, sou
 		// use raw distance
 		pt1 := pix.ID(source).Point()
 		for px := 0; px < pix.Len(); px++ {
-			prior := pp.Prior(stage[px])
-			if prior == 0 {
+			weight := pw.Weight(stage[px])
+			if weight == 0 {
 				density = append(density, 0)
 				continue
 			}
 			pt2 := pix.ID(px).Point()
 			dist := earth.Distance(pt1, pt2)
-			p := pdf.Prob(dist) * prior
+			p := pdf.Prob(dist) * weight
 			density = append(density, p)
 			if p > max {
 				max = p

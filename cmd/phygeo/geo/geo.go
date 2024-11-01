@@ -11,8 +11,8 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/add"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/pixel"
-	"github.com/js-arias/phygeo/cmd/phygeo/geo/prior"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/stages"
+	"github.com/js-arias/phygeo/cmd/phygeo/geo/weights"
 )
 
 var Command = &command.Command{
@@ -24,13 +24,13 @@ func init() {
 	Command.Add(add.Command)
 	Command.Add(mapcmd.Command)
 	Command.Add(pixel.Command)
-	Command.Add(prior.Command)
 	Command.Add(stages.Command)
+	Command.Add(weights.Command)
 
 	// help guides
 	Command.Add(landscapeModelGuide)
 	Command.Add(motionModelGuide)
-	Command.Add(pixelPriorGuide)
+	Command.Add(pixelWeightsGuide)
 }
 
 var landscapeModelGuide = &command.Command{
@@ -45,7 +45,7 @@ tab-delimited files.
 
 There are two uses for the landscape models in PhyGeo. The first, and most
 important, is for the analysis. The landscape features are associated with
-pixel priors. Therefore, the landscape feature modifies the probability of
+pixel weights. Therefore, the landscape feature modifies the probability of
 assigning a pixel as part of the ancestral range. In the second usage, mapping
 commands use feature values to assign background colors.
 
@@ -121,29 +121,30 @@ indicated with the "geomotion" keyword.
 	`,
 }
 
-var pixelPriorGuide = &command.Command{
-	Usage: "pixel-priors",
-	Short: "about the pixel prior files",
+var pixelWeightsGuide = &command.Command{
+	Usage: "pixel-weights",
+	Short: "about the pixel weights files",
 	Long: `
-To take into account the landscape, each pixel must have a different prior, so
-some pixels will be more likely to be sampled than others based on the
+To take into account the landscape, each pixel must have a different weight,
+so some pixels will be more likely to be sampled than others based on the
 landscape features.
 
-In PhyGeo, such priors can be defined in a file for pixel prior values. The
-recommended way to interact with the priors is by using the command
-"phygeo geo prior", which can be used to add a pixel prior file, view the
-current priors, or set or edit values. See "phygeo help geo add" to learn
+In PhyGeo, such weights can be defined in a file for pixel weights values. The
+recommended way to interact with the weights is by using the command
+"phygeo geo weights", which can be used to add a pixel weights file, view the
+current weights, or set or edit values. See "phygeo help geo weights" to learn
 more.
   
-A pixel prior file is a tab-delimited file with the following fields:
+A pixel weights file is a tab-delimited file with the following fields:
   
-	- key    the value used as an identifier in the landscape model must 
-                 be an integer.
-	- prior  the prior of the pixel, it should be a value between 0 and 1.
+	- key     the value used as an identifier in the landscape model must
+                  be an integer.
+	- weight  the weight of the pixel, it should be a value between 0 and
+	          1.
   
 Here is an example file:
 
-	key	prior	comment
+	key	weight	comment
 	0	0.000000	deep ocean
 	1	0.010000	oceanic plateaus
 	2	0.050000	continental shelf
@@ -153,7 +154,7 @@ Here is an example file:
 
 In this case, the comment column will be ignored.
 
-In a PhyGeo project, the file that contains the pixel priors is indicated with
-the "pixprior" keyword.
+In a PhyGeo project, the file that contains the pixel weights is indicated with
+the "pixweight" keyword.
 `,
 }
