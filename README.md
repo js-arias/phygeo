@@ -1,6 +1,13 @@
 # PhyGeo
 
 `PhyGeo` is a tool for phylogenetic biogeography analysis.
+It implements a diffusion model
+that uses the explicit geographic locations of all the available records for the terminals
+and takes into account the landscape
+(in an approximate way)
+and a dynamic paleogeography
+that includes plate motion and changes in the landscape.
+The model is described in [Arias (2025)](https://doi.org/10.1093/sysbio/syae051).
 
 ## Installing
 
@@ -93,18 +100,20 @@ are quite specialized datasets,
 [here is a repository](https://github.com/js-arias/geomodels)
 with several models ready to be used with *PhyGeo*.
 
-To define the priors of the pixels,
-you must define a pixel prior file
-([here is an example](https://github.com/js-arias/schistanthe-data/blob/main/model-pix-prior.tab)
+To define the prior weights of the pixels,
+you must define a pixel weights file
+([here is an example](https://github.com/js-arias/schistanthe-data/blob/main/model-pix-weights.tab)
 of this kind of file)
 and then add it to the project:
 
 ```bash
-phygeo geo prior --add model-pix-prior.tab project.tab
+phygeo geo weights --add model-pix-weights.tab project.tab
 ```
 
 Phylogenetic trees in *PhyGeo* must be time-calibrated.
-The trees must be fully dichotomous.
+The tree might contain polytomies
+that will be interpreted as "hard polytomies"
+(i.e., simultaneous speciation).
 The preferred tree file is a tab-delimited file
 ([here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/rhodo-tree-360.tab)).
 To add a tree file,
@@ -140,8 +149,6 @@ Both files have the same format
 To import a set of records to a project,
 you must define a destination file
 (if it is the first set of records to be added),
-the kind of file
-(points or ranges),
 the project file,
 and one or more files with the records:
 
@@ -151,7 +158,7 @@ phygeo range add -f data-points.tab project.tab vireya-points.tab pseudovireya-p
 
 It is possible that your file with specimen records
 is a table with latitudes and longitudes
-or a table downloaded from GBIF.
+or a table downloaded from GBIF or PBDB.
 In such cases,
 you can import them using the flag --format:
 
@@ -167,6 +174,10 @@ Note that the pixelation used
 for the specimen records
 must be of the same resolution
 as the paleogeography models.
+
+If the dataset has fossils,
+it is important to rotate the fossil locations to their ancestral locations;
+this can be done with the command `range rotate`.
 
 To be sure that all terminals
 in all the trees
@@ -224,7 +235,7 @@ This analysis
 will create a new file with the prefix `p`
 (for example,
 'p-vireya-100.000000x1000.tab';
-[here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/ml-project-360.tab-vireya-150.000000x1000.tab).
+[here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/ml-project-360.tab-vireya-150.000000x1000.tab)).
 This file will contain all the simulated dispersal paths,
 so it is usually a large file.
 
@@ -244,53 +255,9 @@ when the step size is smaller than 1.0;
 you can set a more detailed bound
 (but with a larger execution time).
 
-Maybe
-you prefer a Bayesian analysis.
-As the only free parameter is the *lambda* value,
-you can make a simple integration:
-
-```bash
-phygeo diff integrate --min 100 --max 300 --parts 500 project.tab > log-like.tab
-```
-
-and then,
-using any program to read tab-delimited data
-(in this case `log-like.tab`,
-[here is an example file](https://github.com/js-arias/schistanthe-data/blob/main/vireya-integrate-360.tab)),
-you can provide the prior for *lambda*
-(or just use the integration output,
-assuming a flat uniform prior).
-
-To sample from the posterior
-(or for any distribution),
-you can use the same `diff integrate` command,
-but define a sampling function
-(at the moment,
-it just implements the [gamma distribution](https://en.wikipedia.org/wiki/Gamma_distribution)):
-
-```bash
-phygeo diff integrate --distribution "gamma=75,0.5" -p 100 --parts 1000 project.tab
-```
-
-In this execution,
-for each sample
-(it will make 1000,
-defined with the flag `--parts`),
-it will make 100 stochastic mappings
-(defined with the flag `-p`).
-The output will have the prefix
-`sample`
-(for example,
-`sample.tab-project.tab-vireya-sampling-1000x100.tab`).
-These files are usually large
-and are of the same format
-as the output files produced
-by the `diff particles` command.
-
 ### Working with the output
 
-The results of the `diff particles` command,
-or `diff integrate --distribution` command,
+The results of the `diff particles` command
 form the most important output of the program.
 These files contain one
 or more stochastic mappings
@@ -304,7 +271,9 @@ defined by the paleogeography model).
 We can transform the stochastic maps
 into pixel frequencies,
 which are the approximation
-of the pixel posterior at each node.
+of the empirical pixel posterior at each node
+(referred as the ancestral pixel probabilities
+in Arias, 2024).
 These frequencies can be raw
 (i.e., just counts of sampled pixels)
 or smoothed using a spherical KDE:
@@ -363,7 +332,7 @@ Use the command `diff speed`
 to retrieve general speed results:
 
 ```bash
-phygeo diff speed --tree speed --step 5 --box 5 -i ml-project.tab project.tab > speed.txt
+phygeo diff speed --tree speed --step 5 --box 5 -i p-vireya-100.000000x1000.tab project.tab > speed.txt
 ```
 
 This example
@@ -396,14 +365,14 @@ Arias, J.S. (2023)
 (available at: <https://github.com/js-arias/phygeo>).
 doi:[10.5281/zenodo.10636373](https://doi.org/10.5281/zenodo.10636373).
 
-The description of the method is available as a pre-print:
+The description of the method was published in *Systematic Biology*:
 
-Arias, J.S. (2023)
+Arias, J.S. (2024)
 Phylogenetic biogeography inference using dynamic paleogeography models and explicit geographic ranges.
-*BioRXiv* 2023.11.16.567427.
-doi:[10.1101/2023.11.16.567427](https://doi.org/10.1101/2023.11.16.567427).
+*Systematic Biology* **73**, 995-1014.
+doi:[10.1093/sysbio/syae051](https://doi.org/10.1093/sysbio/syae051).
 
-See the manuscript
+See the paper
 for more information about previous proposals for phylogenetic biogeography methods
 using explicit geographic ranges
 or the diffusion model.
