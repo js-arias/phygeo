@@ -381,7 +381,7 @@ or the diffusion model.
 
 - [Paleogeographic models for *PhyGeo*](https://github.com/js-arias/geomodels)
 - Sample *PhyGeo* datasets:
-  - [*Schistanthe* section of *Vireya*](https://github.com/js-arias/schistanthe-data/).
+  - [*Schistanthe* section of *Rhododendron*](https://github.com/js-arias/schistanthe-data/).
   - [Sapindaceae](https://github.com/js-arias/sapindaceae).
 - Other tools:
   - [GBIFer](https://github.com/js-arias/gbifer):
