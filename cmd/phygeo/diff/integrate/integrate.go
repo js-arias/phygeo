@@ -43,9 +43,11 @@ Command integrate reads a PhyGeo project, and makes a numerical integration of
 the likelihood function, using a diffusion model over a sphere, by reporting
 the log likelihood values of different values of lambda.
 
-By default, an stem branch will be added to each tree using the 10% of the root
-age. To set a different stem age use the flag --stem, the value should be in
-million years.
+By default, the inference of the root will use the pixel weights at the root
+time stage as pixel priors. Use the flag --stem, with a value in million
+years, to add a "root branch" with the indicated length. In that case the root
+pixels will be closer to the expected equilibrium of the model, at the cost of
+increasing computing time.
 
 The flags --min and --max defines the bounds for the values of the lambda
 (concentration) parameter of the spherical normal (equivalent to the kappa
@@ -208,11 +210,7 @@ func run(c *command.Command, args []string) error {
 		}
 		for _, tn := range tc.Names() {
 			t := tc.Tree(tn)
-			stem := int64(stemAge * 1_000_000)
-			if stem == 0 {
-				stem = t.Age(t.Root()) / 10
-			}
-			param.Stem = stem
+			param.Stem = int64(stemAge * 1_000_000)
 			if err := sample(c.Stdout(), args[0], t, param, r); err != nil {
 				return err
 			}
@@ -226,11 +224,7 @@ func run(c *command.Command, args []string) error {
 	}
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
-		stem := int64(stemAge * 1_000_000)
-		if stem == 0 {
-			stem = t.Age(t.Root()) / 10
-		}
-		param.Stem = stem
+		param.Stem = int64(stemAge * 1_000_000)
 		fnInt(c.Stdout(), t, param)
 	}
 

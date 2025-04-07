@@ -39,9 +39,11 @@ for the trees in the project.
 
 The argument of the command is the name of the project file.
 
-By default, a stem branch will be added to each tree using 10% of the root
-age. To set a different stem age, use the flag --stem; the value should be in
-million years.
+By default, the inference of the root will use the pixel weights at the root
+time stage as pixel priors. Use the flag --stem, with a value in million
+years, to add a "root branch" with the indicated length. In that case the root
+pixels will be closer to the expected equilibrium of the model, at the cost of
+increasing computing time.
 
 The flag --lambda defines the concentration parameter of the spherical normal
 (equivalent to the kappa parameter of the von Mises-Fisher distribution) for a
@@ -165,11 +167,7 @@ func run(c *command.Command, args []string) error {
 
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
-		stem := int64(stemAge * 1_000_000)
-		if stem == 0 {
-			stem = t.Age(t.Root()) / 10
-		}
-		param.Stem = stem
+		param.Stem = int64(stemAge * 1_000_000)
 		name := fmt.Sprintf("%s-%s-%.6f-down.tab", args[0], t.Name(), lambdaFlag)
 		if output != "" {
 			name = output + "-" + name

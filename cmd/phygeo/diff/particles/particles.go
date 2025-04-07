@@ -538,9 +538,21 @@ func writeUpPass(tsv *csv.Writer, p int, t *diffusion.Tree, lambda float64, eq i
 
 	for _, n := range nodes {
 		stages := t.Stages(n)
-		// skip the first stage
-		// (i.e. the post-split stage)
-		for i := 1; i < len(stages); i++ {
+		for i := range len(stages) {
+			if !t.IsRoot(n) {
+				// skip the first stage of the node
+				// (i.e. the "post-split")
+				if i == 0 {
+					continue
+				}
+			}
+			if t.IsRoot(n) {
+				// skip all root stages,
+				// except the split
+				if i < len(stages)-1 {
+					continue
+				}
+			}
 			a := stages[i]
 			st := t.SrcDest(n, p, a)
 			if st.From == -1 {

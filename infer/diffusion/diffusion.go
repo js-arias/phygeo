@@ -189,6 +189,12 @@ func (t *Tree) Nodes() []int {
 	return t.t.Nodes()
 }
 
+// IsRoot returns true
+// if the indicated node is the root of the tree.
+func (t *Tree) IsRoot(id int) bool {
+	return t.t.IsRoot(id)
+}
+
 // Particles return the number of particles
 // for a given nodes
 // at a give age stage
@@ -313,13 +319,15 @@ func (n *node) copySource(t *Tree, tp *model.TimePix, stem int64, stages []int64
 
 	// post-split
 	prev := nAge + stem
-	if !t.t.IsRoot(n.id) {
-		prev = t.t.Age(t.t.Parent(n.id))
+	if !t.t.IsRoot(n.id) || stem > 0 {
+		if !t.t.IsRoot(n.id) {
+			prev = t.t.Age(t.t.Parent(n.id))
+		}
+		n.stages = append(n.stages, &timeStage{
+			node: n,
+			age:  prev,
+		})
 	}
-	n.stages = append(n.stages, &timeStage{
-		node: n,
-		age:  prev,
-	})
 
 	// add time stage
 	for i := len(stages) - 1; i >= 0; i-- {

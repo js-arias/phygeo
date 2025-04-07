@@ -41,9 +41,11 @@ default, the initial step has a value of 100, use the flag --step to change
 the value. At each cycle the step value is reduced a 50%, and stop when step
 has a size of 1. Use flag --stop to set a different stop value.
 
-By default, an stem branch will be added to each tree using the 10% of the root
-age. To set a different stem age use the flag --stem, the value should be in
-million years.
+By default, the inference of the root will use the pixel weights at the root
+time stage as pixel priors. Use the flag --stem, with a value in million
+years, to add a "root branch" with the indicated length. In that case the root
+pixels will be closer to the expected equilibrium of the model, at the cost of
+increasing computing time.
 
 By default, all available CPUs will be used in the processing. Set --cpu flag
 to use a different number of CPUs.
@@ -154,11 +156,7 @@ func run(c *command.Command, args []string) error {
 	fmt.Fprintf(c.Stdout(), "tree\tlambda\tstdDev\tlogLike\tstep\n")
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
-		stem := int64(stemAge * 1_000_000)
-		if stem == 0 {
-			stem = t.Age(t.Root()) / 10
-		}
-		param.Stem = stem
+		param.Stem = int64(stemAge * 1_000_000)
 
 		b := &bestRec{
 			lambda:  lambdaFlag,
