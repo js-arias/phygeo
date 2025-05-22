@@ -131,7 +131,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	p.Add(project.Stages, stF)
-	if err := p.Write(args[0]); err != nil {
+	if err := p.Write(); err != nil {
 		return err
 	}
 	return nil

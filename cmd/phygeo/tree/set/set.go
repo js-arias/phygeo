@@ -72,13 +72,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	tf := p.Path(project.Trees)
-	if tf == "" {
-		msg := fmt.Sprintf("tree file not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-
-	tc, err := readTreeFile(tf)
+	tc, err := p.Trees()
 	if err != nil {
 		return err
 	}
@@ -93,7 +87,7 @@ func run(c *command.Command, args []string) error {
 		return nil
 	}
 
-	if err := writeTrees(tc, tf); err != nil {
+	if err := writeTrees(tc, p.Path(project.Trees)); err != nil {
 		return err
 	}
 	return nil
@@ -108,20 +102,6 @@ func termsToZero(c *timetree.Collection) {
 		}
 	}
 	changes = true
-}
-
-func readTreeFile(name string) (*timetree.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	c, err := timetree.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading file %q: %v", name, err)
-	}
-	return c, nil
 }
 
 func setAges(c *timetree.Collection) error {

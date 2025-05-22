@@ -54,12 +54,14 @@ const (
 // A Project represents a collection of paths
 // for particular datasets.
 type Project struct {
+	name  string
 	paths map[Dataset]string
 }
 
 // New creates a new empty project.
 func New() *Project {
 	return &Project{
+		name:  "",
 		paths: make(map[Dataset]string),
 	}
 }
@@ -112,6 +114,7 @@ func Read(name string) (*Project, error) {
 	}
 
 	p := New()
+	p.name = name
 	for {
 		row, err := tsv.Read()
 		if errors.Is(err, io.EOF) {
@@ -162,9 +165,14 @@ func (p *Project) Sets() []Dataset {
 	return sets
 }
 
-// Write writes a project into a file with the indicated name.
-func (p *Project) Write(name string) (err error) {
-	f, err := os.Create(name)
+// SetName sets the project file name.
+func (p *Project) SetName(name string) {
+	p.name = name
+}
+
+// Write writes a project into a file.
+func (p *Project) Write() (err error) {
+	f, err := os.Create(p.name)
 	if err != nil {
 		return err
 	}
@@ -183,7 +191,7 @@ func (p *Project) Write(name string) (err error) {
 	tsv.UseCRLF = true
 
 	if err := tsv.Write(header); err != nil {
-		return fmt.Errorf("on file %q: while writing header: %v", name, err)
+		return fmt.Errorf("on file %q: while writing header: %v", p.name, err)
 	}
 
 	sets := p.Sets()
@@ -193,16 +201,16 @@ func (p *Project) Write(name string) (err error) {
 			p.paths[s],
 		}
 		if err := tsv.Write(row); err != nil {
-			return fmt.Errorf("on file %q: %v", name, err)
+			return fmt.Errorf("on file %q: %v", p.name, err)
 		}
 	}
 
 	tsv.Flush()
 	if err := tsv.Error(); err != nil {
-		return fmt.Errorf("on file %q: while writing data: %v", name, err)
+		return fmt.Errorf("on file %q: while writing data: %v", p.name, err)
 	}
 	if err := bw.Flush(); err != nil {
-		return fmt.Errorf("on file %q: while writing data: %v", name, err)
+		return fmt.Errorf("on file %q: while writing data: %v", p.name, err)
 	}
 	return nil
 }

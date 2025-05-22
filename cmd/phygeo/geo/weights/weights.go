@@ -71,7 +71,7 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 		p.Add(project.PixWeight, weightsFile)
-		if err := p.Write(args[0]); err != nil {
+		if err := p.Write(); err != nil {
 			return err
 		}
 		return nil
@@ -99,7 +99,7 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 		p.Add(project.PixWeight, pwF)
-		if err := p.Write(args[0]); err != nil {
+		if err := p.Write(); err != nil {
 			return err
 		}
 		return nil

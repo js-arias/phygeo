@@ -127,7 +127,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 	p.Add(project.Trees, treeFile)
-	if err := p.Write(pFile); err != nil {
+	if err := p.Write(); err != nil {
 		return err
 	}
 
@@ -137,7 +137,9 @@ func run(c *command.Command, args []string) error {
 func openProject(name string) (*project.Project, error) {
 	p, err := project.Read(name)
 	if errors.Is(err, os.ErrNotExist) {
-		return project.New(), nil
+		p := project.New()
+		p.SetName(name)
+		return p, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable ot open project %q: %v", name, err)

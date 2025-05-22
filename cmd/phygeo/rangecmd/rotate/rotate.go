@@ -11,7 +11,6 @@ import (
 	"os"
 
 	"github.com/js-arias/command"
-	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
@@ -57,18 +56,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rotF := p.Path(project.GeoMotion)
-	if rotF == "" {
-		msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	tot, err := readRotation(rotF)
+	tot, err := p.TotalRotation(nil, false)
 	if err != nil {
 		return err
 	}
 
-	pf := p.Path(project.Ranges)
-	pts, err := readRanges(pf)
+	pts, err := p.Ranges(tot.Pixelation())
 	if err != nil {
 		return err
 	}
@@ -105,12 +98,7 @@ func run(c *command.Command, args []string) error {
 		pts.SetPixels(tax, a, n)
 	}
 
-	if err := writeCollection(pf, pts); err != nil {
-		return err
-	}
-	p.Add(project.Ranges, pf)
-
-	if err := p.Write(pFile); err != nil {
+	if err := writeCollection(p.Path(project.Ranges), pts); err != nil {
 		return err
 	}
 	return nil
@@ -148,36 +136,6 @@ func readTermAges(name string) (map[string]int64, error) {
 	}
 
 	return ages, nil
-}
-
-func readRotation(name string) (*model.Total, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	rot, err := model.ReadTotal(f, nil, false)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return rot, nil
-}
-
-func readRanges(name string) (*ranges.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	coll, err := ranges.ReadTSV(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return coll, nil
 }
 
 func writeCollection(name string, coll *ranges.Collection) (err error) {

@@ -38,7 +38,8 @@ func TestProject(t *testing.T) {
 	name := "tmp-project-for-test.tab"
 	defer os.Remove(name)
 
-	if err := p.Write(name); err != nil {
+	p.SetName(name)
+	if err := p.Write(); err != nil {
 		t.Fatalf("error when writing data: %v", err)
 	}
 

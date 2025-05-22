@@ -12,10 +12,7 @@ import (
 	"os"
 
 	"github.com/js-arias/command"
-	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
-	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
 
@@ -44,11 +41,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Ranges)
-	if rf == "" {
-		return nil
+	landscape, err := p.Landscape(nil)
+	if err != nil {
+		return err
 	}
-	coll, err := readRanges(rf)
+
+	coll, err := p.Ranges(landscape.Pixelation())
 	if err != nil {
 		return err
 	}
@@ -56,32 +54,12 @@ func run(c *command.Command, args []string) error {
 		return nil
 	}
 
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("paleolandscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	pw, err := p.PixWeight()
 	if err != nil {
 		return err
 	}
 
-	pwF := p.Path(project.PixWeight)
-	if pwF == "" {
-		msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	pw, err := readPixWeights(pwF)
-	if err != nil {
-		return err
-	}
-
-	tf := p.Path(project.Trees)
-	if tf == "" {
-		msg := fmt.Sprintf("tree file not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	tc, err := readTreeFile(tf)
+	tc, err := p.Trees()
 	if err != nil {
 		return err
 	}
@@ -128,69 +106,10 @@ func run(c *command.Command, args []string) error {
 		return nil
 	}
 
-	if err := writeTrees(tc, tf); err != nil {
+	if err := writeTrees(tc, p.Path(project.Trees)); err != nil {
 		return err
 	}
 	return nil
-}
-
-func readRanges(name string) (*ranges.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	coll, err := ranges.ReadTSV(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return coll, nil
-}
-
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
-}
-
-func readPixWeights(name string) (pixweight.Pixel, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	pw, err := pixweight.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return pw, nil
-}
-
-func readTreeFile(name string) (*timetree.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	c, err := timetree.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading file %q: %v", name, err)
-	}
-	return c, nil
 }
 
 func writeTrees(tc *timetree.Collection, treeFile string) (err error) {

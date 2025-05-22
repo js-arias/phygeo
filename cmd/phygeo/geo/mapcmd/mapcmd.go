@@ -88,12 +88,7 @@ func run(c *command.Command, args []string) error {
 
 	// plate motion model
 	if plates {
-		recF := p.Path(project.GeoMotion)
-		if recF == "" {
-			msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
-			return c.UsageError(msg)
-		}
-		rec, err := readRecons(recF)
+		rec, err := p.GeoMotion(nil)
 		if err != nil {
 			return err
 		}
@@ -120,12 +115,7 @@ func run(c *command.Command, args []string) error {
 	}
 
 	// paleo-landscape model
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	landscape, err := p.Landscape(nil)
 	if err != nil {
 		return err
 	}
@@ -159,34 +149,6 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 	return nil
-}
-
-func readRecons(name string) (*model.Recons, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-
-	rec, err := model.ReadReconsTSV(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("when reading file %q: %v", name, err)
-	}
-	return rec, nil
-}
-
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
 }
 
 // A stageModel stores the pixelation of a paleogeographic model.

@@ -8,7 +8,6 @@ package pixel
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/js-arias/command"
@@ -51,24 +50,14 @@ func run(c *command.Command, args []string) error {
 		return c.UsageError("expecting <latitude> <longitude> arguments")
 	}
 
-	recF := p.Path(project.GeoMotion)
-	if recF == "" {
-		msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	rec, err := readRecons(recF)
+	rec, err := p.GeoMotion(nil)
 	if err != nil {
 		return err
 	}
 	pix := rec.Pixelation()
 
 	// paleo-landscape model
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf, pix)
+	landscape, err := p.Landscape(pix)
 	if err != nil {
 		return err
 	}
@@ -115,34 +104,6 @@ func run(c *command.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func readRecons(name string) (*model.Recons, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-
-	rec, err := model.ReadReconsTSV(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("when reading file %q: %v", name, err)
-	}
-	return rec, nil
-}
-
-func readLandscape(name string, pix *earth.Pixelation) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, pix)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
 }
 
 func plates(rec *model.Recons, px int) []int {

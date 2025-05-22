@@ -16,7 +16,6 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
-	"github.com/js-arias/timetree"
 )
 
 var Command = &command.Command{
@@ -96,12 +95,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	tf := p.Path(project.Trees)
-	if tf == "" {
-		return nil
-	}
-
-	tc, err := readTreeFile(tf)
+	tc, err := p.Trees()
 	if err != nil {
 		return err
 	}
@@ -114,20 +108,6 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 	return nil
-}
-
-func readTreeFile(name string) (*timetree.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	c, err := timetree.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading file %q: %v", name, err)
-	}
-	return c, nil
 }
 
 func writeSVG(name string, t svgTree) (err error) {

@@ -17,10 +17,8 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
 )
@@ -79,22 +77,12 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	landscape, err := p.Landscape(nil)
 	if err != nil {
 		return err
 	}
 
-	pwF := p.Path(project.PixWeight)
-	if pwF == "" {
-		msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	pw, err := readPixWeights(pwF)
+	pw, err := p.PixWeight()
 	if err != nil {
 		return err
 	}
@@ -157,7 +145,7 @@ func run(c *command.Command, args []string) error {
 	}
 	p.Add(project.Ranges, outFile)
 
-	if err := p.Write(pFile); err != nil {
+	if err := p.Write(); err != nil {
 		return err
 	}
 	return nil
@@ -166,42 +154,14 @@ func run(c *command.Command, args []string) error {
 func openProject(name string) (*project.Project, error) {
 	p, err := project.Read(name)
 	if errors.Is(err, os.ErrNotExist) {
-		return project.New(), nil
+		p := project.New()
+		p.SetName(name)
+		return p, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable ot open project %q: %v", name, err)
 	}
 	return p, nil
-}
-
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
-}
-
-func readPixWeights(name string) (pixweight.Pixel, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	pw, err := pixweight.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return pw, nil
 }
 
 func readRanges(name string) (*ranges.Collection, error) {

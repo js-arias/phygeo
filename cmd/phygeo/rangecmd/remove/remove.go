@@ -14,7 +14,6 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/ranges"
-	"github.com/js-arias/timetree"
 )
 
 var Command = &command.Command{
@@ -42,11 +41,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	rf := p.Path(project.Ranges)
-	if rf == "" {
-		return nil
-	}
-	coll, err := readRanges(rf)
+	coll, err := p.Ranges(nil)
 	if err != nil {
 		return err
 	}
@@ -54,13 +49,7 @@ func run(c *command.Command, args []string) error {
 		return nil
 	}
 
-	tf := p.Path(project.Trees)
-	if tf == "" {
-		msg := fmt.Sprintf("tree file not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-
-	ls, err := makeTermList(tf)
+	ls, err := makeTermList(p)
 	if err != nil {
 		return nil
 	}
@@ -79,37 +68,16 @@ func run(c *command.Command, args []string) error {
 		return nil
 	}
 
-	if err := writeCollection(rf, coll); err != nil {
+	if err := writeCollection(p.Path(project.Ranges), coll); err != nil {
 		return err
 	}
 	return nil
 }
 
-func readRanges(name string) (*ranges.Collection, error) {
-	f, err := os.Open(name)
+func makeTermList(p *project.Project) (map[string]bool, error) {
+	c, err := p.Trees()
 	if err != nil {
 		return nil, err
-	}
-	defer f.Close()
-
-	coll, err := ranges.ReadTSV(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return coll, nil
-}
-
-func makeTermList(name string) (map[string]bool, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	c, err := timetree.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading file %q: %v", name, err)
 	}
 
 	ls := c.Names()
