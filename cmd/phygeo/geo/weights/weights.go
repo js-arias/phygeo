@@ -7,6 +7,7 @@
 package weights
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -66,8 +67,14 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
+	// Landscape should be already defined.
+	landscape, err := p.Landscape(nil)
+	if err != nil {
+		return err
+	}
+
 	if weightsFile != "" {
-		if _, err := readPriorFile(weightsFile); err != nil {
+		if err := validWeightFile(landscape); err != nil {
 			return err
 		}
 		p.Add(project.PixWeight, weightsFile)
@@ -78,15 +85,15 @@ func run(c *command.Command, args []string) error {
 	}
 
 	if setFlag != "" {
-		pw := pixweight.New()
+		var pw pixweight.Pixel
 		pwF := p.Path(project.PixWeight)
-		if pwF != "" {
-			pw, err = readPriorFile(p.Path(project.PixWeight))
+		if pwF == "" {
+			pw = buildDefaultWeights(landscape)
+		} else {
+			pw, err = p.PixWeight()
 			if err != nil {
 				return err
 			}
-		} else {
-			pwF = makePixPriorFileName(args[0])
 		}
 
 		k, prob, err := getKeyProb()
@@ -95,14 +102,20 @@ func run(c *command.Command, args []string) error {
 		}
 		pw.Set(k, prob)
 
+		if pwF == "" {
+			pwF = defWeightName(args[0])
+			if err := writePWF(pwF, pw); err != nil {
+				return err
+			}
+			p.Add(project.PixWeight, pwF)
+			if err := p.Write(); err != nil {
+				return err
+			}
+			return nil
+		}
 		if err := writePWF(pwF, pw); err != nil {
 			return err
 		}
-		p.Add(project.PixWeight, pwF)
-		if err := p.Write(); err != nil {
-			return err
-		}
-		return nil
 	}
 
 	pwF := p.Path(project.PixWeight)
@@ -180,6 +193,42 @@ func reportWithLandscape(w io.Writer, name string, pw pixweight.Pixel) error {
 	return nil
 }
 
+func validWeightFile(landscape *model.TimePix) error {
+	f, err := os.Open(weightsFile)
+	if errors.Is(err, os.ErrNotExist) {
+		pw := buildDefaultWeights(landscape)
+		if err := writePWF(weightsFile, pw); err != nil {
+			return err
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := pixweight.ReadTSV(f); err != nil {
+		return fmt.Errorf("when reading %q: %v", weightsFile, err)
+	}
+
+	return nil
+}
+
+func buildDefaultWeights(landscape *model.TimePix) pixweight.Pixel {
+	pw := pixweight.New()
+
+	for _, age := range landscape.Stages() {
+		s := landscape.Stage(age)
+		for _, v := range s {
+			if w := pw.Weight(v); w == 0 {
+				pw.Set(v, 1)
+			}
+		}
+	}
+
+	return pw
+}
+
 func readPriorFile(name string) (pixweight.Pixel, error) {
 	f, err := os.Open(name)
 	if err != nil {
@@ -210,10 +259,10 @@ func readLandscape(name string) (*model.TimePix, error) {
 	return tp, nil
 }
 
-func makePixPriorFileName(path string) string {
+func defWeightName(path string) string {
 	p := filepath.Base(path)
 	i := strings.LastIndex(p, ".")
-	return p[:i] + "-pix-prob.tab"
+	return p[:i] + "-pix-weight.tab"
 }
 
 func getKeyProb() (key int, prob float64, err error) {
