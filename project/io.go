@@ -16,8 +16,8 @@ import (
 	"github.com/js-arias/timetree"
 )
 
-// GeoMotion reads a plate motion model file
-// as defined in a project.
+// GeoMotion returns a plate motion reconstruction model
+// from a project.
 func (p *Project) GeoMotion(pix *earth.Pixelation) (*model.Recons, error) {
 	name := p.Path(GeoMotion)
 	if name == "" {
@@ -36,8 +36,8 @@ func (p *Project) GeoMotion(pix *earth.Pixelation) (*model.Recons, error) {
 	return rec, nil
 }
 
-// Landscape reads a time pixelation file
-// as defined in a project.
+// Landscape returns a time pixelation model
+// from a project.
 func (p *Project) Landscape(pix *earth.Pixelation) (*model.TimePix, error) {
 	name := p.Path(Landscape)
 	if name == "" {
@@ -57,8 +57,8 @@ func (p *Project) Landscape(pix *earth.Pixelation) (*model.TimePix, error) {
 	return tp, nil
 }
 
-// PixWeight reads a pix weight file
-// as defined in a project.
+// PixWeight returns pixel weights
+// from a project.
 func (p *Project) PixWeight() (pixweight.Pixel, error) {
 	name := p.Path(PixWeight)
 	if name == "" {
@@ -77,8 +77,8 @@ func (p *Project) PixWeight() (pixweight.Pixel, error) {
 	return pw, nil
 }
 
-// Ranges reads a range collection file
-// as defined in a project.
+// Ranges returns a range collection
+// from a project.
 func (p *Project) Ranges(pix *earth.Pixelation) (*ranges.Collection, error) {
 	name := p.Path(Ranges)
 	if name == "" {
@@ -98,9 +98,8 @@ func (p *Project) Ranges(pix *earth.Pixelation) (*ranges.Collection, error) {
 	return coll, nil
 }
 
-// StageRotation reads a plate motion model
-// as defined in a project,
-// in the form of a stage rotations.
+// StageRotation returns a stage rotation model
+// from a project.
 func (p *Project) StageRotation(pix *earth.Pixelation) (*model.StageRot, error) {
 	name := p.Path(GeoMotion)
 	if name == "" {
@@ -120,8 +119,8 @@ func (p *Project) StageRotation(pix *earth.Pixelation) (*model.StageRot, error) 
 	return rot, nil
 }
 
-// Stages reads a set of stages
-// as defined in a project.
+// Stages returns the time stages
+// from a project.
 func (p *Project) Stages(sts ...timestage.Stager) (timestage.Stages, error) {
 	stages := timestage.New()
 	for _, s := range sts {
@@ -148,9 +147,8 @@ func (p *Project) Stages(sts ...timestage.Stager) (timestage.Stages, error) {
 	return stages, nil
 }
 
-// TotalRotation reads a plate motion model
-// as defined in a project,
-// in the form of total rotations.
+// TotalRotation returns a total rotation model
+// from a project.
 func (p *Project) TotalRotation(pix *earth.Pixelation, inverse bool) (*model.Total, error) {
 	name := p.Path(GeoMotion)
 	if name == "" {
@@ -170,8 +168,8 @@ func (p *Project) TotalRotation(pix *earth.Pixelation, inverse bool) (*model.Tot
 	return rot, nil
 }
 
-// Trees reads a tree collection file
-// as defined in a project.
+// Trees returns a tree collection
+// from a project.
 func (p *Project) Trees() (*timetree.Collection, error) {
 	name := p.Path(Trees)
 	if name == "" {
