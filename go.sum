@@ -27,6 +27,8 @@ github.com/js-arias/command v0.0.0-20220321160405-bad66700a180 h1:pE1RCqlGkRZTdw
 github.com/js-arias/command v0.0.0-20220321160405-bad66700a180/go.mod h1:ogKwQI2+xKu3CeddpPBks1UacMtHx40lkPcsP26Zyn0=
 github.com/js-arias/earth v0.0.0-20250522151750-8f33105be5b0 h1:e0QXRieP8Q8z1mbkVaIKYiF04eeRRFAozbTzDW4eFBc=
 github.com/js-arias/earth v0.0.0-20250522151750-8f33105be5b0/go.mod h1:A2iv27g3jp6Uj0yQLLaFYvNTEMerV6nVtehOf3nNnBA=
+github.com/js-arias/earth v0.0.0-20250523124243-5a52249ecc58 h1:zxJt4MYjKIQ1KDEHOvlx2hQA+sk6zJf1P5O60UJsAeo=
+github.com/js-arias/earth v0.0.0-20250523124243-5a52249ecc58/go.mod h1:A2iv27g3jp6Uj0yQLLaFYvNTEMerV6nVtehOf3nNnBA=
 github.com/js-arias/gbifer v0.0.0-20230906190155-b9741f9e3228 h1:7HhBPaWmSwvZHCNEGbtdr0IZzhEH96YHQWziaQuVglA=
 github.com/js-arias/gbifer v0.0.0-20230906190155-b9741f9e3228/go.mod h1:1uRmlNzs2lmtaskbc+anqN9bL8XkHhIOm2t7Qmf4uyw=
 github.com/js-arias/ranges v0.0.0-20240305173047-29b4d2c279fb h1:on8KQaym8+rcs4wZNPZoKcEdI8ALFbqg7kklM8tcWNs=

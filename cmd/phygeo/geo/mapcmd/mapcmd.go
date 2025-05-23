@@ -25,7 +25,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>]
-	[--plates] [--at <age>] [--key <key-file>]
+	[--plates] [--at <age>]
 	[-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map of the paleogeographic model",
 	Long: `
@@ -44,8 +44,8 @@ By default, all time stages will be produced. Use the flag --at to define a
 particular time stage to be drawn (in million years).
 
 By default, the pixel values in a landscape model and the plates in the plate
-motion model will be colored at random. Use the flag --key to define a file
-with the colors used for the landscape values.
+motion model will be colored with the key file defined in the project. If
+there is no key file, it will use random colors.
 
 By default, the output files will be prefixed as 'landscape' or 'plates' for
 the landscape or the plate motion models, respectively. To set a different
@@ -59,7 +59,6 @@ form '<prefix>-<age>.png' with the age in million years.
 var plates bool
 var colsFlag int
 var atFlag float64
-var keyFile string
 var outPrefix string
 
 func setFlags(c *command.Command) {
@@ -67,7 +66,6 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().Float64Var(&atFlag, "at", -1, "")
-	c.Flags().StringVar(&keyFile, "key", "", "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 }
@@ -127,14 +125,11 @@ func run(c *command.Command, args []string) error {
 		ages = landscape.Stages()
 	}
 
-	var keys *pixkey.PixKey
-	if keyFile != "" {
-		keys, err = pixkey.Read(keyFile)
-		if err != nil {
-			return err
-		}
-	} else {
-		keys = &pixkey.PixKey{}
+	keys, err := p.Keys()
+	if err != nil {
+		return err
+	}
+	if len(keys.Keys()) == 0 {
 		makeLandscapePalette(landscape, ages, keys)
 	}
 

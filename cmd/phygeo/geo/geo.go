@@ -9,6 +9,7 @@ package geo
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/add"
+	"github.com/js-arias/phygeo/cmd/phygeo/geo/keys"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/pixel"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo/stages"
@@ -22,6 +23,7 @@ var Command = &command.Command{
 
 func init() {
 	Command.Add(add.Command)
+	Command.Add(keys.Command)
 	Command.Add(mapcmd.Command)
 	Command.Add(pixel.Command)
 	Command.Add(stages.Command)

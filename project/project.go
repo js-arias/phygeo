@@ -32,6 +32,10 @@ const (
 	// of the paleogeographic reconstruction.
 	GeoMotion Dataset = "geomotion"
 
+	// File for pixel key values
+	// (color and pixel labels).
+	Keys Dataset = "keys"
+
 	// File for pixel normalized weights
 	// (a form of pixel prior).
 	PixWeight Dataset = "pixweight"

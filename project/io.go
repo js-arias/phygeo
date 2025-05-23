@@ -10,6 +10,7 @@ import (
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
@@ -34,6 +35,26 @@ func (p *Project) GeoMotion(pix *earth.Pixelation) (*model.Recons, error) {
 		return nil, fmt.Errorf("when reading file %q: %v", name, err)
 	}
 	return rec, nil
+}
+
+// Keys returns key values
+// from a project.
+func (p *Project) Keys() (*pixkey.PixKey, error) {
+	name := p.Path(Keys)
+	if name == "" {
+		return pixkey.New(), nil
+	}
+
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := pixkey.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading file %q: %v", name, err)
+	}
+	return keys, nil
 }
 
 // Landscape returns a time pixelation model

@@ -5,7 +5,7 @@ go 1.24.1
 require (
 	github.com/js-arias/blind v0.0.0-20230608213033-66946442796b
 	github.com/js-arias/command v0.0.0-20220321160405-bad66700a180
-	github.com/js-arias/earth v0.0.0-20250522151750-8f33105be5b0
+	github.com/js-arias/earth v0.0.0-20250523124243-5a52249ecc58
 	github.com/js-arias/ranges v0.0.0-20240305173047-29b4d2c279fb
 	github.com/js-arias/timetree v0.0.0-20240828120944-7aecc225658e
 )

@@ -21,14 +21,13 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/phygeo/probmap"
 	"github.com/js-arias/phygeo/project"
 )
 
 var Command = &command.Command{
 	Usage: `map [-c|--columns <value>]
-	[--key <key-file>] [--gray] [--scale <color-scale>]
+	[--gray] [--scale <color-scale>]
 	[--bound <value>] [--richness]
 	[--unrot] [--present] [--contour <image-file>]
 	[--recent] [--trees <tree-list>] [--nodes <node-list>]
@@ -77,8 +76,9 @@ the tree name, the node ID, and the time stage.
 
 By default, the resulting image will be 3600 pixels wide. Use the flag
 --column, or -c, to define a different number of columns. By default, the
-images will have a gray background. Use the flag --key to define the landscape
-colors of the image. If the flag --gray is set, then gray colors will be used.
+images will use the key defined in the project. If no key was defined, it will
+use a gray background. If the flag --gray is set, it will use the gray colors
+defined in the key.
 
 By default, a rainbow color scale will be used, other color scales can be
 defined using the --scale flag. Valid scale values are mostly based on Paul
@@ -107,7 +107,6 @@ var bound float64
 var treesFlag string
 var nodesFlag string
 var contourFile string
-var keyFile string
 var inputFile string
 var outPrefix string
 var scale string
@@ -121,7 +120,6 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
 	c.Flags().Float64Var(&bound, "bound", 0.95, "")
-	c.Flags().StringVar(&keyFile, "key", "", "")
 	c.Flags().StringVar(&nodesFlag, "nodes", "", "")
 	c.Flags().StringVar(&treesFlag, "trees", "", "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
@@ -170,16 +168,14 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
-	var keys *pixkey.PixKey
-	if keyFile != "" {
-		keys, err = pixkey.Read(keyFile)
-		if err != nil {
-			return err
-		}
-		if grayFlag && !keys.HasGrayScale() {
-			keys = nil
-		}
+	keys, err := p.Keys()
+	if err != nil {
+		return err
 	}
+	if grayFlag && !keys.HasGrayScale() {
+		grayFlag = false
+	}
+
 	var gradient probmap.Gradienter
 	switch strings.ToLower(scale) {
 	case "gray":

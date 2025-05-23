@@ -15,6 +15,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
@@ -67,6 +68,13 @@ func run(c *command.Command, args []string) error {
 	stF := p.Path(project.Stages)
 	if err := readTimeStages(c.Stdout(), stF, stages); err != nil {
 		return err
+	}
+
+	pkF := p.Path(project.Keys)
+	if pkF != "" {
+		if err := readPixKeys(c.Stdout(), pkF); err != nil {
+			return err
+		}
 	}
 
 	pwF := p.Path(project.PixWeight)
@@ -139,8 +147,18 @@ func readLandscape(w io.Writer, name string, pix *earth.Pixelation, st timestage
 	fmt.Fprintf(w, "\tfile: %s\n", name)
 	fmt.Fprintf(w, "\tpixelation: e%d\n", pix.Equator())
 
-	st.Add(tp)
 	stages := tp.Stages()
+	vs := make(map[int]bool)
+	vs[0] = true
+	for _, age := range stages {
+		s := tp.Stage(age)
+		for _, v := range s {
+			vs[v] = true
+		}
+	}
+	fmt.Fprintf(w, "\tdefined pixel types: %d\n", len(vs))
+
+	st.Add(tp)
 	min := float64(stages[0]) / timestage.MillionYears
 	max := float64(stages[len(stages)-1]) / timestage.MillionYears
 	fmt.Fprintf(w, "\tstages: %d [%.3f-%.3f Ma]\n", len(stages), min, max)
@@ -172,6 +190,44 @@ func readTimeStages(w io.Writer, name string, stages timestage.Stages) error {
 	min := float64(st[0]) / timestage.MillionYears
 	max := float64(st[len(st)-1]) / timestage.MillionYears
 	fmt.Fprintf(w, "\tstages: %d [%.3f-%.3f Ma]\n", len(stages), min, max)
+	fmt.Fprintf(w, "\n")
+
+	return nil
+}
+
+func readPixKeys(w io.Writer, name string) error {
+	f, err := os.Open(name)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	keys, err := pixkey.Read(f)
+	if err != nil {
+		return fmt.Errorf("when reading %q: %v", name, err)
+	}
+
+	c := make(map[int]bool)
+	g := make(map[int]bool)
+	l := make(map[int]bool)
+	for _, v := range keys.Keys() {
+		if _, ok := keys.Color(v); ok {
+			c[v] = true
+		}
+		if _, ok := keys.Gray(v); ok {
+			g[v] = true
+		}
+		if tx := keys.Label(v); tx != "" {
+			l[v] = true
+		}
+	}
+
+	fmt.Fprintf(w, "Pixel keys:\n")
+	fmt.Fprintf(w, "\tfile: %s\n", name)
+	fmt.Fprintf(w, "\tdefined pixel values-types: %d\n", len(keys.Keys()))
+	fmt.Fprintf(w, "\tpixel values with color: %d\n", len(c))
+	fmt.Fprintf(w, "\tpixel values with gray color: %d\n", len(g))
+	fmt.Fprintf(w, "\tpixel values with label: %d\n", len(l))
 	fmt.Fprintf(w, "\n")
 
 	return nil
