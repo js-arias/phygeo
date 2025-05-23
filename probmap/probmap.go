@@ -13,7 +13,7 @@ import (
 
 	"github.com/js-arias/blind"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/phygeo/pixkey"
+	"github.com/js-arias/earth/pixkey"
 )
 
 type Image struct {

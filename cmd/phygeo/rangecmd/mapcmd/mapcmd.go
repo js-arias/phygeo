@@ -16,7 +16,7 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth/model"
-	"github.com/js-arias/phygeo/pixkey"
+	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/phygeo/probmap"
 	"github.com/js-arias/phygeo/project"
 )
