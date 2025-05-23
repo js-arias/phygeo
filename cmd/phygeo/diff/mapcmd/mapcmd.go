@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/js-arias/command"
-	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/phygeo/pixkey"
 	"github.com/js-arias/phygeo/probmap"
@@ -146,12 +145,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	landscape, err := p.Landscape(nil)
 	if err != nil {
 		return err
 	}
@@ -170,12 +164,7 @@ func run(c *command.Command, args []string) error {
 
 	var tot *model.Total
 	if unRot {
-		rotF := p.Path(project.GeoMotion)
-		if rotF == "" {
-			msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
-			return c.UsageError(msg)
-		}
-		tot, err = readRotation(rotF, landscape.Pixelation())
+		tot, err = p.TotalRotation(landscape.Pixelation(), false)
 		if err != nil {
 			return err
 		}
@@ -309,21 +298,6 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
-}
-
 func readContour(name string) (image.Image, error) {
 	f, err := os.Open(name)
 	if err != nil {
@@ -336,21 +310,6 @@ func readContour(name string) (image.Image, error) {
 		return nil, fmt.Errorf("on image file %q: %v", name, err)
 	}
 	return img, nil
-}
-
-func readRotation(name string, pix *earth.Pixelation) (*model.Total, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	rot, err := model.ReadTotal(f, pix, false)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return rot, nil
 }
 
 func getRec(name string, landscape *model.TimePix) (map[string]*recTree, error) {

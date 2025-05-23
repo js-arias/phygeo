@@ -89,12 +89,7 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	landscape, err := p.Landscape(nil)
 	if err != nil {
 		return err
 	}
@@ -114,12 +109,7 @@ func run(c *command.Command, args []string) error {
 	tp := "freq"
 	if kdeLambda > 0 {
 		var pw pixweight.Pixel
-		pwF := p.Path(project.PixWeight)
-		if pwF == "" {
-			msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
-			return c.UsageError(msg)
-		}
-		pw, err = readPixWeights(pwF)
+		pw, err = p.PixWeight()
 		if err != nil {
 			return err
 		}
@@ -162,36 +152,6 @@ func getRec(landscape *model.TimePix) (map[string]*recTree, error) {
 		return nil, fmt.Errorf("on freq file %q: %v", name, err)
 	}
 	return rt, nil
-}
-
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
-}
-
-func readPixWeights(name string) (pixweight.Pixel, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	pw, err := pixweight.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return pw, nil
 }
 
 type recTree struct {

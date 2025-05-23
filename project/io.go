@@ -11,6 +11,7 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/pixweight"
+	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -95,6 +96,56 @@ func (p *Project) Ranges(pix *earth.Pixelation) (*ranges.Collection, error) {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
 	return coll, nil
+}
+
+// StageRotation reads a plate motion model
+// as defined in a project,
+// in the form of a stage rotations.
+func (p *Project) StageRotation(pix *earth.Pixelation) (*model.StageRot, error) {
+	name := p.Path(GeoMotion)
+	if name == "" {
+		return nil, fmt.Errorf("plate motion model not defined in project %q", p.name)
+	}
+
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	rot, err := model.ReadStageRot(f, pix)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+	return rot, nil
+}
+
+// Stages reads a set of stages
+// as defined in a project.
+func (p *Project) Stages(sts ...timestage.Stager) (timestage.Stages, error) {
+	stages := timestage.New()
+	for _, s := range sts {
+		stages.Add(s)
+	}
+
+	name := p.Path(Stages)
+	if name == "" {
+		return stages, nil
+	}
+
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	st, err := timestage.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("when reading %q: %v", name, err)
+	}
+	stages.Add(st)
+
+	return stages, nil
 }
 
 // TotalRotation reads a plate motion model

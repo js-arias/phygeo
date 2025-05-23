@@ -21,13 +21,9 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/infer/diffusion"
 	"github.com/js-arias/phygeo/project"
-	"github.com/js-arias/phygeo/timestage"
-	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 	"gonum.org/v1/gonum/stat/distuv"
 )
@@ -127,54 +123,32 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	tf := p.Path(project.Trees)
-	if tf == "" {
-		msg := fmt.Sprintf("tree file not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	tc, err := readTreeFile(tf)
+	tc, err := p.Trees()
 	if err != nil {
 		return err
 	}
 
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("paleolandscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	landscape, err := p.Landscape(nil)
 	if err != nil {
 		return err
 	}
 
-	rotF := p.Path(project.GeoMotion)
-	if rotF == "" {
-		msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	rot, err := readRotation(rotF, landscape.Pixelation())
+	rot, err := p.StageRotation(landscape.Pixelation())
 	if err != nil {
 		return err
 	}
 
-	stF := p.Path(project.Stages)
-	stages, err := readStages(stF, rot, landscape)
+	stages, err := p.Stages(rot, landscape)
 	if err != nil {
 		return err
 	}
 
-	pwF := p.Path(project.PixWeight)
-	if pwF == "" {
-		msg := fmt.Sprintf("pixel weights not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	pw, err := readPixWeights(pwF)
+	pw, err := p.PixWeight()
 	if err != nil {
 		return err
 	}
 
-	rf := p.Path(project.Ranges)
-	rc, err := readRanges(rf)
+	rc, err := p.Ranges(landscape.Pixelation())
 	if err != nil {
 		return err
 	}
@@ -314,103 +288,6 @@ func monteCarlo(w io.Writer, t *timetree.Tree, p diffusion.Param) {
 
 		fmt.Fprintf(w, "%s\t%.6f\t%.6f\t%.6f\n", name, p.Lambda, standard, like)
 	}
-}
-
-func readTreeFile(name string) (*timetree.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	c, err := timetree.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading file %q: %v", name, err)
-	}
-	return c, nil
-}
-
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
-}
-
-func readRotation(name string, pix *earth.Pixelation) (*model.StageRot, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	rot, err := model.ReadStageRot(f, pix)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return rot, nil
-}
-
-func readStages(name string, rot *model.StageRot, landscape *model.TimePix) (timestage.Stages, error) {
-	stages := timestage.New()
-	stages.Add(rot)
-	stages.Add(landscape)
-
-	if name == "" {
-		return stages, nil
-	}
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	st, err := timestage.Read(f)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-	stages.Add(st)
-
-	return stages, nil
-}
-
-func readPixWeights(name string) (pixweight.Pixel, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	pw, err := pixweight.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return pw, nil
-}
-
-func readRanges(name string) (*ranges.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	coll, err := ranges.ReadTSV(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-
-	return coll, nil
 }
 
 // Rander is an interface for probability distributions

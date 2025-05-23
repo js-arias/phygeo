@@ -173,35 +173,18 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	lsf := p.Path(project.Landscape)
-	if lsf == "" {
-		msg := fmt.Sprintf("landscape not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	landscape, err := readLandscape(lsf)
+	landscape, err := p.Landscape(nil)
 	if err != nil {
 		return err
 	}
 
-	tf := p.Path(project.Trees)
-	if tf == "" {
-		msg := fmt.Sprintf("tree file not defined in project %q", args[0])
-		return c.UsageError(msg)
-	}
-	tc, err := readTreeFile(tf)
+	tc, err := p.Trees()
 	if err != nil {
 		return err
 	}
 
 	if useTime {
-		rotF := p.Path(project.GeoMotion)
-		if rotF == "" {
-			msg := fmt.Sprintf("plate motion model not defined in project %q", args[0])
-			return c.UsageError(msg)
-		}
-
-		stF := p.Path(project.Stages)
-		stages, err := readStages(stF, rotF, landscape)
+		stages, err := readStages(p, landscape)
 		if err != nil {
 			return err
 		}
@@ -276,76 +259,17 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func readLandscape(name string) (*model.TimePix, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	tp, err := model.ReadTimePix(f, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return tp, nil
-}
-
-func readStages(name, rotF string, landscape *model.TimePix) (timestage.Stages, error) {
-	rot, err := readRotation(rotF, landscape.Pixelation())
+func readStages(p *project.Project, landscape *model.TimePix) (timestage.Stages, error) {
+	rot, err := p.StageRotation(landscape.Pixelation())
 	if err != nil {
 		return nil, err
 	}
 
-	stages := timestage.New()
-	stages.Add(rot)
-	stages.Add(landscape)
-
-	if name == "" {
-		return stages, nil
-	}
-	f, err := os.Open(name)
+	stages, err := p.Stages(landscape, rot)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-
-	st, err := timestage.Read(f)
-	if err != nil {
-		return nil, fmt.Errorf("when reading %q: %v", name, err)
-	}
-	stages.Add(st)
-
 	return stages, nil
-}
-
-func readRotation(name string, pix *earth.Pixelation) (*model.StageRot, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	rot, err := model.ReadStageRot(f, pix)
-	if err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-
-	return rot, nil
-}
-
-func readTreeFile(name string) (*timetree.Collection, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	c, err := timetree.ReadTSV(f)
-	if err != nil {
-		return nil, fmt.Errorf("while reading file %q: %v", name, err)
-	}
-	return c, nil
 }
 
 func getBranches(name string, tc *timetree.Collection, landscape *model.TimePix) (map[string]*recTree, error) {
