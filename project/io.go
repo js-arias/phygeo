@@ -13,6 +13,7 @@ import (
 	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/timestage"
+	"github.com/js-arias/phygeo/trait"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -189,6 +190,27 @@ func (p *Project) TotalRotation(pix *earth.Pixelation, inverse bool) (*model.Tot
 	return rot, nil
 }
 
+// Traits returns a data set with taxon-trait data
+// from a project.
+func (p *Project) Traits() (*trait.Data, error) {
+	name := p.Path(Traits)
+	if name == "" {
+		return nil, fmt.Errorf("traits not defined in project %q", p.name)
+	}
+
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	d, err := trait.ReadTSV(f)
+	if err != nil {
+		return nil, fmt.Errorf("while reading file %q: %v", name, err)
+	}
+	return d, nil
+}
+
 // Trees returns a tree collection
 // from a project.
 func (p *Project) Trees() (*timetree.Collection, error) {
@@ -208,5 +230,4 @@ func (p *Project) Trees() (*timetree.Collection, error) {
 		return nil, fmt.Errorf("while reading file %q: %v", name, err)
 	}
 	return c, nil
-
 }

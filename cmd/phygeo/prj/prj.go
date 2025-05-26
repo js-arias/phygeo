@@ -91,6 +91,12 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
+	if p.Path(project.Traits) != "" {
+		if err := readTraitData(c.Stdout(), p); err != nil {
+			return err
+		}
+	}
+
 	tF := p.Path(project.Trees)
 	if tF != "" {
 		if err := readTrees(c.Stdout(), tF); err != nil {
@@ -268,6 +274,21 @@ func readRanges(w io.Writer, name string, pix *earth.Pixelation, tp project.Data
 	fmt.Fprintf(w, "Terminal %s:\n", tp)
 	fmt.Fprintf(w, "\tfile: %s\n", name)
 	fmt.Fprintf(w, "\tdefined taxa: %d\n", len(coll.Taxa()))
+	fmt.Fprintf(w, "\n")
+
+	return nil
+}
+
+func readTraitData(w io.Writer, p *project.Project) error {
+	d, err := p.Traits()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "Traits\n")
+	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Traits))
+	fmt.Fprintf(w, "\tdefined taxa: %d\n", len(d.Taxa()))
+	fmt.Fprintf(w, "\tdefined trait states: %d\n", len(d.States()))
 	fmt.Fprintf(w, "\n")
 
 	return nil

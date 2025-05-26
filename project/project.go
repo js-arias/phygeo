@@ -48,6 +48,9 @@ const (
 	// at different time stages.
 	Landscape Dataset = "landscape"
 
+	// File for trait observations.
+	Traits Dataset = "traits"
+
 	// File for phylogenetic trees.
 	Trees Dataset = "trees"
 
