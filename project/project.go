@@ -36,6 +36,9 @@ const (
 	// (color and pixel labels).
 	Keys Dataset = "keys"
 
+	// File for the move matrix used in random walks.
+	Move = "move"
+
 	// File for pixel normalized weights
 	// (a form of pixel prior).
 	PixWeight Dataset = "pixweight"

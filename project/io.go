@@ -79,6 +79,27 @@ func (p *Project) Landscape(pix *earth.Pixelation) (*model.TimePix, error) {
 	return tp, nil
 }
 
+// MoveMatrix returns a move matrix
+// from a project.
+func (p *Project) Move(traits *trait.Data, keys *pixkey.PixKey) (*trait.Matrix, error) {
+	name := p.Path(Move)
+	if name == "" {
+		return nil, fmt.Errorf("move matrix not defined in project %q", p.name)
+	}
+
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	mv := trait.NewMatrix(traits, keys)
+	if err := mv.ReadTSV(f); err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+	return mv, nil
+}
+
 // PixWeight returns pixel weights
 // from a project.
 func (p *Project) PixWeight() (pixweight.Pixel, error) {

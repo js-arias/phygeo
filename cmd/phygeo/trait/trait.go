@@ -9,6 +9,7 @@ package trait
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/trait/add"
+	"github.com/js-arias/phygeo/cmd/phygeo/trait/move"
 )
 
 var Command = &command.Command{
@@ -18,4 +19,5 @@ var Command = &command.Command{
 
 func init() {
 	Command.Add(add.Command)
+	Command.Add(move.Command)
 }

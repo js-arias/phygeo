@@ -19,6 +19,7 @@ import (
 	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
+	"github.com/js-arias/phygeo/trait"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -70,9 +71,10 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	pkF := p.Path(project.Keys)
-	if pkF != "" {
-		if err := readPixKeys(c.Stdout(), pkF); err != nil {
+	var keys *pixkey.PixKey
+	if p.Path(project.Keys) != "" {
+		keys, err = readPixKeys(c.Stdout(), p)
+		if err != nil {
 			return err
 		}
 	}
@@ -91,8 +93,16 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
+	var traits *trait.Data
 	if p.Path(project.Traits) != "" {
-		if err := readTraitData(c.Stdout(), p); err != nil {
+		traits, err = readTraitData(c.Stdout(), p)
+		if err != nil {
+			return err
+		}
+	}
+
+	if p.Path(project.Move) != "" {
+		if err := readMoveMatrix(c.Stdout(), p, traits, keys); err != nil {
 			return err
 		}
 	}
@@ -201,16 +211,25 @@ func readTimeStages(w io.Writer, name string, stages timestage.Stages) error {
 	return nil
 }
 
-func readPixKeys(w io.Writer, name string) error {
-	f, err := os.Open(name)
+func readMoveMatrix(w io.Writer, p *project.Project, traits *trait.Data, keys *pixkey.PixKey) error {
+	m, err := p.Move(traits, keys)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	keys, err := pixkey.Read(f)
+	fmt.Fprintf(w, "Move matrix:\n")
+	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Move))
+	fmt.Fprintf(w, "\tdefined trait states: %d\n", len(m.Traits()))
+	fmt.Fprintf(w, "\tdefined landscape features: %d\n", len(m.Landscape()))
+	fmt.Fprintf(w, "\n")
+
+	return nil
+}
+
+func readPixKeys(w io.Writer, p *project.Project) (keys *pixkey.PixKey, err error) {
+	keys, err = p.Keys()
 	if err != nil {
-		return fmt.Errorf("when reading %q: %v", name, err)
+		return nil, fmt.Errorf("when reading %q: %v", p.Path(project.Keys), err)
 	}
 
 	c := make(map[int]bool)
@@ -229,14 +248,14 @@ func readPixKeys(w io.Writer, name string) error {
 	}
 
 	fmt.Fprintf(w, "Pixel keys:\n")
-	fmt.Fprintf(w, "\tfile: %s\n", name)
+	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Keys))
 	fmt.Fprintf(w, "\tdefined pixel values-types: %d\n", len(keys.Keys()))
 	fmt.Fprintf(w, "\tpixel values with color: %d\n", len(c))
 	fmt.Fprintf(w, "\tpixel values with gray color: %d\n", len(g))
 	fmt.Fprintf(w, "\tpixel values with label: %d\n", len(l))
 	fmt.Fprintf(w, "\n")
 
-	return nil
+	return keys, nil
 }
 
 func readPixWeights(w io.Writer, name string) error {
@@ -279,10 +298,10 @@ func readRanges(w io.Writer, name string, pix *earth.Pixelation, tp project.Data
 	return nil
 }
 
-func readTraitData(w io.Writer, p *project.Project) error {
-	d, err := p.Traits()
+func readTraitData(w io.Writer, p *project.Project) (d *trait.Data, err error) {
+	d, err = p.Traits()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fmt.Fprintf(w, "Traits\n")
@@ -291,7 +310,7 @@ func readTraitData(w io.Writer, p *project.Project) error {
 	fmt.Fprintf(w, "\tdefined trait states: %d\n", len(d.States()))
 	fmt.Fprintf(w, "\n")
 
-	return nil
+	return d, nil
 }
 
 func readTrees(w io.Writer, name string) error {

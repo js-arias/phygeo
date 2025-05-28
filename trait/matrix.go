@@ -146,6 +146,17 @@ func (m *Matrix) ReadTSV(r io.Reader) error {
 	return nil
 }
 
+// Landscape returns the landscape feature labels
+// defined in a move matrix.
+func (m *Matrix) Landscape() []string {
+	landscape := make([]string, 0, len(m.labels))
+	for l := range m.labels {
+		landscape = append(landscape, l)
+	}
+	slices.Sort(landscape)
+	return landscape
+}
+
 // TSV writes a matrix to a TSV file.
 func (m *Matrix) TSV(w io.Writer) error {
 	tab := csv.NewWriter(w)
@@ -158,17 +169,8 @@ func (m *Matrix) TSV(w io.Writer) error {
 		return fmt.Errorf("unable to write header: %v", err)
 	}
 
-	traits := make([]string, 0, len(m.states))
-	for s := range m.states {
-		traits = append(traits, s)
-	}
-	slices.Sort(traits)
-
-	landscape := make([]string, 0, len(m.labels))
-	for l := range m.labels {
-		landscape = append(landscape, l)
-	}
-	slices.Sort(landscape)
+	traits := m.Traits()
+	landscape := m.Landscape()
 
 	for _, t := range traits {
 		for _, l := range landscape {
@@ -189,6 +191,17 @@ func (m *Matrix) TSV(w io.Writer) error {
 		return fmt.Errorf("when writing data: %v", err)
 	}
 	return nil
+}
+
+// Traits return the name of the states
+// defined in a move matrix.
+func (m *Matrix) Traits() []string {
+	traits := make([]string, 0, len(m.states))
+	for s := range m.states {
+		traits = append(traits, s)
+	}
+	slices.Sort(traits)
+	return traits
 }
 
 // Weight returns the weight of a feature

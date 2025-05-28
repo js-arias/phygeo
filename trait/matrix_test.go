@@ -7,6 +7,7 @@ package trait_test
 import (
 	"bytes"
 	"image/color"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -103,5 +104,15 @@ func testMatrix(t testing.TB, name string, m *trait.Matrix) {
 				t.Errorf("%s: weight of %q-%q: got %.6f, want %.6f", name, tr, k, g, w)
 			}
 		}
+	}
+
+	traits := []string{"temperate", "tropical"}
+	if g := m.Traits(); !reflect.DeepEqual(g, traits) {
+		t.Errorf("%s: states: got %v, want %v", name, g, traits)
+	}
+
+	landscape := []string{"glacial", "ocean", "temperate", "tropical", "tundra"}
+	if g := m.Landscape(); !reflect.DeepEqual(g, landscape) {
+		t.Errorf("%s: landscape: got %v, want %v", name, g, landscape)
 	}
 }
