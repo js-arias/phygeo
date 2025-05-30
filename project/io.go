@@ -79,12 +79,12 @@ func (p *Project) Landscape(pix *earth.Pixelation) (*model.TimePix, error) {
 	return tp, nil
 }
 
-// MoveMatrix returns a move matrix
+// Movement returns a move matrix
 // from a project.
-func (p *Project) Move(traits *trait.Data, keys *pixkey.PixKey) (*trait.Matrix, error) {
-	name := p.Path(Move)
+func (p *Project) Movement(traits *trait.Data, keys *pixkey.PixKey) (*trait.Matrix, error) {
+	name := p.Path(Movement)
 	if name == "" {
-		return nil, fmt.Errorf("move matrix not defined in project %q", p.name)
+		return nil, fmt.Errorf("movement matrix not defined in project %q", p.name)
 	}
 
 	f, err := os.Open(name)

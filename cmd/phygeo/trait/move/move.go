@@ -3,7 +3,7 @@
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
 // Package move implements a command to manege
-// a move matrix defined for a project.
+// a movement matrix defined for a project.
 package move
 
 import (
@@ -21,17 +21,17 @@ import (
 
 var Command = &command.Command{
 	Usage: "move [--add <file>] [--set <value>] <project-file>",
-	Short: "manege move matrix",
+	Short: "manege movement matrix",
 	Long: `
-Command move manage a move matrix for a random walk defined for a PhyGeo
-project. A move matrix contains the movement weights on a particular landscape
-feature (i.e., a pixel raster value) for a given trait.
+Command move manage a movement matrix for a random walk defined for a PhyGeo
+project. A movement matrix contains the movement weights on a particular
+landscape feature (i.e., a pixel raster value) for a given trait.
 
 The argument for the command is the name of the project file.
 
-By default, the command will print the currently defined move matrix weights
-into the standard output. If the flag --add is defined, the indicated file
-will be used as the move matrix of the project.
+By default, the command will print the currently defined movement matrix
+weights into the standard output. If the flag --add is defined, the indicated
+file will be used as the movement matrix of the project.
 
 If the flag --set is defined, it will set a movement weight for a trait-
 landscape pair. The sintaxis of the definition is:
@@ -40,8 +40,8 @@ landscape pair. The sintaxis of the definition is:
 
 Always use the quotations.
 
-If there is no move file defined in the project, a new file will be created
-using the project file name as prefix and "-move.tab" as suffix.
+If there is no movement matrix file defined in the project, a new file will be
+created using the project file name as prefix and "-movement.tab" as suffix.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -78,10 +78,10 @@ func run(c *command.Command, args []string) error {
 	}
 
 	if moveFile != "" {
-		if err := validMoveFile(traits, keys); err != nil {
+		if err := validMovementFile(traits, keys); err != nil {
 			return err
 		}
-		p.Add(project.Move, moveFile)
+		p.Add(project.Movement, moveFile)
 		if err := p.Write(); err != nil {
 			return err
 		}
@@ -90,11 +90,11 @@ func run(c *command.Command, args []string) error {
 
 	if setFlag != "" {
 		var mv *trait.Matrix
-		mvF := p.Path(project.Move)
+		mvF := p.Path(project.Movement)
 		if mvF == "" {
 			mv = trait.NewMatrix(traits, keys)
 		} else {
-			mv, err = p.Move(traits, keys)
+			mv, err = p.Movement(traits, keys)
 			if err != nil {
 				return err
 			}
@@ -108,22 +108,22 @@ func run(c *command.Command, args []string) error {
 
 		if mvF == "" {
 			mvF = defWeightName(args[0])
-			if err := writeMoveFile(mvF, mv); err != nil {
+			if err := writeMovementFile(mvF, mv); err != nil {
 				return err
 			}
-			p.Add(project.Move, mvF)
+			p.Add(project.Movement, mvF)
 			if err := p.Write(); err != nil {
 				return err
 			}
 			return nil
 		}
-		if err := writeMoveFile(mvF, mv); err != nil {
+		if err := writeMovementFile(mvF, mv); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	mv, err := p.Move(traits, keys)
+	mv, err := p.Movement(traits, keys)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func validMoveFile(traits *trait.Data, keys *pixkey.PixKey) error {
+func validMovementFile(traits *trait.Data, keys *pixkey.PixKey) error {
 	f, err := os.Open(moveFile)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func validMoveFile(traits *trait.Data, keys *pixkey.PixKey) error {
 func defWeightName(path string) string {
 	p := filepath.Base(path)
 	i := strings.LastIndex(p, ".")
-	return p[:i] + "-move.tab"
+	return p[:i] + "-movement.tab"
 }
 
 func getWeight() (state, landscape string, weight float64, err error) {
@@ -179,7 +179,7 @@ func getWeight() (state, landscape string, weight float64, err error) {
 	return v[0], v[1], w, nil
 }
 
-func writeMoveFile(name string, m *trait.Matrix) (err error) {
+func writeMovementFile(name string, m *trait.Matrix) (err error) {
 	var f *os.File
 	f, err = os.Create(name)
 	if err != nil {

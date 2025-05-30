@@ -101,8 +101,8 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
-	if p.Path(project.Move) != "" {
-		if err := readMoveMatrix(c.Stdout(), p, traits, keys); err != nil {
+	if p.Path(project.Movement) != "" {
+		if err := readMovementMatrix(c.Stdout(), p, traits, keys); err != nil {
 			return err
 		}
 	}
@@ -211,14 +211,14 @@ func readTimeStages(w io.Writer, name string, stages timestage.Stages) error {
 	return nil
 }
 
-func readMoveMatrix(w io.Writer, p *project.Project, traits *trait.Data, keys *pixkey.PixKey) error {
-	m, err := p.Move(traits, keys)
+func readMovementMatrix(w io.Writer, p *project.Project, traits *trait.Data, keys *pixkey.PixKey) error {
+	m, err := p.Movement(traits, keys)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(w, "Move matrix:\n")
-	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Move))
+	fmt.Fprintf(w, "Movement matrix:\n")
+	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Movement))
 	fmt.Fprintf(w, "\tdefined trait states: %d\n", len(m.Traits()))
 	fmt.Fprintf(w, "\tdefined landscape features: %d\n", len(m.Landscape()))
 	fmt.Fprintf(w, "\n")
