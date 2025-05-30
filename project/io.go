@@ -141,6 +141,27 @@ func (p *Project) Ranges(pix *earth.Pixelation) (*ranges.Collection, error) {
 	return coll, nil
 }
 
+// Settlement returns a settlement matrix
+// from a project.
+func (p *Project) Settlement(traits *trait.Data, keys *pixkey.PixKey) (*trait.Matrix, error) {
+	name := p.Path(Settlement)
+	if name == "" {
+		return nil, fmt.Errorf("settlement matrix not defined in project %q", p.name)
+	}
+
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	st := trait.NewMatrix(traits, keys)
+	if err := st.ReadTSV(f); err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+	return st, nil
+}
+
 // StageRotation returns a stage rotation model
 // from a project.
 func (p *Project) StageRotation(pix *earth.Pixelation) (*model.StageRot, error) {

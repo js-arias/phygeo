@@ -57,6 +57,9 @@ const (
 	// File for phylogenetic trees.
 	Trees Dataset = "trees"
 
+	// File for the settlement matrix used in random walks.
+	Settlement = "settlement"
+
 	// File for the time stages.
 	Stages Dataset = "stages"
 )
