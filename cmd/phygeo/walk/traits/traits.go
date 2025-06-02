@@ -2,9 +2,9 @@
 // All rights reserved.
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
-// Package add implements a command to add taxon traits
+// Package traits implements a command to add taxon traits
 // to a PhyGeo project.
-package add
+package traits
 
 import (
 	"fmt"
@@ -17,12 +17,12 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `add [-f|--file <trait-file>] [--filter]
+	Usage: `traits [-f|--file <trait-file>] [--filter]
 	<project-file> [<trait-file>...]`,
 	Short: "add taxon traits to a PhyGeo project",
 	Long: `
-Command add reads one or more tab-delimited files with trait data, and add the
-trait observation to a PhyGeo project.
+Command traits reads one or more tab-delimited files with trait data, and add
+the trait observation to a PhyGeo project.
 
 The first argument of the command is the name of the project file.
 
