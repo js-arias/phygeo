@@ -9,6 +9,7 @@ package walk
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/lambda"
+	"github.com/js-arias/phygeo/cmd/phygeo/walk/like"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/move"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/settle"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/traits"
@@ -21,6 +22,7 @@ var Command = &command.Command{
 
 func init() {
 	Command.Add(lambda.Command)
+	Command.Add(like.Command)
 	Command.Add(move.Command)
 	Command.Add(settle.Command)
 	Command.Add(traits.Command)

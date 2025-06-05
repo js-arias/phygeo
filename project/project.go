@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -161,6 +162,20 @@ func (p *Project) Add(set Dataset, path string) string {
 
 	p.paths[set] = path
 	return prev
+}
+
+// Name returns the name of the project file.
+func (p *Project) Name() string {
+	return p.name
+}
+
+// NameRoot returns the root name of the project file.
+func (p *Project) NameRoot() string {
+	name := filepath.Base(p.name)
+	if i := strings.Index(name, "."); i > 0 {
+		return name[:i]
+	}
+	return name
 }
 
 // Path returns the path of the given dataset.

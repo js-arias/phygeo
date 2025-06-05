@@ -7,12 +7,19 @@
 // Each category is expected to have the same probability.
 package cats
 
-import "gonum.org/v1/gonum/stat/distuv"
+import (
+	"fmt"
+
+	"gonum.org/v1/gonum/stat/distuv"
+)
 
 // Discrete is a discrete category distribution.
 type Discrete interface {
 	// Cats returns the values of the different categories.
 	Cats() []float64
+
+	// String output for the function name and parameters.
+	String() string
 }
 
 // Gamma is a discretized Gamma distribution.
@@ -30,6 +37,11 @@ func (g Gamma) Cats() []float64 {
 	return getCats(g.Param, g.NumCat)
 }
 
+// String output for the function name and parameters.
+func (g Gamma) String() string {
+	return fmt.Sprintf("gamma=%.6f", g.Param.Alpha)
+}
+
 // LogNormal is a discretized LogNormal distribution.
 type LogNormal struct {
 	// Parameters of the log normal distribution
@@ -43,6 +55,11 @@ type LogNormal struct {
 // discretized in equal probability categories.
 func (ln LogNormal) Cats() []float64 {
 	return getCats(ln.Param, ln.NumCat)
+}
+
+// String output for the function name and parameters.
+func (ln LogNormal) String() string {
+	return fmt.Sprintf("logNormal=%.6f", ln.Param.Sigma)
 }
 
 // Quantiler is a interfaces for distributions
