@@ -237,7 +237,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, d cats.Discrete) (err er
 
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# walk.like of tree %q of project %q\n", t.Name(), p)
-	fmt.Fprintf(w, "# walkers per rate category: %d", walkers)
+	fmt.Fprintf(w, "# walkers per rate category: %d\n", walkers)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
 
