@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/js-arias/command"
@@ -185,9 +184,9 @@ func run(c *command.Command, args []string) error {
 			NumCat: numCats,
 		}
 	} else {
-		dd, err = getCats(relaxed)
+		dd, err = cats.Parse(relaxed, numCats)
 		if err != nil {
-			return err
+			return fmt.Errorf("flag --relaxed: %v", err)
 		}
 	}
 
@@ -222,41 +221,6 @@ func run(c *command.Command, args []string) error {
 	}
 	walk.End()
 	return nil
-}
-
-func getCats(a string) (cats.Discrete, error) {
-	s := strings.Split(a, "=")
-	if len(s) < 2 {
-		return nil, fmt.Errorf("invalid --relaxed value: %q", relaxed)
-	}
-
-	switch f := strings.ToLower(s[0]); f {
-	case "gamma":
-		p, err := strconv.ParseFloat(s[1], 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --relaxed value: %q: %v", relaxed, err)
-		}
-		return cats.Gamma{
-			Param: distuv.Gamma{
-				Alpha: p,
-				Beta:  p,
-			},
-			NumCat: numCats,
-		}, nil
-	case "lognormal":
-		p, err := strconv.ParseFloat(s[1], 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid --relaxed value: %q: %v", relaxed, err)
-		}
-		return cats.LogNormal{
-			Param: distuv.LogNormal{
-				Mu:    0,
-				Sigma: p,
-			},
-			NumCat: numCats,
-		}, nil
-	}
-	return nil, fmt.Errorf("invalid --relaxed value: %q: unknown function %q", relaxed, s[0])
 }
 
 func writeTreeConditional(t *walk.Tree, name, p string, d cats.Discrete) (err error) {

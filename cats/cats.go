@@ -9,6 +9,8 @@ package cats
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"gonum.org/v1/gonum/stat/distuv"
 )
@@ -76,4 +78,41 @@ func getCats(q quantiler, n int) []float64 {
 		cats[i] = q.Quantile(p)
 	}
 	return cats
+}
+
+// Parse reads a string and return a discretized function
+// with the given number of categories.
+func Parse(str string, numCats int) (Discrete, error) {
+	s := strings.Split(str, "=")
+	if len(s) < 2 {
+		return nil, fmt.Errorf("invalid value: %q", str)
+	}
+
+	switch f := strings.ToLower(s[0]); f {
+	case "gamma":
+		p, err := strconv.ParseFloat(s[1], 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value: %q: %v", str, err)
+		}
+		return Gamma{
+			Param: distuv.Gamma{
+				Alpha: p,
+				Beta:  p,
+			},
+			NumCat: numCats,
+		}, nil
+	case "lognormal":
+		p, err := strconv.ParseFloat(s[1], 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value: %q: %v", str, err)
+		}
+		return LogNormal{
+			Param: distuv.LogNormal{
+				Mu:    0,
+				Sigma: p,
+			},
+			NumCat: numCats,
+		}, nil
+	}
+	return nil, fmt.Errorf("invalid value: %q: unknown function %q", str, s[0])
 }
