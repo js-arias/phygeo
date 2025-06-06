@@ -21,7 +21,6 @@ type likeChanType struct {
 	steps []int
 
 	walkers int
-	times   int
 
 	wg *sync.WaitGroup
 }

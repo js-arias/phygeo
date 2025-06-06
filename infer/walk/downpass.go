@@ -88,9 +88,9 @@ func (n *node) conditional(t *Tree, tmpLike, resLike [][]float64) {
 		nextAge := t.rot.ClosestStageAge(next.age)
 
 		repeat := true
-		for tm := 1; repeat; tm++ {
+		for repeat {
 			repeat = false
-			logLike := next.conditional(t, tmpLike, resLike, tm)
+			logLike := next.conditional(t, tmpLike, resLike)
 			// Rotate if there is an stage change
 			if nextAge != age {
 				rot := t.rot.YoungToOld(nextAge)
@@ -146,7 +146,7 @@ const pixBlocks = 500
 
 // Conditional calculates the conditional likelihood
 // of a time stage.
-func (ts *timeStage) conditional(t *Tree, tmpLike, resLike [][]float64, times int) [][]float64 {
+func (ts *timeStage) conditional(t *Tree, tmpLike, resLike [][]float64) [][]float64 {
 	age := t.landProb.tp.ClosestStageAge(ts.age)
 	numPix := t.landProb.tp.Pixelation().Len()
 
@@ -168,7 +168,6 @@ func (ts *timeStage) conditional(t *Tree, tmpLike, resLike [][]float64, times in
 				age:       age,
 				steps:     ts.steps,
 				walkers:   t.walkers,
-				times:     times,
 				wg:        &wg,
 			}
 		}(i, e)

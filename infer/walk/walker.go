@@ -13,7 +13,7 @@ func runPixLike() {
 	for c := range likeChan {
 		for t := range c.like {
 			for px := c.start; px < c.end; px++ {
-				logLike := simPixLike(c.w, c.scaleProb, c.steps, c.age, px, t, c.walkers, c.times)
+				logLike := simPixLike(c.w, c.scaleProb, c.steps, c.age, px, t, c.walkers)
 				c.like[t][px] = logLike + c.maxLn
 			}
 		}
@@ -21,7 +21,7 @@ func runPixLike() {
 	}
 }
 
-func simPixLike(w *walkModel, scaledProb [][]float64, steps []int, age int64, px, t, walkers, times int) float64 {
+func simPixLike(w *walkModel, scaledProb [][]float64, steps []int, age int64, px, t, walkers int) float64 {
 	stage := w.stage(age, t)
 	if stage.prior[px] == 0 {
 		return math.Inf(-1)
@@ -34,7 +34,7 @@ func simPixLike(w *walkModel, scaledProb [][]float64, steps []int, age int64, px
 			sum += p * scaledProb[t][d]
 		}
 	}
-	return math.Log(sum) - math.Log(float64(len(steps)*walkers*times))
+	return math.Log(sum) - math.Log(float64(len(steps)*walkers))
 }
 
 func walk(w *walkModel, age int64, px, t, steps int) (int, float64) {
