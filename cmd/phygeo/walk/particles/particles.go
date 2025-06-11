@@ -57,8 +57,8 @@ The output file is a TSV file, including the name of the tree, the node, the
 time stage, the particle simulation, the pixel location, and the trait, at the
 beginning and the end of the stage. The prefix of the output file is the name
 of the project file. To set a different prefix, use the flag --output, or -o.
-The output file name will have a suffix with the tree name, the word 'pp' and
-the number of particles. The extension will be '.tab'.
+The output file name will have the output prefix, the word 'pp' with the
+number of particles, amd the tree name. The extension will be '.tab'.
 
 By default, all available CPU will be used in the calculations. Set the flag
 --cpu to use a different number of CPUs.
@@ -211,7 +211,6 @@ func getRec(name string, tc *timetree.Collection, p walk.Param) (map[string]*wal
 			continue
 		}
 		p.Steps = tt.steps
-		p.Cats = tt.cats.Cats()
 		p.Discrete = tt.cats
 		p.Stem = tt.oldest - bt.Age(bt.Root())
 		wt := walk.New(bt, p)
@@ -412,7 +411,7 @@ func readRecons(r io.Reader, tc *timetree.Collection, p walk.Param) (map[string]
 }
 
 func writeOutput(t *walk.Tree, p string) (err error) {
-	name := fmt.Sprintf("%s-%s-pp.tab", outPrefix, t.Name())
+	name := fmt.Sprintf("%s-pp-%d-%s.tab", outPrefix, numParticles, t.Name())
 	f, err := os.Create(name)
 	if err != nil {
 		return err

@@ -45,9 +45,9 @@ pixels will be closer to the expected equilibrium of the model, at the cost of
 increasing computing time.
 
 The flag --steps define the number of steps per million years in the random
-walk. The default value is 10 (more or less equivalent to a lambda of 70). It
-can be a non integer value. Flags --min and --max define the minimum and
-maximum number of steps in a branch-category. Defaults are 3 and 1000.
+walk. The default value is 10. It can be a non integer value. Flags --min and
+--max define the minimum and maximum number of steps in a branch-category.
+Defaults are 3 and 1000.
 
 By default, there will be 100 walkers (particles) per each category. Use the
 flag --walkers to set a different number.
@@ -67,8 +67,8 @@ Always use the quotations. The implemented distributions are:
 The output file is a pixel probability file with the conditional likelihoods
 (i.e., down-pass results) for each pixel at each node. The prefix of the
 output file name is the name of the project file. To set a different prefix,
-use the flag --output, or -o. The output file name will have a suffix with the
-tree name, and the word 'down'. The extension will be '.tab'.
+use the flag --output, or -o. The output file name will have the output
+prefix, the word 'down', and the tree name. The extension will be '.tab'.
 
 By default, all available CPU will be used in the calculations. Set the flag
 --cpu to use a different number of CPUs.
@@ -204,7 +204,7 @@ func run(c *command.Command, args []string) error {
 		MinSteps:   minSteps,
 		MaxSteps:   maxSteps,
 		Walkers:    walkers,
-		Cats:       dd.Cats(),
+		Discrete:   dd,
 	}
 
 	walk.Start(numCPU)
@@ -213,8 +213,8 @@ func run(c *command.Command, args []string) error {
 		param.Stem = int64(stemAge * 1_000_000)
 		wt := walk.New(t, param)
 		l := wt.DownPass()
-		name := fmt.Sprintf("%s-%s-down.tab", output, t.Name())
-		if err := writeTreeConditional(wt, name, p.Name(), dd); err != nil {
+		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
+		if err := writeTreeConditional(wt, name, p.Name()); err != nil {
 			return err
 		}
 		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
@@ -223,7 +223,7 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func writeTreeConditional(t *walk.Tree, name, p string, d cats.Discrete) (err error) {
+func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -236,7 +236,8 @@ func writeTreeConditional(t *walk.Tree, name, p string, d cats.Discrete) (err er
 	}()
 
 	w := bufio.NewWriter(f)
-	fmt.Fprintf(w, "# walk.like of tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# base steps per million year: %.6f\n", t.Steps())
 	fmt.Fprintf(w, "# walkers per rate category: %d\n", walkers)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
@@ -260,11 +261,17 @@ func writeTreeConditional(t *walk.Tree, name, p string, d cats.Discrete) (err er
 	if err := tsv.Write(header); err != nil {
 		return err
 	}
+	steps := strconv.FormatFloat(t.Steps(), 'f', 6, 64)
+	relaxed := t.Discrete().String()
+	numberCats := strconv.Itoa(t.NumCats())
+	eq := strconv.Itoa(t.Equator())
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
+		nID := strconv.Itoa(n)
 		stages := t.Stages(n)
 		for _, a := range stages {
+			stageAge := strconv.FormatInt(a, 10)
 			traits := t.Traits()
 			for _, tr := range traits {
 				c := t.Conditional(n, a, tr)
@@ -275,14 +282,14 @@ func writeTreeConditional(t *walk.Tree, name, p string, d cats.Discrete) (err er
 					}
 					row := []string{
 						t.Name(),
-						strconv.Itoa(n),
-						strconv.FormatInt(a, 10),
+						nID,
+						stageAge,
 						"log-like",
-						strconv.FormatFloat(numSteps, 'f', 6, 64),
-						d.String(),
-						strconv.Itoa(numCats),
+						steps,
+						relaxed,
+						numberCats,
 						tr,
-						strconv.Itoa(t.Equator()),
+						eq,
 						strconv.Itoa(px),
 						strconv.FormatFloat(lk, 'f', 8, 64),
 					}

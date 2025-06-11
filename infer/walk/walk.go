@@ -65,9 +65,6 @@ type Param struct {
 
 	// Discrete is the discretized function for the step categories
 	Discrete cats.Discrete
-
-	// Cats are the multiplier categories for the step number
-	Cats []float64
 }
 
 // A Tree is a phylogenetic tree for biogeography.
@@ -114,7 +111,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {
-		n.setSteps(p.Steps, p.MinSteps, p.MaxSteps, p.Cats)
+		n.setSteps(p.Steps, p.MinSteps, p.MaxSteps, nt.dd.Cats())
 
 		if !nt.t.IsTerm(n.id) {
 			continue
