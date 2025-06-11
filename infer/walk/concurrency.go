@@ -7,7 +7,8 @@ package walk
 import (
 	"runtime"
 	"sync"
-	"time"
+
+	"github.com/js-arias/earth/model"
 )
 
 type likeChanType struct {
@@ -46,5 +47,61 @@ func Start(cpu int) {
 // End closes the goroutines used for the down-pass.
 func End() {
 	close(likeChan)
-	time.Sleep(10 * time.Second)
+}
+
+type pathChanType struct {
+	start, end int
+	src        []int
+	t          []int
+	density    [][]float64
+	path       []*Path
+
+	w     *walkModel
+	rot   *model.Rotation
+	age   int64
+	steps []int
+
+	wg *sync.WaitGroup
+}
+
+// UpPass sends particles to approximate the empirical pixel posterior
+// of all nodes.
+// Use cpu to defined the number of process
+// used for the estimation.
+// The default (zero) uses all available CPU.
+func (t *Tree) UpPass(cpu, particles int) {
+	if cpu == 0 {
+		cpu = runtime.NumCPU()
+	}
+
+	maxSteps := 0
+	numCats := 0
+	for _, n := range t.nodes {
+		for _, st := range n.stages {
+			steps := st.steps
+			if len(steps) == 0 {
+				continue
+			}
+			if v := steps[len(steps)-1]; v > maxSteps {
+				maxSteps = v
+			}
+			numCats = len(st.steps)
+		}
+	}
+	pathChan := make(chan pathChanType, cpu*2)
+	for range cpu {
+		go runSimPath(pathChan, t.walkers, numCats, maxSteps)
+	}
+
+	root := t.nodes[t.t.Root()]
+	rs := root.stages[0]
+	density := make([][]float64, len(rs.logLike))
+	for i := range density {
+		density[i] = make([]float64, len(rs.logLike[i]))
+	}
+	src := make([]int, particles)
+	ts := make([]int, particles)
+	root.upPass(t, pathChan, density, src, ts, cpu)
+
+	close(pathChan)
 }

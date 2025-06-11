@@ -47,6 +47,19 @@ func (d *Data) Add(taxon, state string) {
 	obs[state] = true
 }
 
+// HasTrait returns true if the given trait state
+// is among the defined trait states
+// in the dataset.
+func (d *Data) HasTrait(state string) bool {
+	state = strings.Join(strings.Fields(strings.ToLower(state)), " ")
+	for _, obs := range d.taxon {
+		if obs[state] {
+			return true
+		}
+	}
+	return false
+}
+
 // Obs returns the observed states
 // for a taxon in a data set.
 func (d *Data) Obs(taxon string) []string {

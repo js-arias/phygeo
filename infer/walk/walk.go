@@ -14,6 +14,7 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/pixkey"
+	"github.com/js-arias/phygeo/cats"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/phygeo/trait"
 	"github.com/js-arias/ranges"
@@ -62,6 +63,9 @@ type Param struct {
 	// Walkers is the number of particles per step category
 	Walkers int
 
+	// Discrete is the discretized function for the step categories
+	Discrete cats.Discrete
+
 	// Cats are the multiplier categories for the step number
 	Cats []float64
 }
@@ -74,6 +78,8 @@ type Tree struct {
 	rot      *model.StageRot
 	landProb *walkModel
 
+	steps   float64
+	dd      cats.Discrete
 	walkers int
 }
 
@@ -95,6 +101,8 @@ func New(t *timetree.Tree, p Param) *Tree {
 		nodes:    make(map[int]*node, len(t.Nodes())),
 		rot:      p.Rot,
 		landProb: landProb,
+		steps:    p.Steps,
+		dd:       p.Discrete,
 		walkers:  p.Walkers,
 	}
 
@@ -188,10 +196,10 @@ func (t *Tree) Conditional(n int, age int64, tr string) map[int]float64 {
 	return cLike
 }
 
-// Equator returns the number of pixels in the equator
-// of the underlying pixelation.
-func (t *Tree) Equator() int {
-	return t.landProb.tp.Pixelation().Equator()
+// Discrete returns the discrete distribution
+// used for the step categories.
+func (t *Tree) Discrete() cats.Discrete {
+	return t.dd
 }
 
 // DownPass performs the Felsenstein's pruning algorithm
@@ -210,6 +218,18 @@ func (t *Tree) DownPass() float64 {
 	root.fullDownPass(t, tmpLike, resLike)
 
 	return t.LogLike()
+}
+
+// Equator returns the number of pixels in the equator
+// of the underlying pixelation.
+func (t *Tree) Equator() int {
+	return t.landProb.tp.Pixelation().Equator()
+}
+
+// IsRoot returns true
+// if the indicated node is the root of the tree.
+func (t *Tree) IsRoot(id int) bool {
+	return t.t.IsRoot(id)
 }
 
 // LogLike returns the logLikelihood of the whole reconstruction
@@ -241,15 +261,109 @@ func (t *Tree) Name() string {
 	return t.t.Name()
 }
 
-// Nodes return an slice with IDs
+// Nodes returns an slice with IDs
 // of the nodes of the tree.
 func (t *Tree) Nodes() []int {
 	return t.t.Nodes()
 }
 
+// NumCats returns the number of categories
+// used during search.
+func (t *Tree) NumCats() int {
+	return len(t.dd.Cats())
+}
+
+// Path returns the path from a stochastic mapping
+// or a simulation
+// of a given node,
+// at a given time stage
+// (in years),
+// for a given particle.
+func (t *Tree) Path(particle, n int, age int64) Path {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return Path{From: -1}
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return Path{From: -1}
+	}
+	st := nn.stages[i]
+
+	if particle >= len(st.paths) {
+		return Path{From: -1}
+	}
+	p := st.paths[particle]
+	path := make([]int, len(p.Path))
+	copy(path, p.Path)
+	return Path{
+		From:       p.From,
+		To:         p.To,
+		TraitStart: p.TraitStart,
+		TraitEnd:   p.TraitEnd,
+		Cat:        p.Cat,
+		Path:       path,
+	}
+}
+
 // Pixels returns the number of pixels in the underlying pixelation.
 func (t *Tree) Pixels() int {
 	return t.landProb.tp.Pixelation().Len()
+}
+
+// SetConditional sets the conditional likelihood
+// (in logLike units)
+// of a node at a given time stage.
+func (t *Tree) SetConditional(n int, age int64, logLike map[string]map[int]float64) {
+
+	nn, ok := t.nodes[n]
+	if !ok {
+		return
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return
+	}
+
+	ts := nn.stages[i]
+	if ts.logLike == nil {
+		ts.logLike = make([][]float64, len(t.landProb.traits))
+		for i := range ts.logLike {
+			like := make([]float64, t.landProb.tp.Pixelation().Len())
+			for px := range like {
+				like[px] = math.Inf(-1)
+			}
+			ts.logLike[i] = like
+		}
+	}
+
+	for i, tr := range t.landProb.traits {
+		trLike, ok := logLike[tr]
+		if !ok {
+			continue
+		}
+		for px, v := range trLike {
+			ts.logLike[i][px] = v
+		}
+	}
 }
 
 // Stages returns the age of the time stages of a node
@@ -266,6 +380,11 @@ func (t *Tree) Stages(n int) []int64 {
 		ages = append(ages, st.age)
 	}
 	return ages
+}
+
+// Steps returns the base number of steps
+func (t *Tree) Steps() float64 {
+	return t.steps
 }
 
 // Traits returns the names of the traits defined for the terminals
@@ -364,6 +483,9 @@ type timeStage struct {
 
 	// logLikelihood of each trait-pixel
 	logLike [][]float64
+
+	// path store stochastic map paths
+	paths []*Path
 
 	steps []int
 }
