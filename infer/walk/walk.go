@@ -239,6 +239,46 @@ func (t *Tree) LogLike() float64 {
 	return math.Log(sum) + max
 }
 
+// Marginal returns the marginal reconstruction
+// for a given node
+// at a given time stage
+// (in years)
+// with a given trait.
+// The returned map is a map of pixels to probabilities.
+// If raw is true it will fill the map with raw marginal values,
+// otherwise it will fill it with the CDF of each pixel.
+func (t *Tree) Marginal(n int, age int64, tr string, raw bool) map[int]float64 {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return nil
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return nil
+	}
+
+	ts := nn.stages[i]
+
+	j, ok := slices.BinarySearch(t.landProb.traits, tr)
+	if !ok {
+		return nil
+	}
+
+	if raw {
+		return pixRawMarginal(ts.marginal, j, t.landProb.tp.Pixelation().Len())
+	}
+	return pixCDF(ts.marginal, j, t.landProb.tp.Pixelation().Len())
+}
+
 // Name returns the name of the tree.
 func (t *Tree) Name() string {
 	return t.t.Name()
@@ -288,6 +328,13 @@ func (t *Tree) Traits() []string {
 	tr := make([]string, len(t.landProb.traits))
 	copy(tr, t.landProb.traits)
 	return tr
+}
+
+// UpPass an implicit statistical de-marginalization
+// that approximate the marginal of each node.
+func (t *Tree) UpPass() {
+	root := t.nodes[t.t.Root()]
+	root.fullUpPass(t)
 }
 
 // A Node is a node in a phylogenetic tree.
@@ -381,6 +428,10 @@ type timeStage struct {
 
 	// conditional logLikelihood of each trait-pixel
 	logLike [][]float64
+
+	// marginals of each trait-pixel
+	// scaled to 1 as the maximum
+	marginal [][]float64
 
 	steps []int
 }

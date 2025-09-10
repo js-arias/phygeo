@@ -32,8 +32,8 @@ var likeChan chan likeChanType
 // used for the reconstruction.
 // The default (zero) uses all available CPU.
 // After all optimization is done,
-// use End to close the goroutines.
-func Start(cpu int, pix *earth.Pixelation) {
+// use EndDown to close the goroutines.
+func StartDown(cpu int, pix *earth.Pixelation) {
 	likeChanMutex.Lock()
 	defer likeChanMutex.Unlock()
 
@@ -52,8 +52,8 @@ func Start(cpu int, pix *earth.Pixelation) {
 	openLikeChan = true
 }
 
-// End closes the goroutines used for the down-pass.
-func End() {
+// EndDown closes the goroutines used for the down-pass.
+func EndDown() {
 	likeChanMutex.Lock()
 	defer likeChanMutex.Unlock()
 	close(likeChan)

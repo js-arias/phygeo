@@ -77,7 +77,6 @@ By default, all available CPU will be used in the calculations. Set the flag
 var numSteps float64
 var stemAge float64
 var numCats int
-var minSteps int
 var maxSteps int
 var numCPU int
 var relaxed string
@@ -205,19 +204,27 @@ func run(c *command.Command, args []string) error {
 		Discrete:   dd,
 	}
 
-	walk.Start(numCPU, landscape.Pixelation())
+	walk.StartDown(numCPU, landscape.Pixelation())
+	walk.StartUp(numCPU, landscape.Pixelation())
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		param.Stem = int64(stemAge * 1_000_000)
 		wt := walk.New(t, param)
 		l := wt.DownPass()
+		wt.UpPass()
 		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
 		if err := writeTreeConditional(wt, name, p.Name()); err != nil {
 			return err
 		}
+
+		name = fmt.Sprintf("%s-up-%s.tab", output, t.Name())
+		if err := writeTreeMarginal(wt, name, p.Name()); err != nil {
+			return err
+		}
 		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
 	}
-	walk.End()
+	walk.EndDown()
+	walk.EndUp()
 	return nil
 }
 
@@ -289,6 +296,93 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 						eq,
 						strconv.Itoa(px),
 						strconv.FormatFloat(lk, 'f', 8, 64),
+					}
+					if err := tsv.Write(row); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	tsv.Flush()
+	if err := tsv.Error(); err != nil {
+		return fmt.Errorf("while writing data on %q: %v", name, err)
+	}
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("while writing data on %q: %v", name, err)
+	}
+	return nil
+}
+
+func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
+	f, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := f.Close()
+		if err == nil && e != nil {
+			err = e
+		}
+	}()
+
+	w := bufio.NewWriter(f)
+	fmt.Fprintf(w, "# marginal reconstructions of tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# base steps per million year: %.6f\n", t.Steps())
+	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
+	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
+
+	tsv := csv.NewWriter(w)
+	tsv.Comma = '\t'
+	tsv.UseCRLF = true
+	header := []string{
+		"tree",
+		"node",
+		"age",
+		"type",
+		"steps",
+		"relaxed",
+		"cats",
+		"trait",
+		"equator",
+		"pixel",
+		"value",
+	}
+	if err := tsv.Write(header); err != nil {
+		return err
+	}
+	steps := strconv.FormatFloat(t.Steps(), 'f', 6, 64)
+	relaxed := t.Discrete().String()
+	numberCats := strconv.Itoa(t.NumCats())
+	eq := strconv.Itoa(t.Equator())
+
+	nodes := t.Nodes()
+	for _, n := range nodes {
+		nID := strconv.Itoa(n)
+		stages := t.Stages(n)
+		for _, a := range stages {
+			stageAge := strconv.FormatInt(a, 10)
+			traits := t.Traits()
+			for _, tr := range traits {
+				m := t.Marginal(n, a, tr, false)
+				for px := range t.Pixels() {
+					mp, ok := m[px]
+					if !ok {
+						continue
+					}
+					row := []string{
+						t.Name(),
+						nID,
+						stageAge,
+						"marginal-cdf",
+						steps,
+						relaxed,
+						numberCats,
+						tr,
+						eq,
+						strconv.Itoa(px),
+						strconv.FormatFloat(mp, 'f', 15, 64),
 					}
 					if err := tsv.Write(row); err != nil {
 						return err
