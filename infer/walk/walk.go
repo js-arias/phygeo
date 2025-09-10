@@ -56,12 +56,8 @@ type Param struct {
 	// Steps is the number of average steps per million year
 	Steps float64
 
-	// Minimum and maximum number of steps in a branch.
-	MinSteps int
+	// Maximum number of steps in a branch.
 	MaxSteps int
-
-	// Walkers is the number of particles per step category
-	Walkers int
 
 	// Discrete is the discretized function for the step categories
 	Discrete cats.Discrete
@@ -75,9 +71,8 @@ type Tree struct {
 	rot      *model.StageRot
 	landProb *walkModel
 
-	steps   float64
-	dd      cats.Discrete
-	walkers int
+	steps float64
+	dd    cats.Discrete
 }
 
 // New creates a new tree by copying the indicated source tree.
@@ -100,7 +95,6 @@ func New(t *timetree.Tree, p Param) *Tree {
 		landProb: landProb,
 		steps:    p.Steps,
 		dd:       p.Discrete,
-		walkers:  p.Walkers,
 	}
 
 	root := &node{
@@ -111,7 +105,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {
-		n.setSteps(p.Steps, p.MinSteps, p.MaxSteps, nt.dd.Cats())
+		n.setSteps(p.Steps, p.Landscape.Pixelation().Equator()/2, p.MaxSteps, nt.dd.Cats())
 
 		if !nt.t.IsTerm(n.id) {
 			continue
@@ -131,9 +125,9 @@ func New(t *timetree.Tree, p Param) *Tree {
 		sum *= float64(len(obs))
 
 		st.logLike = make([][]float64, len(states))
-		for i, t := range states {
+		for i, tr := range states {
 			like := make([]float64, nt.landProb.tp.Pixelation().Len())
-			isObs := slices.Contains(obs, t)
+			isObs := slices.Contains(obs, tr)
 			for px := range like {
 				like[px] = math.Inf(-1)
 				if !isObs {
@@ -203,16 +197,8 @@ func (t *Tree) Discrete() cats.Discrete {
 // to estimate the likelihood of the data
 // for a tree.
 func (t *Tree) DownPass() float64 {
-	tmpLike := make([][]float64, len(t.landProb.traits))
-	resLike := make([][]float64, len(t.landProb.traits))
-	for i := range tmpLike {
-		pixSize := t.landProb.tp.Pixelation().Len()
-		tmpLike[i] = make([]float64, pixSize)
-		resLike[i] = make([]float64, pixSize)
-	}
-
 	root := t.nodes[t.t.Root()]
-	root.fullDownPass(t, tmpLike, resLike)
+	root.fullDownPass(t)
 
 	return t.LogLike()
 }
@@ -270,97 +256,9 @@ func (t *Tree) NumCats() int {
 	return len(t.dd.Cats())
 }
 
-// Path returns the path from a stochastic mapping
-// or a simulation
-// of a given node,
-// at a given time stage
-// (in years),
-// for a given particle.
-func (t *Tree) Path(particle, n int, age int64) Path {
-	nn, ok := t.nodes[n]
-	if !ok {
-		return Path{From: -1}
-	}
-
-	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
-		if st.age == age {
-			return 0
-		}
-		if st.age < age {
-			return 1
-		}
-		return -1
-	})
-	if !ok {
-		return Path{From: -1}
-	}
-	st := nn.stages[i]
-
-	if particle >= len(st.paths) {
-		return Path{From: -1}
-	}
-	p := st.paths[particle]
-	path := make([]int, len(p.Path))
-	copy(path, p.Path)
-	return Path{
-		From:       p.From,
-		To:         p.To,
-		TraitStart: p.TraitStart,
-		TraitEnd:   p.TraitEnd,
-		Cat:        p.Cat,
-		Path:       path,
-	}
-}
-
 // Pixels returns the number of pixels in the underlying pixelation.
 func (t *Tree) Pixels() int {
 	return t.landProb.tp.Pixelation().Len()
-}
-
-// SetConditional sets the conditional likelihood
-// (in logLike units)
-// of a node at a given time stage.
-func (t *Tree) SetConditional(n int, age int64, logLike map[string]map[int]float64) {
-
-	nn, ok := t.nodes[n]
-	if !ok {
-		return
-	}
-
-	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
-		if st.age == age {
-			return 0
-		}
-		if st.age < age {
-			return 1
-		}
-		return -1
-	})
-	if !ok {
-		return
-	}
-
-	ts := nn.stages[i]
-	if ts.logLike == nil {
-		ts.logLike = make([][]float64, len(t.landProb.traits))
-		for i := range ts.logLike {
-			like := make([]float64, t.landProb.tp.Pixelation().Len())
-			for px := range like {
-				like[px] = math.Inf(-1)
-			}
-			ts.logLike[i] = like
-		}
-	}
-
-	for i, tr := range t.landProb.traits {
-		trLike, ok := logLike[tr]
-		if !ok {
-			continue
-		}
-		for px, v := range trLike {
-			ts.logLike[i][px] = v
-		}
-	}
 }
 
 // Stages returns the age of the time stages of a node
@@ -459,13 +357,16 @@ func (n *node) setSteps(steps float64, min, max int, cats []float64) {
 
 		for _, c := range cats {
 			s := int(math.Round(steps * ts.duration * c))
-			if s < min {
-				s = min
+			if s == 0 {
+				s = 1
 			}
 			if s > max {
 				s = max
 			}
 			ts.steps = append(ts.steps, s)
+		}
+		if ts.steps[len(cats)-1] < min {
+			ts.steps[len(cats)-1] = min
 		}
 	}
 }
@@ -478,11 +379,8 @@ type timeStage struct {
 	age      int64
 	duration float64
 
-	// logLikelihood of each trait-pixel
+	// conditional logLikelihood of each trait-pixel
 	logLike [][]float64
-
-	// path store stochastic map paths
-	paths []*Path
 
 	steps []int
 }

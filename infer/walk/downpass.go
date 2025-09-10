@@ -9,70 +9,34 @@ import (
 	"sync"
 )
 
-func (n *node) fullDownPass(t *Tree, tmpLike, resLike [][]float64) {
+func (n *node) fullDownPass(t *Tree) {
+	var wg sync.WaitGroup
 	for _, c := range t.t.Children(n.id) {
-		nc := t.nodes[c]
-		nc.fullDownPass(t, tmpLike, resLike)
+		wg.Add(1)
+		go func(c int) {
+			nc := t.nodes[c]
+			nc.fullDownPass(t)
+			wg.Done()
+		}(c)
 	}
-	n.conditional(t, tmpLike, resLike)
+	wg.Wait()
+	n.conditional(t)
 }
 
-func (n *node) conditional(t *Tree, tmpLike, resLike [][]float64) {
+func (n *node) conditional(t *Tree) {
 	if !t.t.IsTerm(n.id) {
-		// In an split node
+
+		// In a split node
 		// the conditional likelihood is the product
 		// of the conditional likelihoods of each descendant
 		desc := t.t.Children(n.id)
 		ts := n.stages[len(n.stages)-1]
-		age := t.landProb.tp.ClosestStageAge(ts.age)
-		t.landProb.prepareStage(age)
-
-		// check for the minimum value
-		// as we use sampling,
-		// it is possible that some pixels are "unassigned"
-		// with an infinity value
-		var min float64
-		for _, d := range desc {
-			c := t.nodes[d]
-			for _, tr := range c.stages[0].logLike {
-				for _, l := range tr {
-					if math.IsInf(l, 0) {
-						continue
-					}
-					if l < min {
-						min = l
-					}
-				}
-			}
-		}
-		min -= 50000 // add an small, very unlikely value
 		logLike := make([][]float64, len(t.landProb.traits))
 		for i := range logLike {
-			stage := t.landProb.stage(age, i)
 			logLike[i] = make([]float64, t.landProb.tp.Pixelation().Len())
-			for j, d := range desc {
+			for _, d := range desc {
 				c := t.nodes[d]
-				if j == 0 {
-					for px, l := range c.stages[0].logLike[i] {
-						if stage.prior[px] == 0 {
-							logLike[i][px] = math.Inf(-1)
-							continue
-						}
-						if math.IsInf(l, 0) {
-							logLike[i][px] = min
-							continue
-						}
-						logLike[i][px] = l
-					}
-					continue
-				}
 				for px, l := range c.stages[0].logLike[i] {
-					if stage.prior[px] == 0 {
-						continue
-					}
-					if math.IsInf(l, 0) {
-						l = min
-					}
 					logLike[i][px] += l
 				}
 			}
@@ -81,103 +45,116 @@ func (n *node) conditional(t *Tree, tmpLike, resLike [][]float64) {
 	}
 
 	// internodes
+	tmpLike := make([][]float64, len(t.landProb.traits))
+	for i := range tmpLike {
+		tmpLike[i] = make([]float64, t.landProb.tp.Pixelation().Len())
+	}
 	for i := len(n.stages) - 2; i >= 0; i-- {
 		ts := n.stages[i]
 		age := t.rot.ClosestStageAge(ts.age)
 		next := n.stages[i+1]
 		nextAge := t.rot.ClosestStageAge(next.age)
 
-		repeat := true
-		for repeat {
-			repeat = false
-			logLike := next.conditional(t, tmpLike, resLike)
-			// Rotate if there is an stage change
-			if nextAge != age {
-				rot := t.rot.YoungToOld(nextAge)
-				like := make([][]float64, len(logLike))
-				for i := range like {
-					l := make([]float64, t.landProb.tp.Pixelation().Len())
-					if i == 0 {
-						for px := range l {
-							l[px] = math.Inf(-1)
-						}
-						like[i] = l
-						continue
-					}
-					copy(l, like[0])
-					like[i] = l
+		logLike := next.conditional(t, tmpLike)
+		if nextAge != age {
+			// rotate if there is an stage change
+			rot := t.rot.YoungToOld(nextAge)
+			for i := range logLike {
+				copy(tmpLike[i], logLike[i])
+				for px := range logLike[i] {
+					logLike[i][px] = math.Inf(-1)
 				}
-				rotation(rot.Rot, logLike, like)
-				ts.logLike = like
-				repeat = !hasSampled(ts.logLike)
-				continue
 			}
-
-			like := make([][]float64, len(logLike))
-			for i := range like {
-				like[i] = make([]float64, len(logLike[i]))
-				copy(like[i], logLike[i])
-			}
-			ts.logLike = like
-			repeat = !hasSampled(ts.logLike)
+			rotation(rot.Rot, tmpLike, logLike)
 		}
+		ts.logLike = logLike
 	}
 
 	if t.t.IsRoot(n.id) {
-		// set pixel priors
+		// At the root add the pixel priors
 		rs := n.stages[0]
 		age := t.landProb.tp.ClosestStageAge(rs.age)
-		for i, tr := range rs.logLike {
+		for i := range rs.logLike {
 			stage := t.landProb.stage(age, i)
 			var sum float64
-			for _, p := range stage.prior {
-				sum += p
+			for px := range rs.logLike[i] {
+				var pp float64
+				for _, nx := range stage.move[px] {
+					if nx.id == px {
+						pp = nx.prob
+						break
+					}
+				}
+				sum += pp
+				if pp == 0 {
+					// remove un-settable pixels
+					rs.logLike[i][px] = math.Inf(-1)
+					continue
+				}
+				rs.logLike[i][px] += math.Log(pp)
 			}
 			logSum := math.Log(sum)
-			for px := range tr {
-				rs.logLike[i][px] += math.Log(stage.prior[px]) - logSum
+			for px := range rs.logLike[i] {
+				rs.logLike[i][px] -= logSum
 			}
 		}
 	}
 }
 
-// pixel blocks
-const pixBlocks = 500
-
 // Conditional calculates the conditional likelihood
 // of a time stage.
-func (ts *timeStage) conditional(t *Tree, tmpLike, resLike [][]float64) [][]float64 {
+func (ts *timeStage) conditional(t *Tree, tmpLike [][]float64) [][]float64 {
+	resLike := make([][]float64, len(t.landProb.traits))
+	for i := range resLike {
+		resLike[i] = make([]float64, t.landProb.tp.Pixelation().Len())
+	}
+
 	age := t.landProb.tp.ClosestStageAge(ts.age)
-	numPix := t.landProb.tp.Pixelation().Len()
 
 	t.landProb.prepareStage(age)
-	max := scaleLogPix(ts.logLike, tmpLike)
+	max := scaleLogProb(ts.logLike, tmpLike)
 
-	var wg sync.WaitGroup
-	for i := 0; i < numPix; i += pixBlocks {
-		wg.Add(1)
-		e := min(i+pixBlocks, numPix)
-		go func(start, end int) {
+	answer := make(chan likeChanAnswer)
+	go func() {
+		for i := range t.landProb.traits {
 			likeChan <- likeChanType{
-				start:     start,
-				end:       end,
-				like:      resLike,
-				scaleProb: tmpLike,
-				maxLn:     max,
-				w:         t.landProb,
-				age:       age,
-				steps:     ts.steps,
-				walkers:   t.walkers,
-				wg:        &wg,
+				like:   tmpLike[i],
+				raw:    resLike[i],
+				w:      t.landProb,
+				age:    age,
+				tr:     i,
+				steps:  ts.steps,
+				answer: answer,
 			}
-		}(i, e)
-	}
-	wg.Wait()
+		}
+	}()
 
+	logNumCats := math.Log(float64(len(ts.steps)))
+	for range t.landProb.traits {
+		a := <-answer
+		resLike[a.tr] = a.rawLike
+		stage := t.landProb.stage(age, a.tr)
+		for px, p := range resLike[a.tr] {
+			var pp float64
+			for _, nx := range stage.move[px] {
+				if nx.id == px {
+					pp = nx.prob
+					break
+				}
+			}
+			if pp == 0 {
+				// remove un-settable pixels
+				resLike[a.tr][px] = math.Inf(-1)
+				continue
+			}
+			resLike[a.tr][px] = math.Log(p) + max - logNumCats
+		}
+	}
+	close(answer)
 	return resLike
 }
 
-func scaleLogPix(like, scale [][]float64) float64 {
+func scaleLogProb(like, scale [][]float64) float64 {
 	max := math.Inf(-1)
 	for _, t := range like {
 		for _, l := range t {
@@ -195,15 +172,4 @@ func scaleLogPix(like, scale [][]float64) float64 {
 	}
 
 	return max
-}
-
-func hasSampled(logLike [][]float64) bool {
-	for _, t := range logLike {
-		for _, l := range t {
-			if l > math.Inf(-1) {
-				return true
-			}
-		}
-	}
-	return false
 }

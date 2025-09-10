@@ -25,8 +25,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `like [--stem <age>]
-	[--steps <value>] [--min <number>] [--max <number>]
-	[--walkers <value>]
+	[--steps <value>] [--max <number>]
 	[--relaxed <value>] [--cats <number>]
 	[-o|--output <file>]
 	[--cpu <number>]
@@ -45,14 +44,12 @@ pixels will be closer to the expected equilibrium of the model, at the cost of
 increasing computing time.
 
 The flag --steps define the number of steps per million years in the random
-walk. The default value is 10. It can be a non integer value. Flags --min and
---max define the minimum and maximum number of steps in a branch-category.
-Defaults are 3 and 1000.
+walk. The default value is 1/4 of the number of pixels at the equator (i.e. 90
+degrees). It can be a non integer value. Flag --max defines the maximum number
+of steps in any branch-category, by default is 5 times the number of pixels in
+the equator.
 
-By default, there will be 100 walkers (particles) per each category. Use the
-flag --walkers to set a different number.
-
-By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.5,
+By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.0,
 and ten categories. To change the number of categories use the parameter
 --cats. To change the relaxed distribution, use the parameter --relaxed with
 a distribution function. The format for the relaxed distribution function is
@@ -82,18 +79,15 @@ var stemAge float64
 var numCats int
 var minSteps int
 var maxSteps int
-var walkers int
 var numCPU int
 var relaxed string
 var output string
 
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
-	c.Flags().Float64Var(&numSteps, "steps", 10, "")
-	c.Flags().IntVar(&minSteps, "min", 3, "")
-	c.Flags().IntVar(&maxSteps, "max", 1000, "")
+	c.Flags().Float64Var(&numSteps, "steps", 0, "")
+	c.Flags().IntVar(&maxSteps, "max", 0, "")
 	c.Flags().IntVar(&numCats, "cats", 10, "")
-	c.Flags().IntVar(&walkers, "walkers", 100, "")
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
 	c.Flags().StringVar(&relaxed, "relaxed", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
@@ -179,7 +173,7 @@ func run(c *command.Command, args []string) error {
 		dd = cats.LogNormal{
 			Param: distuv.LogNormal{
 				Mu:    0,
-				Sigma: 1.5,
+				Sigma: 1.0,
 			},
 			NumCat: numCats,
 		}
@@ -188,6 +182,12 @@ func run(c *command.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("flag --relaxed: %v", err)
 		}
+	}
+	if numSteps == 0 {
+		numSteps = float64(landscape.Pixelation().Equator()) / 4
+	}
+	if maxSteps == 0 {
+		maxSteps = landscape.Pixelation().Equator() * 5
 	}
 
 	param := walk.Param{
@@ -201,13 +201,11 @@ func run(c *command.Command, args []string) error {
 		Movement:   mv,
 		Settlement: st,
 		Steps:      numSteps,
-		MinSteps:   minSteps,
 		MaxSteps:   maxSteps,
-		Walkers:    walkers,
 		Discrete:   dd,
 	}
 
-	walk.Start(numCPU)
+	walk.Start(numCPU, landscape.Pixelation())
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		param.Stem = int64(stemAge * 1_000_000)
@@ -238,7 +236,6 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
 	fmt.Fprintf(w, "# base steps per million year: %.6f\n", t.Steps())
-	fmt.Fprintf(w, "# walkers per rate category: %d\n", walkers)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
 
