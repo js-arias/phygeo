@@ -105,7 +105,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {
-		n.setSteps(p.Steps, p.Landscape.Pixelation().Equator()/2, p.MaxSteps, nt.dd.Cats())
+		n.setSteps(nt, p.Steps, p.Landscape.Pixelation().Equator()/2, p.MaxSteps, nt.dd.Cats())
 
 		if !nt.t.IsTerm(n.id) {
 			continue
@@ -395,7 +395,8 @@ func (n *node) copySource(t *Tree, stem int64, stages []int64) {
 	n.stages = append(n.stages, ts)
 }
 
-func (n *node) setSteps(steps float64, min, max int, cats []float64) {
+func (n *node) setSteps(t *Tree, steps float64, min, max int, cats []float64) {
+	var sum int
 	for _, ts := range n.stages {
 		if ts.duration == 0 {
 			continue
@@ -412,9 +413,18 @@ func (n *node) setSteps(steps float64, min, max int, cats []float64) {
 			}
 			ts.steps = append(ts.steps, s)
 		}
-		if ts.steps[len(cats)-1] < min {
-			ts.steps[len(cats)-1] = min
+		sum += ts.steps[len(ts.steps)-1]
+	}
+	if t.t.IsRoot(n.id) || sum >= min {
+		return
+	}
+	m := float64(min) / float64(sum)
+	for _, ts := range n.stages {
+		if ts.duration == 0 {
+			continue
 		}
+		s := float64(ts.steps[len(ts.steps)-1])
+		ts.steps[len(ts.steps)-1] = int(math.Round(s * m))
 	}
 }
 
