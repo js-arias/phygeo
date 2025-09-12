@@ -1,2 +1,3 @@
 # Ignore local vs-code settings
 .vscode/
+.DS_Store

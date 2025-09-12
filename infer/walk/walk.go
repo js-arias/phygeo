@@ -50,6 +50,9 @@ type Param struct {
 	Movement   *trait.Matrix
 	Settlement *trait.Matrix
 
+	// SettWeight is the settlement weight
+	SettWeight float64
+
 	// Length in years of the stem node
 	Stem int64
 
@@ -84,6 +87,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		net:        p.Net,
 		movement:   p.Movement,
 		settlement: p.Settlement,
+		settWeight: p.SettWeight,
 		traits:     states,
 		key:        p.Keys,
 	}

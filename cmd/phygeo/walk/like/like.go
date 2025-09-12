@@ -25,6 +25,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `like [--stem <age>]
+	[--weight <value>]
 	[--steps <value>] [--max <number>]
 	[--relaxed <value>] [--cats <number>]
 	[-o|--output <file>]
@@ -42,6 +43,11 @@ the root as pixel priors. Use the flag --stem, with a value in million of
 years, to add a "root branch" with the indicated length. In that case the root
 pixels will be closer to the expected equilibrium of the model, at the cost of
 increasing computing time.
+
+The flag --weight define the settlement weight used to scale the settlement
+cost. The grater the value, the less likely a particle will move outside of
+its current location. The default value is 100. The value must be greater than
+zero.
 
 The flag --steps define the number of steps per million years in the random
 walk. The default value is 1/4 of the number of pixels at the equator (i.e. 90
@@ -76,6 +82,7 @@ By default, all available CPU will be used in the calculations. Set the flag
 
 var numSteps float64
 var stemAge float64
+var settWeight float64
 var numCats int
 var maxSteps int
 var numCPU int
@@ -85,6 +92,7 @@ var output string
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().Float64Var(&numSteps, "steps", 0, "")
+	c.Flags().Float64Var(&settWeight, "weight", 100, "")
 	c.Flags().IntVar(&maxSteps, "max", 0, "")
 	c.Flags().IntVar(&numCats, "cats", 10, "")
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
@@ -189,6 +197,10 @@ func run(c *command.Command, args []string) error {
 		maxSteps = landscape.Pixelation().Equator() * 5
 	}
 
+	if settWeight < 0 {
+		return fmt.Errorf("invalid --weight value: %.6f", settWeight)
+	}
+
 	param := walk.Param{
 		Landscape:  landscape,
 		Rot:        rot,
@@ -199,6 +211,7 @@ func run(c *command.Command, args []string) error {
 		Keys:       keys,
 		Movement:   mv,
 		Settlement: st,
+		SettWeight: settWeight,
 		Steps:      numSteps,
 		MaxSteps:   maxSteps,
 		Discrete:   dd,
@@ -242,6 +255,7 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# settlement weight: %.6f\n", settWeight)
 	fmt.Fprintf(w, "# base steps per million year: %.6f\n", t.Steps())
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
@@ -254,6 +268,7 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 		"node",
 		"age",
 		"type",
+		"settlement",
 		"steps",
 		"relaxed",
 		"cats",
@@ -269,6 +284,7 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	relaxed := t.Discrete().String()
 	numberCats := strconv.Itoa(t.NumCats())
 	eq := strconv.Itoa(t.Equator())
+	settVal := strconv.FormatFloat(settWeight, 'f', 6, 64)
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -289,13 +305,14 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 						nID,
 						stageAge,
 						"log-like",
+						settVal,
 						steps,
 						relaxed,
 						numberCats,
 						tr,
 						eq,
 						strconv.Itoa(px),
-						strconv.FormatFloat(lk, 'f', 8, 64),
+						strconv.FormatFloat(lk, 'f', 16, 64),
 					}
 					if err := tsv.Write(row); err != nil {
 						return err
@@ -341,6 +358,7 @@ func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
 		"node",
 		"age",
 		"type",
+		"settlement",
 		"steps",
 		"relaxed",
 		"cats",
@@ -356,6 +374,7 @@ func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
 	relaxed := t.Discrete().String()
 	numberCats := strconv.Itoa(t.NumCats())
 	eq := strconv.Itoa(t.Equator())
+	settVal := strconv.FormatFloat(settWeight, 'f', 6, 64)
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -371,11 +390,15 @@ func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
 					if !ok {
 						continue
 					}
+					if mp < 1e-15 {
+						continue
+					}
 					row := []string{
 						t.Name(),
 						nID,
 						stageAge,
 						"marginal-cdf",
+						settVal,
 						steps,
 						relaxed,
 						numberCats,

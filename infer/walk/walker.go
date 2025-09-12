@@ -21,6 +21,8 @@ type walkModel struct {
 	movement   *trait.Matrix
 	settlement *trait.Matrix
 
+	settWeight float64
+
 	traits []string
 	key    *pixkey.PixKey
 }
@@ -67,7 +69,7 @@ func (w *walkModel) buildPixProb(age int64, t string) [][]pixProb {
 			v := landscape[x]
 			p := w.movement.Weight(t, w.key.Label(v))
 			if x == px {
-				p = w.settlement.Weight(t, w.key.Label(s))
+				p = w.settlement.Weight(t, w.key.Label(s)) * w.settWeight
 			}
 			prob[i] = pixProb{
 				id:   x,
