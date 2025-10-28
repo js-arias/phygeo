@@ -25,8 +25,8 @@ import (
 
 var Command = &command.Command{
 	Usage: `like [--stem <age>]
-	[--weight <value>]
-	[--steps <value>] [--max <number>]
+	[--lambda <value>]
+	[--steps <value>]
 	[--relaxed <value>] [--cats <number>]
 	[-o|--output <file>]
 	[--cpu <number>]
@@ -44,19 +44,19 @@ years, to add a "root branch" with the indicated length. In that case the root
 pixels will be closer to the expected equilibrium of the model, at the cost of
 increasing computing time.
 
-The flag --weight define the settlement weight used to scale the settlement
-cost. The grater the value, the less likely a particle will move outside of
-its current location. The default value is 100. The value must be greater than
-zero.
+The flag --lambda defines the concentration parameter of the spherical normal
+(equivalent to the kappa parameter of the von Mises-Fisher distribution) for a
+diffusion process over a million years using 1/radias^2 units. If no value is
+defined, it will use 100. As the kappa parameter, larger values indicate low
+diffusivity, while smaller values indicate high diffusivity.
 
 The flag --steps define the number of steps per million years in the random
 walk. The default value is 1/4 of the number of pixels at the equator (i.e. 90
-degrees). It can be a non integer value. Flag --max defines the maximum number
-of steps in any branch-category, by default is 5 times the number of pixels in
-the equator.
+degrees). Flag --min defines the minimum number of steps in any a terminal
+branch, by default is 0, so no minimum is enforced.
 
 By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.0,
-and ten categories. To change the number of categories use the parameter
+and nine categories. To change the number of categories use the parameter
 --cats. To change the relaxed distribution, use the parameter --relaxed with
 a distribution function. The format for the relaxed distribution function is
 
@@ -80,21 +80,21 @@ By default, all available CPU will be used in the calculations. Set the flag
 	Run:      run,
 }
 
-var numSteps float64
+var lambdaFlag float64
 var stemAge float64
-var settWeight float64
 var numCats int
-var maxSteps int
 var numCPU int
+var numSteps int
+var minSteps int
 var relaxed string
 var output string
 
 func setFlags(c *command.Command) {
+	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
-	c.Flags().Float64Var(&numSteps, "steps", 0, "")
-	c.Flags().Float64Var(&settWeight, "weight", 100, "")
-	c.Flags().IntVar(&maxSteps, "max", 0, "")
-	c.Flags().IntVar(&numCats, "cats", 10, "")
+	c.Flags().IntVar(&minSteps, "min", 0, "")
+	c.Flags().IntVar(&numSteps, "steps", 0, "")
+	c.Flags().IntVar(&numCats, "cats", 9, "")
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
 	c.Flags().StringVar(&relaxed, "relaxed", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
@@ -191,14 +191,7 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 	if numSteps == 0 {
-		numSteps = float64(landscape.Pixelation().Equator()) / 4
-	}
-	if maxSteps == 0 {
-		maxSteps = landscape.Pixelation().Equator() * 5
-	}
-
-	if settWeight < 0 {
-		return fmt.Errorf("invalid --weight value: %.6f", settWeight)
+		numSteps = landscape.Pixelation().Equator() / 4
 	}
 
 	param := walk.Param{
@@ -211,33 +204,35 @@ func run(c *command.Command, args []string) error {
 		Keys:       keys,
 		Movement:   mv,
 		Settlement: st,
-		SettWeight: settWeight,
+		Lambda:     lambdaFlag,
 		Steps:      numSteps,
-		MaxSteps:   maxSteps,
+		MinSteps:   minSteps,
 		Discrete:   dd,
 	}
 
-	walk.StartDown(numCPU, landscape.Pixelation())
-	walk.StartUp(numCPU, landscape.Pixelation())
+	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
+	// walk.StartUp(numCPU, landscape.Pixelation())
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		param.Stem = int64(stemAge * 1_000_000)
 		wt := walk.New(t, param)
 		l := wt.DownPass()
-		wt.UpPass()
+		// wt.UpPass()
 		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
 		if err := writeTreeConditional(wt, name, p.Name()); err != nil {
 			return err
 		}
 
-		name = fmt.Sprintf("%s-up-%s.tab", output, t.Name())
-		if err := writeTreeMarginal(wt, name, p.Name()); err != nil {
-			return err
-		}
+		/*
+			name = fmt.Sprintf("%s-up-%s.tab", output, t.Name())
+			if err := writeTreeMarginal(wt, name, p.Name()); err != nil {
+				return err
+			}
+		*/
 		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
 	}
 	walk.EndDown()
-	walk.EndUp()
+	// walk.EndUp()
 	return nil
 }
 
@@ -255,8 +250,8 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
-	fmt.Fprintf(w, "# settlement weight: %.6f\n", settWeight)
-	fmt.Fprintf(w, "# base steps per million year: %.6f\n", t.Steps())
+	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambdaFlag)
+	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
 
@@ -268,10 +263,12 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 		"node",
 		"age",
 		"type",
-		"settlement",
+		"lambda",
 		"steps",
 		"relaxed",
 		"cats",
+		"cat",
+		"scaled",
 		"trait",
 		"equator",
 		"pixel",
@@ -280,11 +277,12 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	if err := tsv.Write(header); err != nil {
 		return err
 	}
-	steps := strconv.FormatFloat(t.Steps(), 'f', 6, 64)
+	cats := t.Cats()
+	steps := strconv.Itoa(t.Steps())
 	relaxed := t.Discrete().String()
-	numberCats := strconv.Itoa(t.NumCats())
+	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
-	settVal := strconv.FormatFloat(settWeight, 'f', 6, 64)
+	lambdaVal := strconv.FormatFloat(lambdaFlag, 'f', 6, 64)
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -292,30 +290,36 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 		stages := t.Stages(n)
 		for _, a := range stages {
 			stageAge := strconv.FormatInt(a, 10)
-			traits := t.Traits()
-			for _, tr := range traits {
-				c := t.Conditional(n, a, tr)
-				for px := range t.Pixels() {
-					lk, ok := c[px]
-					if !ok {
-						continue
-					}
-					row := []string{
-						t.Name(),
-						nID,
-						stageAge,
-						"log-like",
-						settVal,
-						steps,
-						relaxed,
-						numberCats,
-						tr,
-						eq,
-						strconv.Itoa(px),
-						strconv.FormatFloat(lk, 'f', 16, 64),
-					}
-					if err := tsv.Write(row); err != nil {
-						return err
+			for i, c := range cats {
+				traits := t.Traits()
+				currCat := strconv.Itoa(i)
+				scaled := strconv.FormatFloat(lambdaFlag*c, 'f', 6, 64)
+				for _, tr := range traits {
+					cond := t.Conditional(n, a, i, tr)
+					for px := range t.Pixels() {
+						lk, ok := cond[px]
+						if !ok {
+							continue
+						}
+						row := []string{
+							t.Name(),
+							nID,
+							stageAge,
+							"log-like",
+							lambdaVal,
+							steps,
+							relaxed,
+							numberCats,
+							currCat,
+							scaled,
+							tr,
+							eq,
+							strconv.Itoa(px),
+							strconv.FormatFloat(lk, 'f', 16, 64),
+						}
+						if err := tsv.Write(row); err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -332,6 +336,7 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	return nil
 }
 
+/*
 func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
@@ -424,3 +429,4 @@ func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
 	}
 	return nil
 }
+*/

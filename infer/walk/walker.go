@@ -5,6 +5,8 @@
 package walk
 
 import (
+	"sync"
+
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/pixkey"
@@ -13,6 +15,7 @@ import (
 
 // WalkModel contains the landscape model for the random walk
 type walkModel struct {
+	lock   sync.Mutex
 	stages map[int64][]stageProb
 
 	tp  *model.TimePix
@@ -21,17 +24,22 @@ type walkModel struct {
 	movement   *trait.Matrix
 	settlement *trait.Matrix
 
-	settWeight float64
+	settProb float64
 
 	traits []string
 	key    *pixkey.PixKey
 }
 
 func (w *walkModel) stage(age int64, t int) stageProb {
+	w.lock.Lock()
+	defer w.lock.Unlock()
 	return w.stages[age][t]
 }
 
 func (w *walkModel) prepareStage(age int64) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
 	age = w.tp.ClosestStageAge(age)
 	if _, ok := w.stages[age]; ok {
 		return
@@ -40,15 +48,18 @@ func (w *walkModel) prepareStage(age int64) {
 	trStage := make([]stageProb, len(w.traits))
 	for i, t := range w.traits {
 		prob := w.buildPixProb(age, t)
+		prior := w.buildPrior(age, t)
 		trStage[i] = stageProb{
-			move: prob,
+			move:  prob,
+			prior: prior,
 		}
 	}
 	w.stages[age] = trStage
 }
 
 type stageProb struct {
-	move [][]pixProb
+	move  [][]pixProb
+	prior []float64
 }
 
 type pixProb struct {
@@ -59,43 +70,42 @@ type pixProb struct {
 func (w *walkModel) buildPixProb(age int64, t string) [][]pixProb {
 	landscape := w.tp.Stage(age)
 
+	moveProb := 1 - w.settProb
 	pp := make([][]pixProb, w.tp.Pixelation().Len())
 	for px := range pp {
 		n := w.net[px]
 		prob := make([]pixProb, len(n))
+		mv := moveProb / float64(len(n)-1)
 		s := landscape[px]
-		var sum float64
 		for i, x := range n {
 			v := landscape[x]
-			p := w.movement.Weight(t, w.key.Label(v))
+			p := mv * w.movement.Weight(t, w.key.Label(v))
 			if x == px {
-				p = w.settlement.Weight(t, w.key.Label(s)) * w.settWeight
+				p = w.settlement.Weight(t, w.key.Label(s)) * w.settProb
 			}
 			prob[i] = pixProb{
 				id:   x,
 				prob: p,
 			}
-			sum += p
-		}
-
-		// if all destinations are prohibited
-		// do not move
-		if sum == 0 {
-			for i, x := range n {
-				if x == px {
-					prob[i].prob = 1
-					break
-				}
-			}
-			pp[px] = prob
-			continue
-		}
-
-		// normalize probabilities
-		for i, p := range prob {
-			prob[i].prob = p.prob / sum
 		}
 		pp[px] = prob
 	}
 	return pp
+}
+
+func (w *walkModel) buildPrior(age int64, t string) []float64 {
+	landscape := w.tp.Stage(age)
+
+	prior := make([]float64, w.tp.Pixelation().Len())
+	var sum float64
+	for px := range prior {
+		s := landscape[px]
+		p := w.settlement.Weight(t, w.key.Label(s))
+		prior[px] = p
+		sum += p
+	}
+	for px, p := range prior {
+		prior[px] = p / sum
+	}
+	return prior
 }

@@ -12,13 +12,13 @@ import (
 )
 
 type likeChanType struct {
-	like []float64
-	raw  []float64
+	like [][]float64
+	raw  [][]float64
 
 	w     *walkModel
 	age   int64
-	tr    int
-	steps []int
+	cat   int
+	steps int
 
 	answer chan likeChanAnswer
 }
@@ -33,7 +33,7 @@ var likeChan chan likeChanType
 // The default (zero) uses all available CPU.
 // After all optimization is done,
 // use EndDown to close the goroutines.
-func StartDown(cpu int, pix *earth.Pixelation) {
+func StartDown(cpu int, pix *earth.Pixelation, traits int) {
 	likeChanMutex.Lock()
 	defer likeChanMutex.Unlock()
 
@@ -47,7 +47,7 @@ func StartDown(cpu int, pix *earth.Pixelation) {
 
 	likeChan = make(chan likeChanType, cpu*2)
 	for range cpu {
-		go downLike(likeChan, pix.Len())
+		go downLike(likeChan, pix.Len(), traits)
 	}
 	openLikeChan = true
 }
@@ -61,38 +61,51 @@ func EndDown() {
 }
 
 type likeChanAnswer struct {
-	rawLike []float64
-	tr      int
+	rawLike [][]float64
+	cat     int
 }
 
-func downLike(c chan likeChanType, sz int) {
-	prev := make([]float64, sz)
-	curr := make([]float64, sz)
+func downLike(c chan likeChanType, sz, traits int) {
+	prev := make([][]float64, traits)
+	curr := make([][]float64, traits)
+	for i := range prev {
+		prev[i] = make([]float64, sz)
+		curr[i] = make([]float64, sz)
+	}
 	for cc := range c {
-		for _, s := range cc.steps {
-			copy(curr, cc.like)
-			stepLike := catConditional(cc.w, prev, curr, cc.age, cc.tr, s)
-			for px, p := range stepLike {
-				cc.raw[px] += p
-			}
+		for i := range curr {
+			copy(curr[i], cc.like[i])
+		}
+		stepLike := catConditional(cc.w, prev, curr, cc.age, cc.steps)
+		for i := range stepLike {
+			copy(cc.raw[i], stepLike[i])
 		}
 		cc.answer <- likeChanAnswer{
 			rawLike: cc.raw,
-			tr:      cc.tr,
+			cat:     cc.cat,
 		}
 	}
 }
 
-func catConditional(w *walkModel, prev, curr []float64, age int64, tr, steps int) []float64 {
-	stage := w.stage(age, tr)
+func catConditional(w *walkModel, prev, curr [][]float64, age int64, steps int) [][]float64 {
 	for range steps {
-		prev, curr = curr, prev
-		for px := range curr {
-			var sum float64
-			for _, nx := range stage.move[px] {
-				sum += nx.prob * prev[nx.id]
+		for i := range prev {
+			prev[i], curr[i] = curr[i], prev[i]
+
+			// reset values
+			for px := range curr[i] {
+				curr[i][px] = 0
 			}
-			curr[px] = sum
+		}
+		for i := range curr {
+			stage := w.stage(age, i)
+			for px := range curr[i] {
+				var sum float64
+				for _, nx := range stage.move[px] {
+					sum += nx.prob * prev[i][nx.id]
+				}
+				curr[i][px] += sum
+			}
 		}
 	}
 	return curr

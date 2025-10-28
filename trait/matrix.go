@@ -56,26 +56,32 @@ func NewMatrix(traits *Data, keys *pixkey.PixKey) *Matrix {
 
 // Add adds a weight to a given trait
 // for a given landscape feature.
-func (m *Matrix) Add(trait, key string, weight float64) {
+// The weight should be between 0 and 1.
+func (m *Matrix) Add(trait, key string, weight float64) error {
 	trait = strings.Join(strings.Fields(strings.ToLower(trait)), " ")
 	if trait == "" {
-		return
+		return nil
 	}
 	t, ok := m.states[trait]
 	if !ok {
-		return
+		return nil
+	}
+
+	if weight < 0 || weight > 1 {
+		return fmt.Errorf("trait: invalid weight value: %.6f", weight)
 	}
 
 	key = strings.Join(strings.Fields(strings.ToLower(key)), " ")
 	if key == "" {
-		return
+		return nil
 	}
 	k, ok := m.labels[key]
 	if !ok {
-		return
+		return nil
 	}
 
 	m.m[t][k] = weight
+	return nil
 }
 
 // ReadTSV reads a matrix from a TSV file.
@@ -141,7 +147,9 @@ func (m *Matrix) ReadTSV(r io.Reader) error {
 			return fmt.Errorf("on row %d: field %q: %q: %v", ln, f, row[fields[f]], err)
 		}
 
-		m.Add(trait, key, w)
+		if err := m.Add(trait, key, w); err != nil {
+			return fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+		}
 	}
 	return nil
 }
