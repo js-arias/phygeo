@@ -14,8 +14,6 @@ import (
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/pixkey"
-	"github.com/js-arias/earth/stat/dist"
-	"github.com/js-arias/phygeo/cats"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/phygeo/trait"
 	"github.com/js-arias/ranges"
@@ -64,8 +62,9 @@ type Param struct {
 	// Minimum number of steps in a branch.
 	MinSteps int
 
-	// Discrete is the discretized function for the step categories
-	Discrete cats.Discrete
+	// Discrete contains the values for the settlement probability
+	// for the diffusion categories.
+	Discrete []float64
 }
 
 // A Tree is a phylogenetic tree for biogeography.
@@ -78,24 +77,21 @@ type Tree struct {
 	landProb []*walkModel
 
 	steps int
-	dd    cats.Discrete
+	dd    []float64
 }
 
 // New creates a new tree by copying the indicated source tree.
 func New(t *timetree.Tree, p Param) *Tree {
 	states := p.Traits.States()
-	cats := p.Discrete.Cats()
-	landProb := make([]*walkModel, len(cats))
-	for i, c := range cats {
-		lambda := c * float64(p.Steps) * p.Lambda
-		sn := dist.NewNormal(lambda, p.Landscape.Pixelation())
+	landProb := make([]*walkModel, len(p.Discrete))
+	for i, c := range p.Discrete {
 		lp := &walkModel{
 			stages:     make(map[int64][]stageProb),
 			tp:         p.Landscape,
 			net:        p.Net,
 			movement:   p.Movement,
 			settlement: p.Settlement,
-			settProb:   sn.Prob(0),
+			settProb:   c,
 			traits:     states,
 			key:        p.Keys,
 		}
@@ -139,7 +135,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		}
 		obs := p.Traits.Obs(tx)
 
-		st.logLike = make([][][]float64, len(cats))
+		st.logLike = make([][][]float64, len(nt.dd))
 
 		for c := range st.logLike {
 			st.logLike[c] = make([][]float64, len(nt.landProb[c].traits))
@@ -162,10 +158,10 @@ func New(t *timetree.Tree, p Param) *Tree {
 	return nt
 }
 
-// Cats returns the lambda multipliers for each
-// relaxed category.
+// Cats returns the settlement probability
+// for each relaxed diffusion category.
 func (t *Tree) Cats() []float64 {
-	return t.dd.Cats()
+	return t.dd
 }
 
 // Conditional returns the conditional likelihood
@@ -212,12 +208,6 @@ func (t *Tree) Conditional(n int, age int64, cat int, tr string) map[int]float64
 	}
 
 	return cLike
-}
-
-// Discrete returns the discrete distribution
-// used for the relaxed categories.
-func (t *Tree) Discrete() cats.Discrete {
-	return t.dd
 }
 
 // DownPass performs the Felsenstein's pruning algorithm

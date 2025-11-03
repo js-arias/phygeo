@@ -8,7 +8,6 @@
 package catwalk
 
 import (
-	"fmt"
 	"math"
 	"slices"
 
@@ -98,7 +97,6 @@ func getBest(first, min, max, step float64, pix *earth.Pixelation, net earth.Net
 			dist = d
 			best = v
 		}
-		fmt.Printf("%.6f |%.6f - %.6f| =  %.12f\n", v, wp, first, d)
 	}
 	return best
 }

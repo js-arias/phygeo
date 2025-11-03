@@ -18,6 +18,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/phygeo/cats"
+	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/project"
 	"gonum.org/v1/gonum/stat/distuv"
@@ -193,6 +194,7 @@ func run(c *command.Command, args []string) error {
 	if numSteps == 0 {
 		numSteps = landscape.Pixelation().Equator() / 4
 	}
+	settCats := catwalk.Cats(landscape.Pixelation(), net, lambdaFlag, numSteps, dd)
 
 	param := walk.Param{
 		Landscape:  landscape,
@@ -207,7 +209,7 @@ func run(c *command.Command, args []string) error {
 		Lambda:     lambdaFlag,
 		Steps:      numSteps,
 		MinSteps:   minSteps,
-		Discrete:   dd,
+		Discrete:   settCats,
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
@@ -219,7 +221,7 @@ func run(c *command.Command, args []string) error {
 		l := wt.DownPass()
 		// wt.UpPass()
 		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
-		if err := writeTreeConditional(wt, name, p.Name()); err != nil {
+		if err := writeTreeConditional(wt, name, p.Name(), dd); err != nil {
 			return err
 		}
 
@@ -236,7 +238,7 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
+func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -251,6 +253,7 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
 	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambdaFlag)
+	fmt.Fprintf(w, "# relaxed diffusion function: %s with %d categories\n", dd, len(dd.Cats()))
 	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
@@ -279,7 +282,6 @@ func writeTreeConditional(t *walk.Tree, name, p string) (err error) {
 	}
 	cats := t.Cats()
 	steps := strconv.Itoa(t.Steps())
-	relaxed := t.Discrete().String()
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
 	lambdaVal := strconv.FormatFloat(lambdaFlag, 'f', 6, 64)
