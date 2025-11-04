@@ -47,14 +47,14 @@ increasing computing time.
 
 The flag --lambda defines the concentration parameter of the spherical normal
 (equivalent to the kappa parameter of the von Mises-Fisher distribution) for a
-diffusion process over a million years using 1/radias^2 units. If no value is
+diffusion process over a million years using 1/radian^2 units. If no value is
 defined, it will use 100. As the kappa parameter, larger values indicate low
 diffusivity, while smaller values indicate high diffusivity.
 
 The flag --steps define the number of steps per million years in the random
-walk. The default value is 1/4 of the number of pixels at the equator (i.e. 90
-degrees). Flag --min defines the minimum number of steps in any a terminal
-branch, by default is 0, so no minimum is enforced.
+walk. The default value id the number of pixels at the equator. Flag --min
+defines the minimum number of steps in any a terminal branch, by default is 0,
+so no minimum is enforced.
 
 By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.0,
 and nine categories. To change the number of categories use the parameter
@@ -192,7 +192,7 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 	if numSteps == 0 {
-		numSteps = landscape.Pixelation().Equator() / 4
+		numSteps = landscape.Pixelation().Equator()
 	}
 	settCats := catwalk.Cats(landscape.Pixelation(), net, lambdaFlag, numSteps, dd)
 
