@@ -9,45 +9,58 @@ package lambda
 
 import (
 	"fmt"
-	"math"
-	"math/rand/v2"
 	"strconv"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/stat/dist"
+	"github.com/js-arias/phygeo/cats"
+	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/project"
+	"gonum.org/v1/gonum/stat/distuv"
 )
 
 var Command = &command.Command{
-	Usage: `lambda [--particles <int>] [--steps]
+	Usage: `lambda [--steps <number>]
+	[--relaxed <value>] [--cats <number>]
 	<project> <value>`,
 	Short: "approximate the value of lambda",
 	Long: `
-Command lambda uses a given number of steps to estimate an approximate value
-of the lambda parameter of an spherical normal using the pixelation defined in
-a PhyGeo project.
+Command lambda writes the settlement probability that approximates the
+indicated lambda parameter of an spherical normal using the pixelation defined
+in a PhyGeo project.
 
 The first argument of the command is the name of the project file.
 
-The second argument of the command is the number of steps. If the flag --steps
-is defined, it reads the second argument as a lambda value, and the command
-will print the number of steps in which the maximum likelihood lambda is
-closer to the indicated value.
+The second argument of the command is the value of lambda of the diffusion
+process over a million years using 1/radian^2 units.
 
-By default, the simulation will use 1000 particles. Use the flag --particles
-to define a different number.
-	`,
+The flag --steps define the number of steps per million years in the random
+walk. The default value is the number of pixels at the equator.
+
+By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.0,
+and nine categories. To change the number of categories use the parameter
+--cats. To change the relaxed distribution, use the parameter --relaxed with
+a distribution function. The format for the relaxed distribution function is
+
+	"<distribution>=<param>[,<param>]"
+
+Always use the quotations. The implemented distributions are:
+
+	- Gamma: with a single parameter (both alpha and beta set as equal).
+	- LogNormal: with a single parameter (sigma), the mean is 1.
+`,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
-var stepsFlag bool
-var particles int
+var numCats int
+var numSteps int
+var relaxed string
 
 func setFlags(c *command.Command) {
-	c.Flags().BoolVar(&stepsFlag, "steps", false, "")
-	c.Flags().IntVar(&particles, "particles", 1000, "")
+	c.Flags().IntVar(&numSteps, "steps", 0, "")
+	c.Flags().IntVar(&numCats, "cats", 9, "")
+	c.Flags().StringVar(&relaxed, "relaxed", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -69,136 +82,39 @@ func run(c *command.Command, args []string) error {
 	net := earth.NewNetwork(pix)
 
 	if len(args) < 2 {
-		return c.UsageError("expecting numerical value")
+		return c.UsageError("expecting lambda value (numerical)")
 	}
-
-	if stepsFlag {
-		lambda, err := strconv.ParseFloat(args[1], 64)
-		if err != nil {
-			return fmt.Errorf("invalid value argument %q: %v", args[1], err)
-		}
-		if lambda < 0 {
-			return fmt.Errorf("invalid value argument %q: value must be greater than 0", args[1])
-		}
-		steps := findStep(pix, net, lambda)
-		fmt.Fprintf(c.Stdout(), "steps ≈ %d\n", steps)
-		return nil
-	}
-	steps, err := strconv.Atoi(args[1])
+	lambda, err := strconv.ParseFloat(args[1], 64)
 	if err != nil {
-		return fmt.Errorf("invalid value argument %q: %v", args[1], err)
-	}
-	if steps < 0 {
-		return fmt.Errorf("invalid value argument %q: value must be greater than 0", args[1])
+		return fmt.Errorf("expecting lambda value: %v", err)
 	}
 
-	d := walk(pix, net, steps)
-	best, bestLike := findMax(pix, d)
-	fmt.Fprintf(c.Stdout(), "lambda ≈ %.6f (likelihood ≈ %.6f)\n", best, bestLike)
+	var dd cats.Discrete
+	if relaxed == "" {
+		dd = cats.LogNormal{
+			Param: distuv.LogNormal{
+				Mu:    0,
+				Sigma: 1.0,
+			},
+			NumCat: numCats,
+		}
+	} else {
+		dd, err = cats.Parse(relaxed, numCats)
+		if err != nil {
+			return fmt.Errorf("flag --relaxed: %v", err)
+		}
+	}
+	if numSteps == 0 {
+		numSteps = landscape.Pixelation().Equator()
+	}
+	cats := dd.Cats()
+	settCats := catwalk.Cats(landscape.Pixelation(), net, lambda, numSteps, dd)
+
+	fmt.Printf("steps\tlambda\tcat\tscalar\tscaled\tsettlement\n")
+	for i, s := range settCats {
+		cv := cats[i]
+		fmt.Fprintf(c.Stdout(), "%d\t%.6f\t%d\t%.6f\t%.6f\t%.6f\n", numSteps, lambda, i+1, cv, lambda*cv, s)
+	}
 
 	return nil
-}
-
-func walk(pix *earth.Pixelation, net earth.Network, steps int) []int {
-	d := make([]int, particles)
-	for i := range d {
-		px := 0
-		for range steps {
-			n := net[px]
-			nx := rand.IntN(len(n))
-			px = n[nx]
-		}
-		d[i] = pix.ID(px).Ring()
-	}
-	return d
-}
-
-func findMax(pix *earth.Pixelation, d []int) (best, bestLike float64) {
-	// min boundary
-	min := 0.001
-	minLike := likelihood(pix, min, d)
-	best = min
-	bestLike = minLike
-
-	// max boundary
-	max := 100.0
-	maxLike := likelihood(pix, max, d)
-	if maxLike > bestLike {
-		best = max
-		bestLike = maxLike
-	}
-
-	// go up
-	for {
-		l := max * math.Phi
-		like := likelihood(pix, l, d)
-		max = l
-		maxLike = like
-		if maxLike < bestLike {
-			break
-		}
-		best = max
-		bestLike = maxLike
-	}
-
-	// golden ratio search
-	ratio := 1 / math.Phi
-	for {
-		if (max - min) < 0.01 {
-			break
-		}
-		d1 := best - min
-		d2 := max - best
-		if d1 > d2 {
-			l := min + d1*(1-ratio)
-			like := likelihood(pix, l, d)
-			if like > bestLike {
-				max = best
-				maxLike = bestLike
-				bestLike = like
-				best = l
-				continue
-			}
-			minLike = like
-			min = l
-			continue
-		}
-		l := best + d2*ratio
-		like := likelihood(pix, l, d)
-		if like > bestLike {
-			min = best
-			minLike = bestLike
-			bestLike = like
-			best = l
-			continue
-		}
-		maxLike = like
-		max = l
-	}
-
-	return best, bestLike
-}
-
-func likelihood(pix *earth.Pixelation, l float64, d []int) float64 {
-	n := dist.NewNormal(l, pix)
-	var sum float64
-	for _, r := range d {
-		sum += n.LogProbRingDist(r)
-	}
-	return sum
-}
-
-func findStep(pix *earth.Pixelation, net earth.Network, lambda float64) int {
-	best := 3
-	diff := math.MaxFloat64
-	for s := 3; s <= 1000; s++ {
-		d := walk(pix, net, s)
-		l, _ := findMax(pix, d)
-		x := math.Abs(l - lambda)
-		if x < diff {
-			best = s
-			diff = x
-		}
-	}
-	return best
 }
