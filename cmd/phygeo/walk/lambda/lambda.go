@@ -23,7 +23,7 @@ var Command = &command.Command{
 	Usage: `lambda [--steps <number>]
 	[--relaxed <value>] [--cats <number>]
 	<project> <value>`,
-	Short: "approximate the value of lambda",
+	Short: "report settlement probabilities from lambda values",
 	Long: `
 Command lambda writes the settlement probability that approximates the
 indicated lambda parameter of an spherical normal using the pixelation defined
