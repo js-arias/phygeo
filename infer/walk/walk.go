@@ -350,12 +350,10 @@ func (t *Tree) Traits() []string {
 
 // UpPass an implicit statistical de-marginalization
 // that approximate the marginal of each node.
-/*
 func (t *Tree) UpPass() {
 	root := t.nodes[t.t.Root()]
 	root.fullUpPass(t)
 }
-*/
 
 // A Node is a node in a phylogenetic tree.
 type node struct {
@@ -452,7 +450,7 @@ type timeStage struct {
 
 	// marginals of each trait-pixel
 	// scaled to 1 as the maximum
-	marginal [][]float64
+	marginal [][][]float64
 
 	steps int
 }

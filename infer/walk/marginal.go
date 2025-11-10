@@ -11,22 +11,9 @@ import (
 	"github.com/js-arias/earth"
 )
 
-type margChanType struct {
-	start []float64
-	end   []float64
-	raw   []float64
-
-	w     *walkModel
-	age   int64
-	tr    int
-	steps []int
-
-	answer chan likeChanAnswer
-}
-
 var margChanMutex sync.Mutex
 var openMargChan bool
-var margChan chan margChanType
+var margChan chan likeChanType
 
 // StartUp prepares the package for an up-pass.
 // Use cpu to define the number of process
@@ -34,7 +21,7 @@ var margChan chan margChanType
 // The default (zero) uses all available CPU.
 // After all optimization is done,
 // use EndUp to close the goroutines.
-func StartUp(cpu int, pix *earth.Pixelation) {
+func StartUp(cpu int, pix *earth.Pixelation, traits int) {
 	margChanMutex.Lock()
 	defer margChanMutex.Unlock()
 
@@ -46,9 +33,9 @@ func StartUp(cpu int, pix *earth.Pixelation) {
 		cpu = runtime.NumCPU()
 	}
 
-	margChan = make(chan margChanType, cpu*2)
+	margChan = make(chan likeChanType, cpu*2)
 	for range cpu {
-		go upMarginal(margChan, pix.Len())
+		go upMarginal(margChan, pix.Len(), traits)
 	}
 	openMargChan = true
 }
@@ -61,34 +48,44 @@ func EndUp() {
 	openMargChan = false
 }
 
-func upMarginal(c chan margChanType, sz int) {
-	prev := make([]float64, sz)
-	curr := make([]float64, sz)
+func upMarginal(c chan likeChanType, sz, traits int) {
+	prev := make([][]float64, traits)
+	curr := make([][]float64, traits)
+	for i := range prev {
+		prev[i] = make([]float64, sz)
+		curr[i] = make([]float64, sz)
+	}
 	for cc := range c {
-		for _, s := range cc.steps {
-			copy(curr, cc.start)
-			stepMarg := catMarginal(cc.w, prev, curr, cc.age, cc.tr, s)
-			for px, p := range stepMarg {
-				cc.raw[px] += p * cc.end[px]
-			}
+		for i := range curr {
+			copy(curr[i], cc.like[i])
+		}
+		stepMarg := catMarginal(cc.w, prev, curr, cc.age, cc.steps)
+		for i := range stepMarg {
+			copy(cc.raw[i], stepMarg[i])
 		}
 		cc.answer <- likeChanAnswer{
 			rawLike: cc.raw,
-			tr:      cc.tr,
+			cat:     cc.cat,
 		}
 	}
 }
 
-func catMarginal(w *walkModel, prev, curr []float64, age int64, tr, steps int) []float64 {
-	stage := w.stage(age, tr)
+func catMarginal(w *walkModel, prev, curr [][]float64, age int64, steps int) [][]float64 {
 	for range steps {
-		prev, curr = curr, prev
-		for px := range curr {
-			curr[px] = 0
+		for i := range prev {
+			prev[i], curr[i] = curr[i], prev[i]
+
+			// reset values
+			for px := range curr[i] {
+				curr[i][px] = 0
+			}
 		}
-		for px, p := range prev {
-			for _, nx := range stage.move[px] {
-				curr[nx.id] += nx.prob * p
+		for i := range prev {
+			stage := w.stage(age, i)
+			for px, p := range prev[i] {
+				for _, nx := range stage.move[px] {
+					curr[i][nx.id] += p * nx.prob
+				}
 			}
 		}
 	}

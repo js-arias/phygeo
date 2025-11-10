@@ -91,11 +91,6 @@ func catConditional(w *walkModel, prev, curr [][]float64, age int64, steps int) 
 	for range steps {
 		for i := range prev {
 			prev[i], curr[i] = curr[i], prev[i]
-
-			// reset values
-			for px := range curr[i] {
-				curr[i][px] = 0
-			}
 		}
 		for i := range curr {
 			stage := w.stage(age, i)
@@ -104,7 +99,7 @@ func catConditional(w *walkModel, prev, curr [][]float64, age int64, steps int) 
 				for _, nx := range stage.move[px] {
 					sum += nx.prob * prev[i][nx.id]
 				}
-				curr[i][px] += sum
+				curr[i][px] = sum
 			}
 		}
 	}
