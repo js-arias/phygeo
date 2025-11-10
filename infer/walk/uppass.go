@@ -52,6 +52,17 @@ func (n *node) marginal(t *Tree) {
 		}
 	}
 
+	// Get the weights of each category
+	catWeights := make([]float64, len(t.landProb))
+	fs := n.stages[0]
+	for i := range catWeights {
+		for j := range fs.marginal[i] {
+			for _, p := range fs.marginal[i][j] {
+				catWeights[i] += p
+			}
+		}
+	}
+
 	// the first stage was already updated
 	for i := 1; i < len(n.stages); i++ {
 		ts := n.stages[i]
@@ -70,7 +81,7 @@ func (n *node) marginal(t *Tree) {
 				}
 			}
 		}
-		ts.calcMarginal(t, tmpStart, tmpEnd)
+		ts.calcMarginal(t, tmpStart, tmpEnd, catWeights)
 	}
 
 	if !t.t.IsTerm(n.id) {
@@ -130,7 +141,7 @@ func (n *node) marginal(t *Tree) {
 
 // Marginal calculates the marginal reconstruction
 // of a time stage.
-func (ts *timeStage) calcMarginal(t *Tree, start, end [][][]float64) {
+func (ts *timeStage) calcMarginal(t *Tree, start, end [][][]float64, weightCat []float64) {
 	resMarg := make([][][]float64, len(t.landProb))
 	for i := range resMarg {
 		resMarg[i] = make([][]float64, len(t.landProb[i].traits))
@@ -160,14 +171,14 @@ func (ts *timeStage) calcMarginal(t *Tree, start, end [][][]float64) {
 	}()
 
 	normalizeLogProb(end, ts.logLike)
-	var sum float64
+	sum := make([]float64, len(t.landProb))
 	for range t.landProb {
 		a := <-answer
 		resMarg[a.cat] = a.rawLike
 		for tr := range resMarg[a.cat] {
 			for px, p := range resMarg[a.cat][tr] {
 				p *= end[a.cat][tr][px]
-				sum += p
+				sum[a.cat] += p
 				resMarg[a.cat][tr][px] = p
 			}
 		}
@@ -175,10 +186,10 @@ func (ts *timeStage) calcMarginal(t *Tree, start, end [][][]float64) {
 	close(answer)
 
 	// normalize the values
-	for i := range resMarg {
+	for i := range sum {
 		for tr := range resMarg[i] {
 			for px, p := range resMarg[i][tr] {
-				resMarg[i][tr][px] = p / sum
+				resMarg[i][tr][px] = p * weightCat[i] / sum[i]
 			}
 		}
 	}
@@ -214,6 +225,40 @@ func normalizeLogProb(dst, src [][][]float64) {
 		for t := range dst[c] {
 			for px, p := range dst[c][t] {
 				dst[c][t][px] = p / sum
+			}
+		}
+	}
+}
+
+func normalizeLogProbByCat(dst, src [][][]float64) {
+	max := math.Inf(-1)
+	for _, c := range src {
+		for _, t := range c {
+			for _, l := range t {
+				if l > max {
+					max = l
+				}
+			}
+		}
+	}
+
+	// scale the values
+	sum := make([]float64, len(src))
+	for c := range sum {
+		for t := range src[c] {
+			for px, l := range src[c][t] {
+				p := math.Exp(l - max)
+				dst[c][t][px] = p
+				sum[c] += p
+			}
+		}
+	}
+
+	// normalize the values
+	for c := range sum {
+		for t := range dst[c] {
+			for px, p := range dst[c][t] {
+				dst[c][t][px] = p / sum[c]
 			}
 		}
 	}
