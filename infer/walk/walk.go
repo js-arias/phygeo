@@ -168,6 +168,7 @@ func (t *Tree) Cats() []float64 {
 // for a given node
 // at a given time stage
 // (in years)
+// in the given diffusion category
 // with a given trait.
 // The conditional likelihood is returned as a map of pixels
 // to the logLikelihood of the pixels.
@@ -264,12 +265,10 @@ func (t *Tree) LogLike() float64 {
 // for a given node
 // at a given time stage
 // (in years)
+// in the given diffusion category
 // with a given trait.
-// The returned map is a map of pixels to probabilities.
-// If raw is true it will fill the map with raw marginal values,
-// otherwise it will fill it with the CDF of each pixel.
-/*
-func (t *Tree) Marginal(n int, age int64, tr string, raw bool) map[int]float64 {
+// The returned map is a map of pixels to their probability mass.
+func (t *Tree) Marginal(n int, age int64, cat int, tr string) map[int]float64 {
 	nn, ok := t.nodes[n]
 	if !ok {
 		return nil
@@ -289,18 +288,23 @@ func (t *Tree) Marginal(n int, age int64, tr string, raw bool) map[int]float64 {
 	}
 
 	ts := nn.stages[i]
-
-	j, ok := slices.BinarySearch(t.landProb.traits, tr)
-	if !ok {
+	if cat < 0 || cat >= len(t.landProb) {
 		return nil
 	}
 
-	if raw {
-		return pixRawMarginal(ts.marginal, j, t.landProb.tp.Pixelation().Len())
+	j, ok := slices.BinarySearch(t.landProb[cat].traits, tr)
+	if !ok {
+		return nil
 	}
-	return pixCDF(ts.marginal, j, t.landProb.tp.Pixelation().Len())
+	pmf := make(map[int]float64, len(ts.marginal[cat][j]))
+	for px, p := range ts.marginal[cat][j] {
+		if p == 0 {
+			continue
+		}
+		pmf[px] = p
+	}
+	return pmf
 }
-*/
 
 // Name returns the name of the tree.
 func (t *Tree) Name() string {

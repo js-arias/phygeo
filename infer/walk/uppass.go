@@ -170,7 +170,7 @@ func (ts *timeStage) calcMarginal(t *Tree, start, end [][][]float64, weightCat [
 		}
 	}()
 
-	normalizeLogProb(end, ts.logLike)
+	normalizeLogProbByCat(end, ts.logLike)
 	sum := make([]float64, len(t.landProb))
 	for range t.landProb {
 		a := <-answer

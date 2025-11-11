@@ -3,7 +3,7 @@
 // Distributed under BSD2 license that can be found in the LICENSE file.
 
 // Package like implements a command to perform
-// an approximate biogeographic reconstruction with likelihood
+// a biogeographic reconstruction with likelihood
 // using random walks.
 package like
 
@@ -32,10 +32,10 @@ var Command = &command.Command{
 	[-o|--output <file>]
 	[--cpu <number>]
 	<project-file>`,
-	Short: "perform an approximate likelihood reconstruction",
+	Short: "perform a likelihood reconstruction",
 	Long: `
-Command like reads a PhyGeo project and performs an approximate likelihood
-reconstruction for the trees in the project using a random walk.
+Command like reads a PhyGeo project and performs a likelihood reconstruction
+for the trees in the project using a random walk.
 
 The argument of the command is the name of the project file.
 
@@ -46,10 +46,11 @@ pixels will be closer to the expected equilibrium of the model, at the cost of
 increasing computing time.
 
 The flag --lambda defines the concentration parameter of the spherical normal
-(equivalent to the kappa parameter of the von Mises-Fisher distribution) for a
-diffusion process over a million years using 1/radian^2 units. If no value is
-defined, it will use 100. As the kappa parameter, larger values indicate low
-diffusivity, while smaller values indicate high diffusivity.
+(equivalent to the kappa parameter of the von Mises-Fisher distribution)
+resulting from running the random walk over a million years. It uses
+1/radian^2 units. If no value is defined, it will use 100. As the kappa
+parameter, larger values indicate low diffusivity, while smaller values
+indicate high diffusivity.
 
 The flag --steps define the number of steps per million years in the random
 walk. The default value id the number of pixels at the equator. Flag --min
@@ -68,11 +69,12 @@ Always use the quotations. The implemented distributions are:
 	- Gamma: with a single parameter (both alpha and beta set as equal).
 	- LogNormal: with a single parameter (sigma), the mean is 1.
 
-The output file is a pixel probability file with the conditional likelihoods
-(i.e., down-pass results) for each pixel at each node. The prefix of the
-output file name is the name of the project file. To set a different prefix,
-use the flag --output, or -o. The output file name will have the output
-prefix, the word 'down', and the tree name. The extension will be '.tab'.
+The output file is a pixel probability file with the probability mass of each
+pixel at each node with a given trait, calculated from an up-pass (i.e., the
+marginal likelihoods). The prefix of the output file name is the name of the
+project file. To set a different prefix, use the flag --output, or -o. The
+output file name will have the output prefix, the word 'up', and the tree
+name. The extension will be '.tab'.
 
 By default, all available CPU will be used in the calculations. Set the flag
 --cpu to use a different number of CPUs.
@@ -213,32 +215,25 @@ func run(c *command.Command, args []string) error {
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
-	// walk.StartUp(numCPU, landscape.Pixelation())
+	walk.StartUp(numCPU, landscape.Pixelation(), len(tr.States()))
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		param.Stem = int64(stemAge * 1_000_000)
 		wt := walk.New(t, param)
 		l := wt.DownPass()
-		// wt.UpPass()
-		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
-		if err := writeTreeConditional(wt, name, p.Name(), dd); err != nil {
+		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
+		wt.UpPass()
+		name := fmt.Sprintf("%s-up-%s.tab", output, t.Name())
+		if err := writeTreeMarginal(wt, name, p.Name(), dd); err != nil {
 			return err
 		}
-
-		/*
-			name = fmt.Sprintf("%s-up-%s.tab", output, t.Name())
-			if err := writeTreeMarginal(wt, name, p.Name()); err != nil {
-				return err
-			}
-		*/
-		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
 	}
 	walk.EndDown()
-	// walk.EndUp()
+	walk.EndUp()
 	return nil
 }
 
-func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {
+func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -251,7 +246,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 	}()
 
 	w := bufio.NewWriter(f)
-	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# marginal reconstructions of tree %q of project %q\n", t.Name(), p)
 	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambdaFlag)
 	fmt.Fprintf(w, "# relaxed diffusion function: %s with %d categories\n", dd, len(dd.Cats()))
 	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
@@ -297,17 +292,20 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 				currCat := strconv.Itoa(i)
 				scaled := strconv.FormatFloat(lambdaFlag*c, 'f', 6, 64)
 				for _, tr := range traits {
-					cond := t.Conditional(n, a, i, tr)
+					m := t.Marginal(n, a, i, tr)
 					for px := range t.Pixels() {
-						lk, ok := cond[px]
+						mp, ok := m[px]
 						if !ok {
+							continue
+						}
+						if mp < 1e-15 {
 							continue
 						}
 						row := []string{
 							t.Name(),
 							nID,
 							stageAge,
-							"log-like",
+							"pmf",
 							lambdaVal,
 							steps,
 							relaxed,
@@ -317,7 +315,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 							tr,
 							eq,
 							strconv.Itoa(px),
-							strconv.FormatFloat(lk, 'f', 16, 64),
+							strconv.FormatFloat(mp, 'f', 15, 64),
 						}
 						if err := tsv.Write(row); err != nil {
 							return err
@@ -337,98 +335,3 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 	}
 	return nil
 }
-
-/*
-func writeTreeMarginal(t *walk.Tree, name, p string) (err error) {
-	f, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		e := f.Close()
-		if err == nil && e != nil {
-			err = e
-		}
-	}()
-
-	w := bufio.NewWriter(f)
-	fmt.Fprintf(w, "# marginal reconstructions of tree %q of project %q\n", t.Name(), p)
-	fmt.Fprintf(w, "# base steps per million year: %.6f\n", t.Steps())
-	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
-	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
-
-	tsv := csv.NewWriter(w)
-	tsv.Comma = '\t'
-	tsv.UseCRLF = true
-	header := []string{
-		"tree",
-		"node",
-		"age",
-		"type",
-		"settlement",
-		"steps",
-		"relaxed",
-		"cats",
-		"trait",
-		"equator",
-		"pixel",
-		"value",
-	}
-	if err := tsv.Write(header); err != nil {
-		return err
-	}
-	steps := strconv.FormatFloat(t.Steps(), 'f', 6, 64)
-	relaxed := t.Discrete().String()
-	numberCats := strconv.Itoa(t.NumCats())
-	eq := strconv.Itoa(t.Equator())
-	settVal := strconv.FormatFloat(settWeight, 'f', 6, 64)
-
-	nodes := t.Nodes()
-	for _, n := range nodes {
-		nID := strconv.Itoa(n)
-		stages := t.Stages(n)
-		for _, a := range stages {
-			stageAge := strconv.FormatInt(a, 10)
-			traits := t.Traits()
-			for _, tr := range traits {
-				m := t.Marginal(n, a, tr, false)
-				for px := range t.Pixels() {
-					mp, ok := m[px]
-					if !ok {
-						continue
-					}
-					if mp < 1e-15 {
-						continue
-					}
-					row := []string{
-						t.Name(),
-						nID,
-						stageAge,
-						"marginal-cdf",
-						settVal,
-						steps,
-						relaxed,
-						numberCats,
-						tr,
-						eq,
-						strconv.Itoa(px),
-						strconv.FormatFloat(mp, 'f', 15, 64),
-					}
-					if err := tsv.Write(row); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	tsv.Flush()
-	if err := tsv.Error(); err != nil {
-		return fmt.Errorf("while writing data on %q: %v", name, err)
-	}
-	if err := w.Flush(); err != nil {
-		return fmt.Errorf("while writing data on %q: %v", name, err)
-	}
-	return nil
-}
-*/
