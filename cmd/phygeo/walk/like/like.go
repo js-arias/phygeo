@@ -308,7 +308,7 @@ func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err erro
 							"pmf",
 							lambdaVal,
 							steps,
-							relaxed,
+							dd.String(),
 							numberCats,
 							currCat,
 							scaled,
