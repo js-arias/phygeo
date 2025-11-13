@@ -275,7 +275,7 @@ func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err erro
 	if err := tsv.Write(header); err != nil {
 		return err
 	}
-	cats := t.Cats()
+	cats := dd.Cats()
 	steps := strconv.Itoa(t.Steps())
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
