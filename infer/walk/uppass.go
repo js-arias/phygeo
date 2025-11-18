@@ -53,24 +53,14 @@ func (n *node) marginal(t *Tree) {
 	}
 
 	// Get the weights of each category
+	// using the already assigned weights
+	// in the first stage
 	catWeights := make([]float64, len(t.landProb))
 	fs := n.stages[0]
-	normalizeLogProb(tmpEnd, fs.logLike)
 	for i := range catWeights {
-		for j := range tmpEnd[i] {
-			for _, p := range tmpEnd[i][j] {
+		for j := range fs.marginal[i] {
+			for _, p := range fs.marginal[i][j] {
 				catWeights[i] += p
-			}
-		}
-	}
-	if !t.t.IsRoot(n.id) {
-		// weight the marginals
-		// (the root is already normalized)
-		for i, w := range catWeights {
-			for j := range fs.marginal[i] {
-				for px := range fs.marginal[i][j] {
-					fs.marginal[i][j][px] *= w
-				}
 			}
 		}
 	}
@@ -100,7 +90,11 @@ func (n *node) marginal(t *Tree) {
 		// In a split node
 		// copy the marginals in the descendants.
 
-		// first we need to add the categories
+		// First,
+		// we add the categories in the split.
+		// As the marginal is already normalized
+		// we now that the sum will add to one.
+		// We add all the categories in the first category
 		ts := n.stages[len(n.stages)-1]
 		for j := range tmpEnd[0] {
 			for px := range tmpEnd[0][j] {
@@ -115,7 +109,7 @@ func (n *node) marginal(t *Tree) {
 			}
 		}
 
-		// Then we copy the full marginal in each descendant
+		// Now copy the marginals in each descendant.
 		for _, d := range t.t.Children(n.id) {
 			resMarg := make([][][]float64, len(t.landProb))
 			for i := range resMarg {
@@ -126,9 +120,24 @@ func (n *node) marginal(t *Tree) {
 			}
 			c := t.nodes[d]
 			cs := c.stages[0]
-			for i := range resMarg {
-				for j := range resMarg[i] {
-					copy(resMarg[i][j], tmpEnd[0][j])
+
+			// To get the marginal of each pixel at each category
+			// we weight the marginal of the pixel at the split
+			// with the conditional for each category for that pixel.
+			normalizeLogProb(tmpStart, cs.logLike)
+			for j := range tmpEnd[0] {
+				for px, p := range tmpEnd[0][j] {
+					// local conditionals of the category
+					var sum float64
+					for i := range tmpStart {
+						sum += tmpStart[i][j][px]
+					}
+					if sum == 0 {
+						continue
+					}
+					for i := range resMarg {
+						resMarg[i][j][px] = p * tmpStart[i][j][px] / sum
+					}
 				}
 			}
 			cs.marginal = resMarg
