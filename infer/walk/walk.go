@@ -261,51 +261,6 @@ func (t *Tree) LogLike() float64 {
 	return math.Log(sum) + max
 }
 
-// Marginal returns the marginal reconstruction
-// for a given node
-// at a given time stage
-// (in years)
-// in the given diffusion category
-// with a given trait.
-// The returned map is a map of pixels to their probability mass.
-func (t *Tree) Marginal(n int, age int64, cat int, tr string) map[int]float64 {
-	nn, ok := t.nodes[n]
-	if !ok {
-		return nil
-	}
-
-	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
-		if st.age == age {
-			return 0
-		}
-		if st.age < age {
-			return 1
-		}
-		return -1
-	})
-	if !ok {
-		return nil
-	}
-
-	ts := nn.stages[i]
-	if cat < 0 || cat >= len(t.landProb) {
-		return nil
-	}
-
-	j, ok := slices.BinarySearch(t.landProb[cat].traits, tr)
-	if !ok {
-		return nil
-	}
-	pmf := make(map[int]float64, len(ts.marginal[cat][j]))
-	for px, p := range ts.marginal[cat][j] {
-		if p == 0 {
-			continue
-		}
-		pmf[px] = p
-	}
-	return pmf
-}
-
 // Name returns the name of the tree.
 func (t *Tree) Name() string {
 	return t.t.Name()
@@ -338,6 +293,33 @@ func (t *Tree) Stages(n int) []int64 {
 	return ages
 }
 
+// StageSteps returns the number of steps
+// of a given node
+// at a given time stage
+// (in years).
+func (t *Tree) StageSteps(n int, age int64) int {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return 0
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return 0
+	}
+
+	ts := nn.stages[i]
+	return ts.steps
+}
+
 // Steps returns the number of steps
 // per million years.
 func (t *Tree) Steps() int {
@@ -350,13 +332,6 @@ func (t *Tree) Traits() []string {
 	tr := make([]string, len(t.landProb[0].traits))
 	copy(tr, t.landProb[0].traits)
 	return tr
-}
-
-// UpPass an implicit statistical de-marginalization
-// that approximate the marginal of each node.
-func (t *Tree) UpPass() {
-	root := t.nodes[t.t.Root()]
-	root.fullUpPass(t)
 }
 
 // A Node is a node in a phylogenetic tree.
@@ -451,10 +426,6 @@ type timeStage struct {
 
 	// conditional logLikelihood of each cat-trait-pixel
 	logLike [][][]float64
-
-	// marginals of each trait-pixel
-	// scaled to 1 as the maximum
-	marginal [][][]float64
 
 	steps int
 }

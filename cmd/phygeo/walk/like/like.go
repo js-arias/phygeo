@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"encoding/csv"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -69,12 +70,11 @@ Always use the quotations. The implemented distributions are:
 	- Gamma: with a single parameter (both alpha and beta set as equal).
 	- LogNormal: with a single parameter (sigma), the mean is 1.
 
-The output file is a pixel probability file with the probability mass of each
-pixel at each node with a given trait, calculated from an up-pass (i.e., the
-marginal likelihoods). The prefix of the output file name is the name of the
-project file. To set a different prefix, use the flag --output, or -o. The
-output file name will have the output prefix, the word 'up', and the tree
-name. The extension will be '.tab'.
+The output file is a pixel probability file with the conditional likelihoods
+(i.e., down-pass results) for each pixel at each node. The prefix of the
+output file name is the name of the project file. To set a different prefix,
+use the flag --output, or -o. The output file name will have the output
+prefix, the word 'down', and the tree name. The extension will be '.tab'.
 
 By default, all available CPU will be used in the calculations. Set the flag
 --cpu to use a different number of CPUs.
@@ -215,25 +215,26 @@ func run(c *command.Command, args []string) error {
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
-	walk.StartUp(numCPU, landscape.Pixelation(), len(tr.States()))
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
 		param.Stem = int64(stemAge * 1_000_000)
 		wt := walk.New(t, param)
 		l := wt.DownPass()
 		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
-		wt.UpPass()
-		name := fmt.Sprintf("%s-up-%s.tab", output, t.Name())
-		if err := writeTreeMarginal(wt, name, p.Name(), dd); err != nil {
+		if math.IsInf(l, -1) {
+			continue
+		}
+
+		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
+		if err := writeTreeConditional(wt, name, p.Name(), dd); err != nil {
 			return err
 		}
 	}
 	walk.EndDown()
-	walk.EndUp()
 	return nil
 }
 
-func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {
+func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -246,7 +247,7 @@ func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err erro
 	}()
 
 	w := bufio.NewWriter(f)
-	fmt.Fprintf(w, "# marginal reconstructions of tree %q of project %q\n", t.Name(), p)
+	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
 	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambdaFlag)
 	fmt.Fprintf(w, "# relaxed diffusion function: %s with %d categories\n", dd, len(dd.Cats()))
 	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
@@ -275,8 +276,8 @@ func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err erro
 	if err := tsv.Write(header); err != nil {
 		return err
 	}
-	cats := dd.Cats()
-	steps := strconv.Itoa(t.Steps())
+
+	cats := t.Cats()
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
 	lambdaVal := strconv.FormatFloat(lambdaFlag, 'f', 6, 64)
@@ -287,25 +288,23 @@ func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err erro
 		stages := t.Stages(n)
 		for _, a := range stages {
 			stageAge := strconv.FormatInt(a, 10)
+			steps := strconv.Itoa(t.StageSteps(n, a))
 			for i, c := range cats {
 				traits := t.Traits()
-				currCat := strconv.Itoa(i)
+				currCat := strconv.Itoa(i + 1)
 				scaled := strconv.FormatFloat(lambdaFlag*c, 'f', 6, 64)
 				for _, tr := range traits {
-					m := t.Marginal(n, a, i, tr)
+					cond := t.Conditional(n, a, i, tr)
 					for px := range t.Pixels() {
-						mp, ok := m[px]
+						lk, ok := cond[px]
 						if !ok {
-							continue
-						}
-						if mp < 1e-15 {
 							continue
 						}
 						row := []string{
 							t.Name(),
 							nID,
 							stageAge,
-							"pmf",
+							"log-like",
 							lambdaVal,
 							steps,
 							dd.String(),
@@ -315,7 +314,7 @@ func writeTreeMarginal(t *walk.Tree, name, p string, dd cats.Discrete) (err erro
 							tr,
 							eq,
 							strconv.Itoa(px),
-							strconv.FormatFloat(mp, 'f', 15, 64),
+							strconv.FormatFloat(lk, 'f', 16, 64),
 						}
 						if err := tsv.Write(row); err != nil {
 							return err

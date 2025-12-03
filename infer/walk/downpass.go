@@ -169,7 +169,6 @@ func (ts *timeStage) conditional(t *Tree, tmpLike [][][]float64) [][][]float64 {
 		resLike[a.cat] = a.rawLike
 		for tr := range resLike[a.cat] {
 			stage := t.landProb[a.cat].stage(age, tr)
-			mxVal := -math.MaxFloat64
 			for px, p := range resLike[a.cat][tr] {
 				pp := stage.prior[px]
 				if pp == 0 {
@@ -178,9 +177,6 @@ func (ts *timeStage) conditional(t *Tree, tmpLike [][][]float64) [][][]float64 {
 					continue
 				}
 				resLike[a.cat][tr][px] = math.Log(p) + max
-				if math.Log(p) > mxVal {
-					mxVal = math.Log(p)
-				}
 			}
 		}
 	}
