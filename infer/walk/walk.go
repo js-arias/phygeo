@@ -65,6 +65,9 @@ type Param struct {
 	// Discrete contains the values for the settlement probability
 	// for the diffusion categories.
 	Discrete []float64
+
+	// Number of particles used for stochastic mapping
+	Particles int
 }
 
 // A Tree is a phylogenetic tree for biogeography.
@@ -76,8 +79,9 @@ type Tree struct {
 	tp       *model.TimePix
 	landProb []*walkModel
 
-	steps int
-	dd    []float64
+	steps     int
+	dd        []float64
+	particles int
 }
 
 // New creates a new tree by copying the indicated source tree.
@@ -99,13 +103,14 @@ func New(t *timetree.Tree, p Param) *Tree {
 	}
 
 	nt := &Tree{
-		t:        t,
-		nodes:    make(map[int]*node, len(t.Nodes())),
-		rot:      p.Rot,
-		tp:       p.Landscape,
-		landProb: landProb,
-		steps:    p.Steps,
-		dd:       p.Discrete,
+		t:         t,
+		nodes:     make(map[int]*node, len(t.Nodes())),
+		rot:       p.Rot,
+		tp:        p.Landscape,
+		landProb:  landProb,
+		steps:     p.Steps,
+		dd:        p.Discrete,
+		particles: p.Particles,
 	}
 
 	root := &node{
@@ -259,6 +264,12 @@ func (t *Tree) LogLike() float64 {
 		}
 	}
 	return math.Log(sum) + max
+}
+
+// Mapping performs an stochastic mapping.
+func (t *Tree) Mapping() {
+	root := t.nodes[t.t.Root()]
+	root.fullMap(t)
 }
 
 // Name returns the name of the tree.
@@ -428,4 +439,7 @@ type timeStage struct {
 	logLike [][][]float64
 
 	steps int
+
+	// paths of the stochastic map particles
+	paths []path
 }

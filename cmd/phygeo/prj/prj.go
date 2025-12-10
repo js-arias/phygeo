@@ -120,6 +120,12 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
+	if p.Path(project.WalkParam) != "" {
+		if err := readWalkParam(c.Stdout(), p, pix); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -379,5 +385,24 @@ func readTrees(w io.Writer, name string) error {
 	fmt.Fprintf(w, "\tage range: %.3f-%.3f Ma\n", min, max)
 	fmt.Fprintf(w, "\n")
 
+	return nil
+}
+
+func readWalkParam(w io.Writer, p *project.Project, pix *earth.Pixelation) error {
+	wp, err := p.WalkParam(pix)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "Random walk parameters:\n")
+	fmt.Fprintf(w, "\tfile: %s\n", wp.Name())
+	fmt.Fprintf(w, "\tsteps per my: %d\n", wp.Steps())
+	if m := wp.MinSteps(); m > 0 {
+		fmt.Fprintf(w, "\tmin steps: %d\n", m)
+	}
+	if c := wp.Cats(); c > 1 {
+		fmt.Fprintf(w, "\trelaxed function: %s\n", wp.Function())
+		fmt.Fprintf(w, "\tcategories: %d\n", c)
+	}
 	return nil
 }

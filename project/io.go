@@ -14,6 +14,7 @@ import (
 	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/phygeo/trait"
+	"github.com/js-arias/phygeo/walkparam"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -272,4 +273,19 @@ func (p *Project) Trees() (*timetree.Collection, error) {
 		return nil, fmt.Errorf("while reading file %q: %v", name, err)
 	}
 	return c, nil
+}
+
+// WalkParam returns a collection of random walk parameters.
+func (p *Project) WalkParam(pix *earth.Pixelation) (*walkparam.WP, error) {
+	name := p.Path(WalkParam)
+	if name == "" {
+		name = p.NameRoot() + "-walk-param.tab"
+		return walkparam.New(name, pix), nil
+	}
+
+	wp, err := walkparam.Read(name, pix)
+	if err != nil {
+		return nil, err
+	}
+	return wp, nil
 }

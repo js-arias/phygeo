@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/js-arias/command"
@@ -22,14 +23,12 @@ import (
 	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/project"
-	"gonum.org/v1/gonum/stat/distuv"
 )
 
 var Command = &command.Command{
 	Usage: `like [--stem <age>]
 	[--lambda <value>]
-	[--steps <value>]
-	[--relaxed <value>] [--cats <number>]
+	[--relaxed <value>]
 	[-o|--output <file>]
 	[--cpu <number>]
 	<project-file>`,
@@ -53,22 +52,14 @@ resulting from running the random walk over a million years. It uses
 parameter, larger values indicate low diffusivity, while smaller values
 indicate high diffusivity.
 
-The flag --steps define the number of steps per million years in the random
-walk. The default value id the number of pixels at the equator. Flag --min
-defines the minimum number of steps in any a terminal branch, by default is 0,
-so no minimum is enforced.
+By default, if a relaxed random walk is used, it will use the function defined
+in the random walk parameters file, with the default parameters for the function.
+To set the parameter of that distribution, use the flag --relaxed with the
+parameter(s) of the function. The format is
 
-By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.0,
-and nine categories. To change the number of categories use the parameter
---cats. To change the relaxed distribution, use the parameter --relaxed with
-a distribution function. The format for the relaxed distribution function is
+	"<param>[,<param>]"
 
-	"<distribution>=<param>[,<param>]"
-
-Always use the quotations. The implemented distributions are:
-
-	- Gamma: with a single parameter (both alpha and beta set as equal).
-	- LogNormal: with a single parameter (sigma), the mean is 1.
+Always use the quotations if more than one parameter is defined.
 
 The output file is a pixel probability file with the conditional likelihoods
 (i.e., down-pass results) for each pixel at each node. The prefix of the
@@ -85,19 +76,13 @@ By default, all available CPU will be used in the calculations. Set the flag
 
 var lambdaFlag float64
 var stemAge float64
-var numCats int
 var numCPU int
-var numSteps int
-var minSteps int
 var relaxed string
 var output string
 
 func setFlags(c *command.Command) {
 	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
-	c.Flags().IntVar(&minSteps, "min", 0, "")
-	c.Flags().IntVar(&numSteps, "steps", 0, "")
-	c.Flags().IntVar(&numCats, "cats", 9, "")
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
 	c.Flags().StringVar(&relaxed, "relaxed", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
@@ -176,27 +161,19 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
+	wp, err := p.WalkParam(landscape.Pixelation())
+	if err != nil {
+		return err
+	}
+	params, err := parseParams()
+	if err != nil {
+		return err
+	}
+
 	net := earth.NewNetwork(landscape.Pixelation())
 
-	var dd cats.Discrete
-	if relaxed == "" {
-		dd = cats.LogNormal{
-			Param: distuv.LogNormal{
-				Mu:    0,
-				Sigma: 1.0,
-			},
-			NumCat: numCats,
-		}
-	} else {
-		dd, err = cats.Parse(relaxed, numCats)
-		if err != nil {
-			return fmt.Errorf("flag --relaxed: %v", err)
-		}
-	}
-	if numSteps == 0 {
-		numSteps = landscape.Pixelation().Equator()
-	}
-	settCats := catwalk.Cats(landscape.Pixelation(), net, lambdaFlag, numSteps, dd)
+	dd := wp.Relaxed(params)
+	settCats := catwalk.Cats(landscape.Pixelation(), net, lambdaFlag, wp.Steps(), dd)
 
 	param := walk.Param{
 		Landscape:  landscape,
@@ -209,8 +186,8 @@ func run(c *command.Command, args []string) error {
 		Movement:   mv,
 		Settlement: st,
 		Lambda:     lambdaFlag,
-		Steps:      numSteps,
-		MinSteps:   minSteps,
+		Steps:      wp.Steps(),
+		MinSteps:   wp.MinSteps(),
 		Discrete:   settCats,
 	}
 
@@ -333,4 +310,20 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 		return fmt.Errorf("while writing data on %q: %v", name, err)
 	}
 	return nil
+}
+
+func parseParams() ([]float64, error) {
+	if relaxed == "" {
+		return nil, nil
+	}
+	pv := strings.Split(relaxed, ",")
+	p := make([]float64, 0, len(pv))
+	for _, v := range pv {
+		x, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("flag --relaxed: %v", err)
+		}
+		p = append(p, x)
+	}
+	return p, nil
 }
