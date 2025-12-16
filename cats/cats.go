@@ -20,6 +20,14 @@ type Discrete interface {
 	// Cats returns the values of the different categories.
 	Cats() []float64
 
+	// Function returns the base function
+	// used to define the categories.
+	Function() string
+
+	// Params returns the value of the parameters
+	// of the discrete function.
+	Params() []float64
+
 	// String output for the function name and parameters.
 	String() string
 }
@@ -37,6 +45,18 @@ type Gamma struct {
 // discretized in equal probability categories.
 func (g Gamma) Cats() []float64 {
 	return getCats(g.Param, g.NumCat)
+}
+
+// Function returns the base function
+// used to define the categories.
+func (g Gamma) Function() string {
+	return "gamma"
+}
+
+// Params returns the value of the parameters
+// of the discrete function.
+func (g Gamma) Params() []float64 {
+	return []float64{g.Param.Alpha}
 }
 
 // String output for the function name and parameters.
@@ -57,6 +77,18 @@ type LogNormal struct {
 // discretized in equal probability categories.
 func (ln LogNormal) Cats() []float64 {
 	return getCats(ln.Param, ln.NumCat)
+}
+
+// Function returns the base function
+// used to define the categories.
+func (ln LogNormal) Function() string {
+	return "lognormal"
+}
+
+// Params returns the value of the parameters
+// of the discrete function.
+func (ln LogNormal) Params() []float64 {
+	return []float64{ln.Param.Sigma}
 }
 
 // String output for the function name and parameters.

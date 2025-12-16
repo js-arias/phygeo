@@ -163,6 +163,11 @@ func New(t *timetree.Tree, p Param) *Tree {
 	return nt
 }
 
+// Age returns the age of a given node.
+func (t *Tree) Age(n int) int64 {
+	return t.t.Age(n)
+}
+
 // Cats returns the settlement probability
 // for each relaxed diffusion category.
 func (t *Tree) Cats() []float64 {
@@ -283,9 +288,98 @@ func (t *Tree) Nodes() []int {
 	return t.t.Nodes()
 }
 
+// Parent returns the ID of the parent node
+// of the indicated node.
+func (t *Tree) Parent(n int) int {
+	return t.t.Parent(n)
+}
+
+// Path returns a particle path
+// for a given node
+// at a given time stage
+// (in years)
+// and a given particle.
+func (t *Tree) Path(n int, age int64, p int) Path {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return Path{}
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return Path{}
+	}
+
+	ts := nn.stages[i]
+	return ts.paths[p]
+}
+
 // Pixels returns the number of pixels in the underlying pixelation.
 func (t *Tree) Pixels() int {
 	return t.tp.Pixelation().Len()
+}
+
+// SetConditional sets the conditional likelihood
+// (in logLike units)
+// of a node at a given time stage,
+// rate category
+// and trait.
+func (t *Tree) SetConditional(n int, age int64, cat int, tr string, logLike map[int]float64) {
+	nn, ok := t.nodes[n]
+	if !ok {
+		return
+	}
+
+	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
+		if st.age == age {
+			return 0
+		}
+		if st.age < age {
+			return 1
+		}
+		return -1
+	})
+	if !ok {
+		return
+	}
+
+	ts := nn.stages[i]
+	if cat < 0 || cat >= len(t.landProb) {
+		return
+	}
+
+	j, ok := slices.BinarySearch(t.landProb[cat].traits, tr)
+	if !ok {
+		return
+	}
+
+	// if there are no assigned log Likelihoods,
+	// create the arrays
+	if ts.logLike == nil {
+		tmpLike := make([][][]float64, len(t.landProb))
+		for c := range tmpLike {
+			tmpLike[c] = make([][]float64, len(t.landProb[c].traits))
+			for trv := range tmpLike[c] {
+				tmpLike[c][trv] = make([]float64, t.tp.Pixelation().Len())
+				for px := range tmpLike[c][trv] {
+					tmpLike[c][trv][px] = math.Inf(-1)
+				}
+			}
+		}
+		ts.logLike = tmpLike
+	}
+
+	for px, p := range logLike {
+		ts.logLike[cat][j][px] = p
+	}
 }
 
 // Stages returns the age of the time stages of a node
@@ -441,5 +535,5 @@ type timeStage struct {
 	steps int
 
 	// paths of the stochastic map particles
-	paths []path
+	paths []Path
 }
