@@ -39,9 +39,9 @@ var Command = &command.Command{
 	-i|--input <file> <project-file>`,
 	Short: "calculates speed for a reconstruction",
 	Long: `
-Command speed reas a file with the marginal reconstruction for one or more
-trees in a project, and calculates the speed of reconstructed diffusion
-parameter.
+Command speed reas a file with the sampled pixels from stochastic mapping of
+one or more trees in a project, and calculates the speed of reconstructed
+diffusion parameter.
 
 The diffusion speed is 'biological' speed, in the sense that it is the product
 of the diffusion process. It is calculated from the diffusion categories used
@@ -234,30 +234,31 @@ type recTree struct {
 }
 
 type recNode struct {
-	id    int
-	tree  *recTree
-	cats  map[int]*recCat
-	speed float64
-	s05   float64
-	s95   float64
+	id        int
+	tree      *recTree
+	particles int
+	cats      map[int]*recCat
+	speed     float64
+	s05       float64
+	s95       float64
 }
 
 type recCat struct {
+	node   *recNode
 	cat    int
 	lambda float64
-	prob   float64
+	count  int
 }
 
 var headerFields = []string{
 	"tree",
+	"particle",
 	"node",
 	"age",
-	"type",
 	"lambda",
 	"cat",
 	"scaled",
 	"equator",
-	"value",
 }
 
 func readRecCats(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[string]*recTree, error) {
@@ -339,14 +340,8 @@ func readRecCats(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[s
 		if err != nil {
 			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 		}
-		if age != tv.Age(tv.Parent(id)) {
+		if age != tv.Age(id) {
 			continue
-		}
-
-		f = "type"
-		tpV := strings.ToLower(strings.Join(strings.Fields(row[fields[f]]), " "))
-		if tpV != "pmf" {
-			return nil, fmt.Errorf("on row %d: field %q: got %q want %q", ln, f, tpV, "pmf")
 		}
 
 		f = "equator"
@@ -371,18 +366,14 @@ func readRecCats(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[s
 				return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 			}
 			cat = &recCat{
+				node:   n,
 				cat:    cv,
 				lambda: lambda,
 			}
 			n.cats[cv] = cat
 		}
-
-		f = "value"
-		v, err := strconv.ParseFloat(row[fields[f]], 64)
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-		cat.prob += v
+		cat.count++
+		n.particles++
 	}
 	if len(rt) == 0 {
 		return nil, fmt.Errorf("while reading data: %v", io.EOF)
@@ -468,9 +459,10 @@ func calcSpeed(tc *timetree.Collection, pix *earth.Pixelation, rt map[string]*re
 }
 
 func (r *recCat) distance(pix *earth.Pixelation, particles int) []float64 {
+	prob := float64(r.count) / float64(r.node.particles)
 	np := pix.Pixel(90, 0)
 	sn := dist.NewNormal(r.lambda, pix)
-	parts := int(float64(particles) * r.prob)
+	parts := int(float64(particles) * prob)
 	d := make([]float64, 0, parts)
 	for range parts {
 		dp := sn.Rand(np)
@@ -563,12 +555,13 @@ func writeNodeCats(w io.Writer, tc *timetree.Collection, rt map[string]*recTree)
 			nodeID := strconv.Itoa(nID)
 			for _, cv := range cats {
 				cr := n.cats[cv]
+				prob := float64(cr.count) / float64(n.particles)
 				row := []string{
 					name,
 					nodeID,
 					strconv.Itoa(cv + 1),
 					strconv.FormatFloat(cr.lambda, 'f', 6, 64),
-					strconv.FormatFloat(cr.prob, 'f', 15, 64),
+					strconv.FormatFloat(prob, 'f', 6, 64),
 				}
 				if err := tab.Write(row); err != nil {
 					return err
@@ -612,9 +605,10 @@ func plotTrees(tc *timetree.Collection, rt map[string]*recTree, gradient probmap
 					if c.cat > max {
 						max = c.cat
 					}
-					if c.prob > prob {
+					p := float64(c.count) / float64(n.particles)
+					if p > prob {
 						bc = i
-						prob = c.prob
+						prob = p
 					}
 				}
 				sp[nID] = bc
