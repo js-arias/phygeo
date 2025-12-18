@@ -490,7 +490,7 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 
 		f = "type"
 		tpV := strings.ToLower(strings.Join(strings.Fields(row[fields[f]]), " "))
-		if tpV != "freq" {
+		if tpV != "freq" && tpV != "freq-paths" {
 			return nil, fmt.Errorf("on row %d: field %q: got %q want %q", ln, f, tpV, "pmf")
 		}
 

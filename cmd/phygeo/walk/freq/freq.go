@@ -28,6 +28,7 @@ import (
 var Command = &command.Command{
 	Usage: `freq
 	-i|--input <file>
+	[--paths]
 	[-o|--output <file>] <project-file>`,
 	Short: "calculate pixel frequencies",
 	Long: `
@@ -40,6 +41,10 @@ The argument of the command is the name of the project file.
 The flag --input, or -i, indicates the input file from a stochastic mapping.
 This is a required parameter.
 
+By default, it will take the pixel at the end of the lineage to calculate the
+frequencies. Use the flag --paths to calculate the frequencies from the whole
+path. In that case the output suffix will include the word 'paths'.
+
 By default, the output will use the project name as a prefix. Use the flag
 --output, or -i, to set a different output prefix. After the prefix, the word
 'freq' will be added and the name of the tree. The extension will be '.tab'.
@@ -51,10 +56,12 @@ pixel frequencies for each category and trait.
 	Run:      run,
 }
 
+var doPaths bool
 var inputFile string
 var outPrefix string
 
 func setFlags(c *command.Command) {
+	c.Flags().BoolVar(&doPaths, "paths", false, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
@@ -144,7 +151,7 @@ type recTrait struct {
 	trait string
 	cat   *recCat
 	freq  map[int]float64
-	count map[int]int
+	count map[int]float64
 }
 
 var headerFields = []string{
@@ -154,6 +161,7 @@ var headerFields = []string{
 	"cat",
 	"equator",
 	"to",
+	"path",
 }
 
 func readRecPixels(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map[string]*recTree, error) {
@@ -260,25 +268,55 @@ func readRecPixels(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map
 			return nil, fmt.Errorf("on row %d: field %q: invalid equator value %d", ln, f, eq)
 		}
 
-		f = "to"
-		tr, px, err := parseTraitPix(row[fields[f]])
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-		if px >= tp.Pixelation().Len() {
-			return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
+		if doPaths {
+			f = "path"
+			path := strings.Split(row[fields[f]], ",")
+			if len(path) == 0 {
+				return nil, fmt.Errorf("on row %d: field %q: empty path", ln, f)
+			}
+			fraction := 1.0 / float64(len(path))
+			for _, pp := range path {
+				tr, px, err := parseTraitPix(pp)
+				if err != nil {
+					return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+				}
+				if px >= tp.Pixelation().Len() {
+					return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
+				}
+
+				trait, ok := cat.traits[tr]
+				if !ok {
+					trait = &recTrait{
+						trait: tr,
+						cat:   cat,
+						count: make(map[int]float64),
+					}
+					cat.traits[tr] = trait
+				}
+				trait.count[px] += fraction
+			}
+		} else {
+			f = "to"
+			tr, px, err := parseTraitPix(row[fields[f]])
+			if err != nil {
+				return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
+			}
+			if px >= tp.Pixelation().Len() {
+				return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
+			}
+
+			trait, ok := cat.traits[tr]
+			if !ok {
+				trait = &recTrait{
+					trait: tr,
+					cat:   cat,
+					count: make(map[int]float64),
+				}
+				cat.traits[tr] = trait
+			}
+			trait.count[px]++
 		}
 
-		trait, ok := cat.traits[tr]
-		if !ok {
-			trait = &recTrait{
-				trait: tr,
-				cat:   cat,
-				count: make(map[int]int),
-			}
-			cat.traits[tr] = trait
-		}
-		trait.count[px]++
 		st.particles++
 	}
 	if len(rt) == 0 {
@@ -317,7 +355,7 @@ func scaleStage(s *recStage) {
 		for _, tr := range c.traits {
 			tr.freq = make(map[int]float64)
 			for px, count := range tr.count {
-				tr.freq[px] = float64(count) / p
+				tr.freq[px] = count / p
 			}
 		}
 	}
@@ -325,6 +363,9 @@ func scaleStage(s *recStage) {
 
 func writeFrequencies(t *recTree, tp *model.TimePix, p string) (err error) {
 	name := fmt.Sprintf("%s-freq-%s.tab", outPrefix, t.name)
+	if doPaths {
+		name = fmt.Sprintf("%s-freq-paths-%s.tab", outPrefix, t.name)
+	}
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -337,7 +378,11 @@ func writeFrequencies(t *recTree, tp *model.TimePix, p string) (err error) {
 	}()
 
 	w := bufio.NewWriter(f)
-	fmt.Fprintf(w, "# pixel frequencies for tree %q or project %q", t.name, p)
+	if doPaths {
+		fmt.Fprintf(w, "# pixel path frequencies for tree %q or project %q", t.name, p)
+	} else {
+		fmt.Fprintf(w, "# pixel frequencies for tree %q or project %q", t.name, p)
+	}
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
 
 	tsv := csv.NewWriter(w)
@@ -359,6 +404,10 @@ func writeFrequencies(t *recTree, tp *model.TimePix, p string) (err error) {
 		return fmt.Errorf("while writing header on %q: %v", name, err)
 	}
 
+	tpField := "freq"
+	if doPaths {
+		tpField = "freq-paths"
+	}
 	eq := strconv.Itoa(tp.Pixelation().Equator())
 
 	nodes := make([]int, 0, len(t.nodes))
@@ -402,7 +451,7 @@ func writeFrequencies(t *recTree, tp *model.TimePix, p string) (err error) {
 							t.name,
 							node,
 							age,
-							"freq",
+							tpField,
 							cat,
 							tr,
 							eq,
