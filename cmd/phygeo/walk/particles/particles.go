@@ -519,7 +519,7 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 
 func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.Discrete) error {
 	particle := strconv.Itoa(p)
-	cats := t.Cats()
+	cats := dd.Cats()
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
 	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
