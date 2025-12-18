@@ -8,6 +8,7 @@ package walk
 
 import (
 	"github.com/js-arias/command"
+	"github.com/js-arias/phygeo/cmd/phygeo/walk/freq"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/lambda"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/like"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/mapcmd"
@@ -25,6 +26,7 @@ var Command = &command.Command{
 }
 
 func init() {
+	Command.Add(freq.Command)
 	Command.Add(lambda.Command)
 	Command.Add(like.Command)
 	Command.Add(mapcmd.Command)
