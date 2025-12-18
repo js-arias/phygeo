@@ -559,7 +559,7 @@ func writeNodeCats(w io.Writer, tc *timetree.Collection, rt map[string]*recTree)
 				row := []string{
 					name,
 					nodeID,
-					strconv.Itoa(cv + 1),
+					strconv.Itoa(cr.cat),
 					strconv.FormatFloat(cr.lambda, 'f', 6, 64),
 					strconv.FormatFloat(prob, 'f', 6, 64),
 				}
