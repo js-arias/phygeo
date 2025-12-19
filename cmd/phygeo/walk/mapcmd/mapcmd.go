@@ -28,14 +28,15 @@ var Command = &command.Command{
 	Usage: `map [-c|--columns <value>]
 	[--gray] [--scale <color-scale>]
 	[--bound <value>]
+	[--particle <value>]
 	[--unrot] [--present] [--contour <image-file>]
 	[--recent] [--trees <tree-list>] [--nodes <node-list>]
 	-i|--input <file> [-o|--output <file-prefix>] <project-file>`,
 	Short: "draw a map reconstruction",
 	Long: `
-Command map reads a file with a probability reconstruction for the nodes of
-one or more trees in a project and draws the reconstruction as an image map
-using a plate carrée (equirectangular) projection.
+Command map reads a file with a pixel frequencies for the nodes of one or more
+trees in a project and draws the reconstruction as an image map using a plate
+carrée (equirectangular) projection.
 
 The argument of the command is the name of the project file.
 
@@ -44,6 +45,10 @@ file is a pixel probability file.
 
 By default, it will only map pixels in the 0.95 of the CDF. Use the flag
 --bound to change this bound value.
+
+By default, it will draw the full reconstruction. If the flag --particle is
+defined (with a given particle ID), it will map the indicated particle path.
+In that case, the input file must be the file from the stochastic mapping.
 
 By default, the reconstructions will be mapped using their respective time
 stages. If the flag --unrot is given, then the reconstructions will be drawn
@@ -95,6 +100,7 @@ var unRot bool
 var present bool
 var recentFlag bool
 var colsFlag int
+var particleID int
 var bound float64
 var treesFlag string
 var nodesFlag string
@@ -110,6 +116,7 @@ func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&recentFlag, "recent", false, "")
 	c.Flags().IntVar(&colsFlag, "columns", 3600, "")
 	c.Flags().IntVar(&colsFlag, "c", 3600, "")
+	c.Flags().IntVar(&particleID, "particle", -1, "")
 	c.Flags().Float64Var(&bound, "bound", 0.95, "")
 	c.Flags().StringVar(&nodesFlag, "nodes", "", "")
 	c.Flags().StringVar(&treesFlag, "trees", "", "")
@@ -199,17 +206,24 @@ func run(c *command.Command, args []string) error {
 	}
 	trees := parseTreeNames()
 
-	rt, err := getRec(inputFile, landscape)
-	if err != nil {
-		return err
-	}
-
 	treeList := tc.Names()
 	if len(trees) == 0 {
 		trees = make(map[string]bool, len(treeList))
 		for _, t := range treeList {
 			trees[t] = true
 		}
+	}
+
+	if particleID >= 0 {
+		if err := makePathMaps(trees, nodes, tc, landscape, tot, gradient, keys, contour); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	rt, err := getRec(inputFile, landscape)
+	if err != nil {
+		return err
 	}
 
 	for _, tn := range treeList {
@@ -279,7 +293,6 @@ func run(c *command.Command, args []string) error {
 					}
 				}
 			}
-
 		}
 	}
 
@@ -329,6 +342,7 @@ type recStage struct {
 	node   *recNode
 	age    int64
 	traits map[string]*recTrait
+	path   map[int]float64
 }
 
 type recTrait struct {
