@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/js-arias/earth"
+	"github.com/js-arias/phygeo/infer/walker"
 )
 
 // A pointLocation is the pixel location
@@ -52,7 +53,7 @@ type pathChanType struct {
 	cond      [][]float64
 	particles []Path
 
-	w     *walkModel
+	w     walker.Model
 	age   int64
 	cat   int
 	steps int
@@ -126,6 +127,11 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 			}
 			continue
 		}
+		stages := make([]walker.StageProb, len(cc.w.Traits()))
+		for i := range stages {
+			stages[i] = cc.w.StageProb(cc.age, i)
+		}
+
 		for step := range cc.steps {
 			for i := range curr {
 				copy(curr[i], cc.cond[i])
@@ -135,19 +141,19 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 			stepCond := catConditional(cc.w, prev, curr, cc.age, cc.steps-step-1)
 			for _, id := range ids {
 				loc := cc.particles[id].locs[step]
-				stage := cc.w.stage(cc.age, loc.trait)
-				move := stage.move[loc.pixel]
+				stage := stages[loc.trait]
+				move := stage.Move[loc.pixel]
 				var sum float64
 				for _, nx := range move {
-					sum += nx.prob * stepCond[loc.trait][nx.id]
+					sum += nx.Prob * stepCond[loc.trait][nx.ID]
 				}
 				for {
 					nxPix := rand.IntN(len(move))
 					nx := move[nxPix]
-					p := nx.prob * stepCond[loc.trait][nx.id] / sum
+					p := nx.Prob * stepCond[loc.trait][nx.ID] / sum
 					if rand.Float64() < p {
 						cc.particles[id].locs[step+1] = pointLocation{
-							pixel: nx.id,
+							pixel: nx.ID,
 							trait: loc.trait,
 						}
 						break

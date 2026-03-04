@@ -26,7 +26,7 @@ func (n *node) fullDownPass(t *Tree) {
 func (n *node) conditional(t *Tree) {
 	tmpLike := make([][][]float64, len(t.landProb))
 	for i := range tmpLike {
-		tmpLike[i] = make([][]float64, len(t.landProb[i].traits))
+		tmpLike[i] = make([][]float64, len(t.landProb[i].Traits()))
 		for j := range tmpLike[i] {
 			tmpLike[i][j] = make([]float64, t.tp.Pixelation().Len())
 		}
@@ -38,7 +38,7 @@ func (n *node) conditional(t *Tree) {
 		// of the conditional likelihoods of each descendant
 		logLike := make([][][]float64, len(t.landProb))
 		for i := range logLike {
-			logLike[i] = make([][]float64, len(t.landProb[i].traits))
+			logLike[i] = make([][]float64, len(t.landProb[i].Traits()))
 			for j := range logLike[i] {
 				logLike[i][j] = make([]float64, t.tp.Pixelation().Len())
 			}
@@ -117,9 +117,9 @@ func (n *node) conditional(t *Tree) {
 		logNumCats := math.Log(float64(len(t.landProb)))
 		for c := range rs.logLike {
 			for tr := range rs.logLike[c] {
-				stage := t.landProb[c].stage(age, tr)
+				stage := t.landProb[c].StageProb(age, tr)
 				for px := range rs.logLike[c][tr] {
-					pp := stage.prior[px]
+					pp := stage.Prior[px]
 					if pp == 0 {
 						// remove un-settable pixels
 						rs.logLike[c][tr][px] = math.Inf(-1)
@@ -137,16 +137,13 @@ func (n *node) conditional(t *Tree) {
 func (ts *timeStage) conditional(t *Tree, tmpLike [][][]float64) [][][]float64 {
 	resLike := make([][][]float64, len(t.landProb))
 	for i := range resLike {
-		resLike[i] = make([][]float64, len(t.landProb[i].traits))
+		resLike[i] = make([][]float64, len(t.landProb[i].Traits()))
 		for j := range resLike[i] {
 			resLike[i][j] = make([]float64, t.tp.Pixelation().Len())
 		}
 	}
 
 	age := t.tp.ClosestStageAge(ts.age)
-	for i := range t.landProb {
-		t.landProb[i].prepareStage(age)
-	}
 	max := scaleLogProb(tmpLike, ts.logLike)
 
 	answer := make(chan likeChanAnswer)
@@ -168,9 +165,9 @@ func (ts *timeStage) conditional(t *Tree, tmpLike [][][]float64) [][][]float64 {
 		a := <-answer
 		resLike[a.cat] = a.rawLike
 		for tr := range resLike[a.cat] {
-			stage := t.landProb[a.cat].stage(age, tr)
+			stage := t.landProb[a.cat].StageProb(age, tr)
 			for px, p := range resLike[a.cat][tr] {
-				pp := stage.prior[px]
+				pp := stage.Prior[px]
 				if pp == 0 {
 					// remove un-settable pixels
 					resLike[a.cat][tr][px] = math.Inf(-1)

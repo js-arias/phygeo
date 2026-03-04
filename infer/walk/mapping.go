@@ -26,7 +26,7 @@ func (n *node) fullMap(t *Tree) {
 func (n *node) mapUppass(t *Tree) {
 	tmpEnd := make([][][]float64, len(t.landProb))
 	for i := range tmpEnd {
-		tmpEnd[i] = make([][]float64, len(t.landProb[i].traits))
+		tmpEnd[i] = make([][]float64, len(t.landProb[i].Traits()))
 		for j := range tmpEnd[i] {
 			tmpEnd[i][j] = make([]float64, t.tp.Pixelation().Len())
 		}
@@ -48,11 +48,11 @@ func (n *node) mapUppass(t *Tree) {
 			// pick the pixel
 			for {
 				cat := rand.IntN(len(t.landProb))
-				trait := rand.IntN(len(t.landProb[cat].traits))
+				trait := rand.IntN(len(t.landProb[cat].Traits()))
 				px := rand.IntN(t.tp.Pixelation().Len())
 				if rand.Float64() < tmpEnd[cat][trait][px] {
 					paths[i].cat = cat
-					paths[i].traits = t.landProb[cat].traits
+					paths[i].traits = t.landProb[cat].Traits()
 					paths[i].locs[0] = pointLocation{
 						pixel: px,
 						trait: trait,
@@ -70,10 +70,6 @@ func (n *node) mapUppass(t *Tree) {
 		ts := n.stages[i]
 		age := t.rot.ClosestStageAge(ts.age)
 
-		for j := range t.landProb {
-			t.landProb[j].prepareStage(age)
-		}
-
 		prev := n.stages[i-1]
 		last := len(prev.paths[0].locs) - 1
 
@@ -84,7 +80,7 @@ func (n *node) mapUppass(t *Tree) {
 			paths[j].locs = make([]pointLocation, steps)
 			paths[j].locs[0] = prev.paths[j].locs[last]
 			paths[j].cat = prev.paths[j].cat
-			paths[j].traits = t.landProb[paths[j].cat].traits
+			paths[j].traits = t.landProb[paths[j].cat].Traits()
 		}
 
 		prevAge := t.rot.ClosestStageAge(prev.age)
@@ -92,8 +88,8 @@ func (n *node) mapUppass(t *Tree) {
 			// rotate if there is an state change
 			rot := t.rot.OldToYoung(prevAge)
 			for j := range paths {
-				prior := t.landProb[paths[j].cat].stage(age, paths[j].locs[0].trait)
-				paths[j].locs[0].pixel = rotPixel(rot.Rot, paths[j].locs[0].pixel, prior.prior)
+				prior := t.landProb[paths[j].cat].StageProb(age, paths[j].locs[0].trait)
+				paths[j].locs[0].pixel = rotPixel(rot.Rot, paths[j].locs[0].pixel, prior.Prior)
 			}
 		}
 
@@ -138,7 +134,7 @@ func (n *node) mapUppass(t *Tree) {
 						break
 					}
 				}
-				paths[j].traits = t.landProb[paths[j].cat].traits
+				paths[j].traits = t.landProb[paths[j].cat].Traits()
 			}
 			cs.paths = paths
 		}

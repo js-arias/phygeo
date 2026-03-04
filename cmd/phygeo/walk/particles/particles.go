@@ -23,10 +23,13 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/phygeo/cats"
 	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/walk"
+	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/trait"
 )
 
 var Command = &command.Command{
@@ -140,16 +143,6 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	mv, err := p.Movement(tr, keys)
-	if err != nil {
-		return err
-	}
-
-	st, err := p.Settlement(tr, keys)
-	if err != nil {
-		return err
-	}
-
 	wp, err := p.WalkParam(landscape.Pixelation())
 	if err != nil {
 		return err
@@ -163,18 +156,15 @@ func run(c *command.Command, args []string) error {
 	}
 
 	param := walk.Param{
-		Landscape:  landscape,
-		Rot:        rot,
-		Stages:     stages.Stages(),
-		Net:        net,
-		Ranges:     rc,
-		Traits:     tr,
-		Keys:       keys,
-		Movement:   mv,
-		Settlement: st,
-		Steps:      wp.Steps(),
-		MinSteps:   wp.MinSteps(),
-		Particles:  numParticles,
+		Landscape: landscape,
+		Rot:       rot,
+		Stages:    stages.Stages(),
+		Ranges:    rc,
+		Traits:    tr,
+		Keys:      keys,
+		Steps:     wp.Steps(),
+		MinSteps:  wp.MinSteps(),
+		Particles: numParticles,
 	}
 
 	walk.StartMap(numCPU, landscape.Pixelation(), len(tr.States()), numParticles)
@@ -184,7 +174,6 @@ func run(c *command.Command, args []string) error {
 			continue
 		}
 
-		param.Lambda = t.lambda
 		dd, err := cats.Parse(t.relaxed, wp.Cats())
 		if err != nil {
 			return fmt.Errorf("tree %s: relaxed function: %v", t.name, err)
@@ -193,7 +182,11 @@ func run(c *command.Command, args []string) error {
 			return fmt.Errorf("tree %s: invalid relaxed function, got %q, want %q", t.name, dd.Function(), wp.Function())
 		}
 		settCats := catwalk.Cats(landscape.Pixelation(), net, t.lambda, wp.Steps(), dd)
+
+		landProb, err := landscapeModel(p, landscape, net, tr, keys, settCats)
+
 		param.Discrete = settCats
+		param.Walker = landProb
 
 		wt := walk.New(ct, param)
 		nodes := wt.Nodes()
@@ -227,12 +220,33 @@ func run(c *command.Command, args []string) error {
 			}
 		}
 		name := fmt.Sprintf("%s-up-%s-x%d.tab", outPrefix, wt.Name(), numParticles)
-		if err := upPass(wt, name, p.Name(), param.Lambda, dd); err != nil {
+		if err := upPass(wt, name, p.Name(), t.lambda, dd); err != nil {
 			return err
 		}
 	}
 	walk.EndMap()
 	return nil
+}
+
+func landscapeModel(p *project.Project, landscape *model.TimePix, net earth.Network, tr *trait.Data, keys *pixkey.PixKey, discrete []float64) ([]walker.Model, error) {
+	mv, err := p.Movement(tr, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := p.Settlement(tr, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	states := tr.States()
+
+	landProb := make([]walker.Model, len(discrete))
+	for i, c := range discrete {
+		lp := walker.New(landscape, net, mv, st, c, states, keys)
+		landProb[i] = lp
+	}
+	return landProb, nil
 }
 
 func getRec(name string, landscape *model.TimePix) (map[string]*recTree, error) {

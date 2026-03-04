@@ -11,9 +11,9 @@ import (
 	"math"
 	"slices"
 
-	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/pixkey"
+	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/phygeo/trait"
 	"github.com/js-arias/ranges"
@@ -32,26 +32,18 @@ type Param struct {
 	// Stages is the time stages used to split branches
 	Stages []int64
 
-	// Network
-	Net earth.Network
-
 	// Ranges is the collection of terminal ranges
 	Ranges *ranges.Collection
+
+	// Walker contains the random-walk model
+	// for each diffusion discrete category
+	Walker []walker.Model
 
 	// Traits is the collection of terminal traits
 	Traits *trait.Data
 
 	// Keys are the keys to relate trait data with the landscape
 	Keys *pixkey.PixKey
-
-	// Movement and Settlement are the movement
-	// and settlement matrices.
-	Movement   *trait.Matrix
-	Settlement *trait.Matrix
-
-	// Lambda is the concentration parameter per million years
-	// in 1/radian units
-	Lambda float64
 
 	// Length in years of the stem node
 	Stem int64
@@ -77,7 +69,7 @@ type Tree struct {
 
 	rot      *model.StageRot
 	tp       *model.TimePix
-	landProb []*walkModel
+	landProb []walker.Model
 
 	steps     int
 	dd        []float64
@@ -87,27 +79,12 @@ type Tree struct {
 // New creates a new tree by copying the indicated source tree.
 func New(t *timetree.Tree, p Param) *Tree {
 	states := p.Traits.States()
-	landProb := make([]*walkModel, len(p.Discrete))
-	for i, c := range p.Discrete {
-		lp := &walkModel{
-			stages:     make(map[int64][]stageProb),
-			tp:         p.Landscape,
-			net:        p.Net,
-			movement:   p.Movement,
-			settlement: p.Settlement,
-			settProb:   c,
-			traits:     states,
-			key:        p.Keys,
-		}
-		landProb[i] = lp
-	}
-
 	nt := &Tree{
 		t:         t,
 		nodes:     make(map[int]*node, len(t.Nodes())),
 		rot:       p.Rot,
 		tp:        p.Landscape,
-		landProb:  landProb,
+		landProb:  p.Walker,
 		steps:     p.Steps,
 		dd:        p.Discrete,
 		particles: p.Particles,
@@ -143,7 +120,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		st.logLike = make([][][]float64, len(nt.dd))
 
 		for c := range st.logLike {
-			st.logLike[c] = make([][]float64, len(nt.landProb[c].traits))
+			st.logLike[c] = make([][]float64, len(nt.landProb[c].Traits()))
 			for tr := range st.logLike[c] {
 				like := make([]float64, p.Landscape.Pixelation().Len())
 				isObs := slices.Contains(obs, states[tr])
@@ -206,7 +183,7 @@ func (t *Tree) Conditional(n int, age int64, cat int, tr string) map[int]float64
 		return nil
 	}
 
-	j, ok := slices.BinarySearch(t.landProb[cat].traits, tr)
+	j, ok := slices.BinarySearch(t.landProb[cat].Traits(), tr)
 	if !ok {
 		return nil
 	}
@@ -356,7 +333,7 @@ func (t *Tree) SetConditional(n int, age int64, cat int, tr string, logLike map[
 		return
 	}
 
-	j, ok := slices.BinarySearch(t.landProb[cat].traits, tr)
+	j, ok := slices.BinarySearch(t.landProb[cat].Traits(), tr)
 	if !ok {
 		return
 	}
@@ -366,7 +343,7 @@ func (t *Tree) SetConditional(n int, age int64, cat int, tr string, logLike map[
 	if ts.logLike == nil {
 		tmpLike := make([][][]float64, len(t.landProb))
 		for c := range tmpLike {
-			tmpLike[c] = make([][]float64, len(t.landProb[c].traits))
+			tmpLike[c] = make([][]float64, len(t.landProb[c].Traits()))
 			for trv := range tmpLike[c] {
 				tmpLike[c][trv] = make([]float64, t.tp.Pixelation().Len())
 				for px := range tmpLike[c][trv] {
@@ -434,8 +411,8 @@ func (t *Tree) Steps() int {
 // Traits returns the names of the traits defined for the terminals
 // of a tree.
 func (t *Tree) Traits() []string {
-	tr := make([]string, len(t.landProb[0].traits))
-	copy(tr, t.landProb[0].traits)
+	tr := make([]string, len(t.landProb[0].Traits()))
+	copy(tr, t.landProb[0].Traits())
 	return tr
 }
 

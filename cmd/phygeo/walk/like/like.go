@@ -19,10 +19,14 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
+	"github.com/js-arias/earth/model"
+	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/phygeo/cats"
 	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/walk"
+	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/project"
+	"github.com/js-arias/phygeo/trait"
 )
 
 var Command = &command.Command{
@@ -151,20 +155,11 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	mv, err := p.Movement(tr, keys)
-	if err != nil {
-		return err
-	}
-
-	st, err := p.Settlement(tr, keys)
-	if err != nil {
-		return err
-	}
-
 	wp, err := p.WalkParam(landscape.Pixelation())
 	if err != nil {
 		return err
 	}
+
 	params, err := parseParams()
 	if err != nil {
 		return err
@@ -175,20 +170,19 @@ func run(c *command.Command, args []string) error {
 	dd := wp.Relaxed(params)
 	settCats := catwalk.Cats(landscape.Pixelation(), net, lambdaFlag, wp.Steps(), dd)
 
+	landProb, err := landscapeModel(p, landscape, tr, keys, settCats)
+
 	param := walk.Param{
-		Landscape:  landscape,
-		Rot:        rot,
-		Stages:     stages.Stages(),
-		Net:        net,
-		Ranges:     rc,
-		Traits:     tr,
-		Keys:       keys,
-		Movement:   mv,
-		Settlement: st,
-		Lambda:     lambdaFlag,
-		Steps:      wp.Steps(),
-		MinSteps:   wp.MinSteps(),
-		Discrete:   settCats,
+		Landscape: landscape,
+		Rot:       rot,
+		Stages:    stages.Stages(),
+		Ranges:    rc,
+		Traits:    tr,
+		Keys:      keys,
+		Walker:    landProb,
+		Steps:     wp.Steps(),
+		MinSteps:  wp.MinSteps(),
+		Discrete:  settCats,
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
@@ -209,6 +203,29 @@ func run(c *command.Command, args []string) error {
 	}
 	walk.EndDown()
 	return nil
+}
+
+func landscapeModel(p *project.Project, landscape *model.TimePix, tr *trait.Data, keys *pixkey.PixKey, discrete []float64) ([]walker.Model, error) {
+	net := earth.NewNetwork(landscape.Pixelation())
+
+	mv, err := p.Movement(tr, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := p.Settlement(tr, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	states := tr.States()
+
+	landProb := make([]walker.Model, len(discrete))
+	for i, c := range discrete {
+		lp := walker.New(landscape, net, mv, st, c, states, keys)
+		landProb[i] = lp
+	}
+	return landProb, nil
 }
 
 func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {

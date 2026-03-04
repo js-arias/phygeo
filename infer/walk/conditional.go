@@ -9,13 +9,14 @@ import (
 	"sync"
 
 	"github.com/js-arias/earth"
+	"github.com/js-arias/phygeo/infer/walker"
 )
 
 type likeChanType struct {
 	like [][]float64
 	raw  [][]float64
 
-	w     *walkModel
+	w     walker.Model
 	age   int64
 	cat   int
 	steps int
@@ -87,17 +88,21 @@ func downLike(c chan likeChanType, sz, traits int) {
 	}
 }
 
-func catConditional(w *walkModel, prev, curr [][]float64, age int64, steps int) [][]float64 {
+func catConditional(w walker.Model, prev, curr [][]float64, age int64, steps int) [][]float64 {
+	stages := make([]walker.StageProb, len(curr))
+	for i := range stages {
+		stages[i] = w.StageProb(age, i)
+	}
 	for range steps {
 		for i := range prev {
 			prev[i], curr[i] = curr[i], prev[i]
 		}
 		for i := range curr {
-			stage := w.stage(age, i)
+			stage := stages[i]
 			for px := range curr[i] {
 				var sum float64
-				for _, nx := range stage.move[px] {
-					sum += nx.prob * prev[i][nx.id]
+				for _, nx := range stage.Move[px] {
+					sum += nx.Prob * prev[i][nx.ID]
 				}
 				curr[i][px] = sum
 			}
