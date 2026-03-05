@@ -5,7 +5,11 @@
 package walk
 
 import (
+	"encoding/gob"
+	"fmt"
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -106,9 +110,11 @@ func EndMap() {
 func mapSim(c chan pathChanType, sz, traits, particles int) {
 	prev := make([][]float64, traits)
 	curr := make([][]float64, traits)
+	stepCond := make([][]float64, traits)
 	for i := range prev {
 		prev[i] = make([]float64, sz)
 		curr[i] = make([]float64, sz)
+		stepCond[i] = make([]float64, sz)
 	}
 	ids := make([]int, particles)
 
@@ -127,18 +133,35 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 			}
 			continue
 		}
+
+		dir, err := os.MkdirTemp("", "tmp-up")
+		if err != nil {
+			panic(err)
+		}
+
+		for i := range curr {
+			copy(curr[i], cc.cond[i])
+		}
+		// we have already done the last step,
+		// so we remove one step
+		catConditionalWrite(dir, cc.w, prev, curr, cc.age, cc.steps-1)
+
 		stages := make([]walker.StageProb, len(cc.w.Traits()))
 		for i := range stages {
 			stages[i] = cc.w.StageProb(cc.age, i)
 		}
 
 		for step := range cc.steps {
-			for i := range curr {
-				copy(curr[i], cc.cond[i])
+			f, err := os.Open(filepath.Join(dir, fmt.Sprintf("s%d", step)))
+			if err != nil {
+				panic(err)
 			}
-			// we have already done the last step,
-			// so we remove one step
-			stepCond := catConditional(cc.w, prev, curr, cc.age, cc.steps-step-1)
+			d := gob.NewDecoder(f)
+			if err := d.Decode(&stepCond); err != nil {
+				panic(err)
+			}
+			f.Close()
+
 			for _, id := range ids {
 				loc := cc.particles[id].locs[step]
 				stage := stages[loc.trait]
@@ -165,5 +188,46 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 			particles: cc.particles,
 			cat:       cc.cat,
 		}
+	}
+}
+
+func catConditionalWrite(dir string, w walker.Model, prev, curr [][]float64, age int64, steps int) {
+	// The most recent step
+	f, err := os.Create(filepath.Join(dir, fmt.Sprintf("s%d", steps)))
+	if err != nil {
+		panic(err)
+	}
+	e := gob.NewEncoder(f)
+	e.Encode(curr)
+	f.Close()
+
+	// do the conditionals
+	stages := make([]walker.StageProb, len(curr))
+	for i := range stages {
+		stages[i] = w.StageProb(age, i)
+	}
+	for s := range steps {
+		for i := range prev {
+			prev[i], curr[i] = curr[i], prev[i]
+		}
+		for i := range curr {
+			stage := stages[i]
+			for px := range curr[i] {
+				var sum float64
+				for _, nx := range stage.Move[px] {
+					sum += nx.Prob * prev[i][nx.ID]
+				}
+				curr[i][px] = sum
+			}
+		}
+
+		// encode step
+		f, err := os.Create(filepath.Join(dir, fmt.Sprintf("s%d", steps-s-1)))
+		if err != nil {
+			panic(err)
+		}
+		e := gob.NewEncoder(f)
+		e.Encode(curr)
+		f.Close()
 	}
 }
