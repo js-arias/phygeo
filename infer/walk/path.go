@@ -118,6 +118,14 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 	}
 	ids := make([]int, particles)
 
+	// ensure temporal data will be deleted on a panic
+	lastDir := ""
+	defer func() {
+		if lastDir != "" {
+			os.RemoveAll(lastDir)
+		}
+	}()
+
 	for cc := range c {
 		ids = ids[:0]
 		for i := range cc.particles {
@@ -138,6 +146,7 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 		if err != nil {
 			panic(err)
 		}
+		lastDir = dir
 
 		for i := range curr {
 			copy(curr[i], cc.cond[i])
@@ -184,6 +193,8 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 				}
 			}
 		}
+		os.RemoveAll(dir)
+		lastDir = ""
 		cc.answer <- pathChanAnswer{
 			particles: cc.particles,
 			cat:       cc.cat,
