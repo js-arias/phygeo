@@ -7,7 +7,7 @@ package walk
 import "math/rand/v2"
 
 // Rotation rotates a logLike field using a rotation.
-func rotation(rot map[int][]int, dst, rng [][][]float64) {
+func rotation(rot [][]int, dst, rng [][][]float64) {
 	for c := range rng {
 		for t := range rng[c] {
 			for px, p := range rng[c][t] {
@@ -24,7 +24,7 @@ func rotation(rot map[int][]int, dst, rng [][][]float64) {
 }
 
 // RotPixel returns the pixel from a rotation
-func rotPixel(rot map[int][]int, px int, prior []float64) int {
+func rotPixel(rot [][]int, px int, prior []float64) int {
 	np := rot[px]
 	if len(np) == 1 {
 		return np[0]

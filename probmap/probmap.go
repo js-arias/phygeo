@@ -27,7 +27,7 @@ type Image struct {
 	Landscape *model.TimePix
 
 	// Total rotation for the pixels to the present stage
-	Tot map[int][]int
+	Tot [][]int
 
 	// Color keys
 	Keys *pixkey.PixKey

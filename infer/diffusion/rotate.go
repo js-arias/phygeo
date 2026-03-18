@@ -12,7 +12,7 @@ import (
 )
 
 // Rotate rotates a log-map using a rotation map.
-func rotate(rot map[int][]int, rng map[int]float64) map[int]float64 {
+func rotate(rot [][]int, rng map[int]float64) map[int]float64 {
 	nr := make(map[int]float64, len(rng))
 	for px, p := range rng {
 		np := rot[px]

@@ -178,7 +178,7 @@ func (ts *timeStage) conditional(t *Tree, old int64, pixTmp []likePix, resTmp []
 
 		// the pixel must be valid at the oldest stage
 		if rot != nil {
-			if _, ok := rot.Rot[px]; !ok {
+			if len(rot.Rot[px]) == 0 {
 				continue
 			}
 		}

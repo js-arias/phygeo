@@ -33,6 +33,9 @@ func (n *node) conditional(t *Tree) {
 	}
 
 	if !t.t.IsTerm(n.id) {
+		ts := n.stages[len(n.stages)-1]
+		age := t.tp.ClosestStageAge(ts.age)
+
 		// In a split node
 		// the conditional likelihood is the product
 		// of the conditional likelihoods of each descendant
@@ -65,7 +68,14 @@ func (n *node) conditional(t *Tree) {
 			// as all categories should have the same conditionals
 			// we only use the first category
 			for tr := range tmpLike[0] {
+				stage := t.landProb[0].StageProb(age, tr)
 				for px, p := range tmpLike[0][tr] {
+					pp := stage.Prior[px]
+					if pp == 0 {
+						// remove un-settable pixels
+						logLike[0][tr][px] = math.Inf(-1)
+						continue
+					}
 					logLike[0][tr][px] += math.Log(p) + max - logNumCats
 				}
 			}
@@ -81,7 +91,6 @@ func (n *node) conditional(t *Tree) {
 			}
 		}
 
-		ts := n.stages[len(n.stages)-1]
 		ts.logLike = logLike
 	}
 
@@ -165,14 +174,7 @@ func (ts *timeStage) conditional(t *Tree, tmpLike [][][]float64) [][][]float64 {
 		a := <-answer
 		resLike[a.cat] = a.rawLike
 		for tr := range resLike[a.cat] {
-			stage := t.landProb[a.cat].StageProb(age, tr)
 			for px, p := range resLike[a.cat][tr] {
-				pp := stage.Prior[px]
-				if pp == 0 {
-					// remove un-settable pixels
-					resLike[a.cat][tr][px] = math.Inf(-1)
-					continue
-				}
 				resLike[a.cat][tr][px] = math.Log(p) + max
 			}
 		}
