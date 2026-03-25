@@ -120,6 +120,7 @@ func run(c *command.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	rot.SetUndefAsFix()
 
 	stages, err := p.Stages(rot, landscape)
 	if err != nil {
