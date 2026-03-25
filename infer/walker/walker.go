@@ -16,6 +16,10 @@ type StageProb struct {
 
 	// Prior contains the prior probability of a pixel in a pixelation
 	Prior []float64
+
+	// Settlement contains the settlement weight of a pixel
+	// in a pixelation
+	Settlement []float64
 }
 
 // PixProb contains the probability of a pixel.

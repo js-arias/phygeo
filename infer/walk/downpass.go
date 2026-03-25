@@ -68,15 +68,27 @@ func (n *node) conditional(t *Tree) {
 			// as all categories should have the same conditionals
 			// we only use the first category
 			for tr := range tmpLike[0] {
-				stage := t.landProb[0].StageProb(age, tr)
 				for px, p := range tmpLike[0][tr] {
-					pp := stage.Prior[px]
+					logLike[0][tr][px] += math.Log(p) + max - logNumCats
+				}
+			}
+		}
+
+		// If we are not at the root
+		// we take the pixel priors
+		// (the settlement probabilities)
+		// we only use the first category
+		if !t.t.IsRoot(n.id) {
+			for tr := range logLike[0] {
+				stage := t.landProb[0].StageProb(age, tr)
+				for px := range logLike[0][tr] {
+					pp := stage.Settlement[px]
 					if pp == 0 {
 						// remove un-settable pixels
 						logLike[0][tr][px] = math.Inf(-1)
 						continue
 					}
-					logLike[0][tr][px] += math.Log(p) + max - logNumCats
+					logLike[0][tr][px] += math.Log(stage.Settlement[px])
 				}
 			}
 		}
@@ -119,11 +131,9 @@ func (n *node) conditional(t *Tree) {
 	}
 
 	if t.t.IsRoot(n.id) {
-		// At the root add the pixel priors
-		// and divide by the number of categories
+		// Add the pixel priors
 		rs := n.stages[0]
 		age := t.tp.ClosestStageAge(rs.age)
-		logNumCats := math.Log(float64(len(t.landProb)))
 		for c := range rs.logLike {
 			for tr := range rs.logLike[c] {
 				stage := t.landProb[c].StageProb(age, tr)
@@ -134,7 +144,20 @@ func (n *node) conditional(t *Tree) {
 						rs.logLike[c][tr][px] = math.Inf(-1)
 						continue
 					}
-					rs.logLike[c][tr][px] += math.Log(pp) - logNumCats
+					rs.logLike[c][tr][px] += math.Log(pp)
+				}
+			}
+		}
+
+		// If we have a root branch
+		// we must divide the likelihood by the number of categories
+		if len(n.stages) > 1 {
+			logNumCats := math.Log(float64(len(t.landProb)))
+			for c := range rs.logLike {
+				for tr := range rs.logLike[c] {
+					for px := range rs.logLike[c][tr] {
+						rs.logLike[c][tr][px] -= logNumCats
+					}
 				}
 			}
 		}
