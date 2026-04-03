@@ -90,10 +90,11 @@ func (w *walkModel) prepare(age int64) []StageProb {
 	trStage := make([]StageProb, len(w.traits))
 	for i, t := range w.traits {
 		prob := w.buildPixProb(w, age, t)
-		prior := w.buildPrior(age, t)
+		prior, sett := w.buildPrior(age, t)
 		trStage[i] = StageProb{
-			Move:  prob,
-			Prior: prior,
+			Move:       prob,
+			Prior:      prior,
+			Settlement: sett,
 		}
 	}
 	w.stages[age] = trStage
@@ -103,22 +104,31 @@ func (w *walkModel) prepare(age int64) []StageProb {
 func defPixProb(w *walkModel, age int64, t string) [][]PixProb {
 	landscape := w.tp.Stage(age)
 	moveProb := 1 - w.settProb
+
 	pp := make([][]PixProb, w.tp.Pixelation().Len())
 	for px := range pp {
 		n := w.net[px]
 		prob := make([]PixProb, len(n))
+		settProb := 1.0
 		mv := moveProb / float64(len(n)-1)
-		s := landscape[px]
+		sp := 0
 		for i, x := range n {
+			if x == px {
+				sp = i
+			}
 			v := landscape[x]
 			p := mv * w.movement.Weight(t, w.key.Label(v))
-			if x == px {
-				p = w.settlement.Weight(t, w.key.Label(s)) * w.settProb
-			}
 			prob[i] = PixProb{
 				ID:   x,
 				Prob: p,
 			}
+			settProb -= p
+		}
+		s := landscape[px]
+		settProb *= w.settlement.Weight(t, w.key.Label(s))
+		prob[sp] = PixProb{
+			ID:   px,
+			Prob: settProb,
 		}
 		pp[px] = prob
 	}
@@ -128,53 +138,72 @@ func defPixProb(w *walkModel, age int64, t string) [][]PixProb {
 // Build the Bouckaert et al. (2012) model.
 func buildBouckaert(w *walkModel, age int64, t string) [][]PixProb {
 	landscape := w.tp.Stage(age)
-
+	moveProb := 1 - w.settProb
 	pp := make([][]PixProb, w.tp.Pixelation().Len())
 	for px := range pp {
 		n := w.net[px]
 		prob := make([]PixProb, len(n))
-		var sumWeight float64
-		for _, x := range n {
+		mv := moveProb / float64(len(n)-1)
+		s := landscape[px]
+
+		// If we cannot settle we have to move all the probability out
+		if w.settlement.Weight(t, w.key.Label(s)) == 0 {
+			mv = 1.0 / float64(len(n)-1)
+			for i, x := range n {
+				p := mv
+				if x == px {
+					p = 0
+				}
+				prob[i] = PixProb{
+					ID:   x,
+					Prob: p,
+				}
+			}
+			continue
+		}
+
+		var sumMov float64
+		for i, x := range n {
 			if x == px {
 				continue
 			}
 			v := landscape[x]
-			sumWeight += w.movement.Weight(t, w.key.Label(v))
-		}
-		s := landscape[px]
-		moveProb := 1 - w.settlement.Weight(t, w.key.Label(s))*w.settProb
-
-		var sumProb float64
-		for i, x := range n {
-			v := landscape[x]
-			p := moveProb * w.movement.Weight(t, w.key.Label(v)) / sumWeight
-			if x == px {
-				p = 1 - moveProb
-			}
+			p := mv * w.movement.Weight(t, w.key.Label(v))
 			prob[i] = PixProb{
 				ID:   x,
 				Prob: p,
 			}
-			sumProb += p
+			sumMov += p
+		}
+		for i, x := range n {
+			if x != px {
+				continue
+			}
+			prob[i] = PixProb{
+				ID:   x,
+				Prob: 1 - sumMov,
+			}
 		}
 		pp[px] = prob
 	}
 	return pp
 }
 
-func (w *walkModel) buildPrior(age int64, t string) []float64 {
+func (w *walkModel) buildPrior(age int64, t string) (prior, settlement []float64) {
 	landscape := w.tp.Stage(age)
 
-	prior := make([]float64, w.tp.Pixelation().Len())
+	prior = make([]float64, w.tp.Pixelation().Len())
+	settlement = make([]float64, w.tp.Pixelation().Len())
 	var sum float64
 	for px := range prior {
 		s := landscape[px]
 		p := w.settlement.Weight(t, w.key.Label(s))
 		prior[px] = p
+		settlement[px] = p
 		sum += p
 	}
 	for px, p := range prior {
 		prior[px] = p / sum
 	}
-	return prior
+	return prior, settlement
 }
