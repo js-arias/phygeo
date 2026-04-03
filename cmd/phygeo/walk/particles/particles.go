@@ -538,6 +538,7 @@ func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.D
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
 	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
+	states := t.Traits()
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -567,9 +568,9 @@ func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.D
 				currCat,
 				scaled,
 				eq,
-				pathLocation(path, 0),
-				pathLocation(path, path.Len()-1),
-				fullPath(path),
+				pathLocation(path, 0, states),
+				pathLocation(path, path.Len()-1, states),
+				fullPath(path, states),
 			}
 			if err := tsv.Write(row); err != nil {
 				return err
@@ -579,18 +580,18 @@ func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.D
 	return nil
 }
 
-func pathLocation(p walk.Path, step int) string {
+func pathLocation(p walk.Path, step int, states []string) string {
 	px, tr := p.Pos(step)
-	return fmt.Sprintf("%s:%d", tr, px)
+	return fmt.Sprintf("%s:%d", states[tr], px)
 }
 
-func fullPath(p walk.Path) string {
+func fullPath(p walk.Path, states []string) string {
 	var b bytes.Buffer
 	for i := range p.Len() {
 		if i > 0 {
 			b.WriteRune(',')
 		}
-		b.WriteString(pathLocation(p, i))
+		b.WriteString(pathLocation(p, i, states))
 	}
 	return b.String()
 }

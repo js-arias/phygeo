@@ -28,9 +28,8 @@ type pointLocation struct {
 // A Path is a sequence of locations
 // in a lineage.
 type Path struct {
-	locs   []pointLocation
-	cat    int
-	traits []string
+	locs []pointLocation
+	cat  int
 }
 
 // Cat returns the category of the relaxed random walk
@@ -48,9 +47,9 @@ func (p Path) Len() int {
 // Pos return the location and trait
 // of particle in a trait
 // at a given time.
-func (p Path) Pos(step int) (pixel int, trait string) {
+func (p Path) Pos(step int) (pixel, trait int) {
 	pL := p.locs[step]
-	return pL.pixel, p.traits[pL.trait]
+	return pL.pixel, pL.trait
 }
 
 type pathChanType struct {

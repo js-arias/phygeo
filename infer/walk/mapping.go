@@ -52,7 +52,6 @@ func (n *node) mapUppass(t *Tree) {
 				px := rand.IntN(t.tp.Pixelation().Len())
 				if rand.Float64() < tmpEnd[cat][trait][px] {
 					paths[i].cat = cat
-					paths[i].traits = t.landProb[cat].Traits()
 					paths[i].locs[0] = pointLocation{
 						pixel: px,
 						trait: trait,
@@ -80,7 +79,6 @@ func (n *node) mapUppass(t *Tree) {
 			paths[j].locs = make([]pointLocation, steps)
 			paths[j].locs[0] = prev.paths[j].locs[last]
 			paths[j].cat = prev.paths[j].cat
-			paths[j].traits = t.landProb[paths[j].cat].Traits()
 		}
 
 		prevAge := t.rot.ClosestStageAge(prev.age)
@@ -134,7 +132,6 @@ func (n *node) mapUppass(t *Tree) {
 						break
 					}
 				}
-				paths[j].traits = t.landProb[paths[j].cat].Traits()
 			}
 			cs.paths = paths
 		}
