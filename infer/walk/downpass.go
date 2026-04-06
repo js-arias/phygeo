@@ -74,21 +74,14 @@ func (n *node) conditional(t *Tree) {
 			}
 		}
 
-		// If we are not at the root
-		// we take the pixel priors
-		// (the settlement probabilities)
+		// remove un-settable pixels
 		// we only use the first category
-		if !t.t.IsRoot(n.id) {
-			for tr := range logLike[0] {
-				stage := t.landProb[0].StageProb(age, tr)
-				for px := range logLike[0][tr] {
-					pp := stage.Settlement[px]
-					if pp == 0 {
-						// remove un-settable pixels
-						logLike[0][tr][px] = math.Inf(-1)
-						continue
-					}
-					logLike[0][tr][px] += math.Log(stage.Settlement[px])
+		for tr := range logLike[0] {
+			stage := t.landProb[0].StageProb(age, tr)
+			for px := range logLike[0][tr] {
+				pp := stage.Settlement[px]
+				if pp == 0 {
+					logLike[0][tr][px] = math.Inf(-1)
 				}
 			}
 		}
