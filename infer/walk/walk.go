@@ -249,9 +249,18 @@ func (t *Tree) LogLike() float64 {
 }
 
 // Mapping performs an stochastic mapping.
-func (t *Tree) Mapping() {
-	root := t.nodes[t.t.Root()]
-	root.fullMap(t)
+// It returns a channel with the paths.
+func (t *Tree) Mapping() chan PathChan {
+	c := make(chan PathChan)
+
+	go func() {
+		// Do the stochastic mapping
+		root := t.nodes[t.t.Root()]
+		root.fullMap(t, c)
+		close(c)
+	}()
+
+	return c
 }
 
 // Name returns the name of the tree.
@@ -269,34 +278,6 @@ func (t *Tree) Nodes() []int {
 // of the indicated node.
 func (t *Tree) Parent(n int) int {
 	return t.t.Parent(n)
-}
-
-// Path returns a particle path
-// for a given node
-// at a given time stage
-// (in years)
-// and a given particle.
-func (t *Tree) Path(n int, age int64, p int) Path {
-	nn, ok := t.nodes[n]
-	if !ok {
-		return Path{}
-	}
-
-	i, ok := slices.BinarySearchFunc(nn.stages, age, func(st *timeStage, age int64) int {
-		if st.age == age {
-			return 0
-		}
-		if st.age < age {
-			return 1
-		}
-		return -1
-	})
-	if !ok {
-		return Path{}
-	}
-
-	ts := nn.stages[i]
-	return ts.paths[p]
 }
 
 // Pixels returns the number of pixels in the underlying pixelation.
@@ -511,6 +492,6 @@ type timeStage struct {
 
 	steps int
 
-	// paths of the stochastic map particles
-	paths []Path
+	// start and end locations of the stochastic map particles
+	locs []Path
 }

@@ -473,7 +473,7 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 }
 
 func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err error) {
-	t.Mapping()
+	pc := t.Mapping()
 
 	f, err := os.Create(name)
 	if err != nil {
@@ -517,10 +517,8 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 	if err := tsv.Write(header); err != nil {
 		return fmt.Errorf("while writing header on %q: %v", name, err)
 	}
-	for p := range numParticles {
-		if err := writeUpPass(tsv, p, t, lambda, dd); err != nil {
-			return fmt.Errorf("while writing data on %q: %v", name, err)
-		}
+	if err := writeUpPass(tsv, pc, t, lambda, dd); err != nil {
+		return fmt.Errorf("while writing data on %q: %v", name, err)
 	}
 	tsv.Flush()
 	if err := tsv.Error(); err != nil {
@@ -532,13 +530,62 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 	return nil
 }
 
-func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.Discrete) error {
+func writeUpPass(tsv *csv.Writer, pc chan walk.PathChan, t *walk.Tree, lambda float64, dd cats.Discrete) error {
+	cats := dd.Cats()
+	eq := strconv.Itoa(t.Equator())
+	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
+	states := t.Traits()
+
+	numberCats := strconv.Itoa(len(cats))
+	for path := range pc {
+		// skip "post-split" stages
+		if !t.IsRoot(path.Node) {
+			anc := t.Parent(path.Node)
+			if t.Age(anc) == path.Age {
+				continue
+			}
+		}
+
+		nID := strconv.Itoa(path.Node)
+		stageAge := strconv.FormatInt(path.Age, 10)
+		for i, p := range path.Particles {
+			particleID := strconv.Itoa(i)
+			c := p.Cat()
+			currCat := strconv.Itoa(c + 1)
+			scaled := strconv.FormatFloat(lambda*cats[c], 'f', 6, 64)
+			row := []string{
+				path.Tree,
+				particleID,
+				nID,
+				stageAge,
+				lambdaVal,
+				dd.String(),
+				numberCats,
+				currCat,
+				scaled,
+				eq,
+				pathLocation(p, 0, states),
+				pathLocation(p, p.Len()-1, states),
+				fullPath(p, states),
+			}
+			if err := tsv.Write(row); err != nil {
+				// consume the channel
+				for range pc {
+				}
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func x_writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.Discrete) error {
 	particle := strconv.Itoa(p)
 	cats := dd.Cats()
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
 	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
-	states := t.Traits()
+	// states := t.Traits()
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -553,10 +600,10 @@ func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.D
 				}
 			}
 			stageAge := strconv.FormatInt(a, 10)
-			path := t.Path(n, a, p)
-			c := path.Cat()
-			currCat := strconv.Itoa(c + 1)
-			scaled := strconv.FormatFloat(lambda*cats[c], 'f', 6, 64)
+			// path := t.Path(n, a, p)
+			// c := path.Cat()
+			// currCat := strconv.Itoa(c + 1)
+			// scaled := strconv.FormatFloat(lambda*cats[c], 'f', 6, 64)
 			row := []string{
 				t.Name(),
 				particle,
@@ -565,12 +612,12 @@ func writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.D
 				lambdaVal,
 				dd.String(),
 				numberCats,
-				currCat,
-				scaled,
+				// currCat,
+				// scaled,
 				eq,
-				pathLocation(path, 0, states),
-				pathLocation(path, path.Len()-1, states),
-				fullPath(path, states),
+				// pathLocation(path, 0, states),
+				// pathLocation(path, path.Len()-1, states),
+				// fullPath(path, states),
 			}
 			if err := tsv.Write(row); err != nil {
 				return err
