@@ -48,10 +48,6 @@ type params struct {
 	// The type variable
 	tp Type
 
-	// IsParam is true if the value is a parameter to infer
-	// otherwise the value is fixed
-	isParam bool
-
 	// ID of the parameter
 	id int
 
@@ -78,12 +74,11 @@ func (mp *Model) Copy() *Model {
 	cp := &Model{}
 	for _, p := range mp.vars {
 		pp := &params{
-			name:    p.name,
-			tp:      p.tp,
-			isParam: p.isParam,
-			id:      p.id,
-			val:     p.val,
-			max:     p.max,
+			name: p.name,
+			tp:   p.tp,
+			id:   p.id,
+			val:  p.val,
+			max:  p.max,
 		}
 		cp.vars = append(cp.vars, pp)
 	}
@@ -103,18 +98,15 @@ func (mp *Model) Add(name string, tp Type, id int, val float64) error {
 		return fmt.Errorf("duplicated variable %q (type %q)", name, tp)
 	}
 
-	isParam := true
 	if id <= 0 {
-		isParam = false
 		id = 0
 	}
 	p := &params{
-		name:    name,
-		tp:      tp,
-		isParam: isParam,
-		id:      id,
-		val:     val,
-		max:     math.Inf(1),
+		name: name,
+		tp:   tp,
+		id:   id,
+		val:  val,
+		max:  math.Inf(1),
 	}
 	mp.vars = append(mp.vars, p)
 	return nil
@@ -128,17 +120,26 @@ func (mp *Model) AsParam(name string, tp Type, id int, max float64) {
 	if !ok {
 		return
 	}
-	if p.isParam {
-		return
+	if p.id > 0 {
+		if id == 0 {
+			// Set the variable as fixed
+			p.id = 0
+			return
+		}
+		if max < 0 {
+			max = p.max
+		}
 	}
 	if max == 0 {
 		max = math.Inf(1)
+	}
+	if tp == Mov || tp == Sett {
+		max = 1
 	}
 	if p.val > max {
 		p.val = max
 	}
 	p.id = id
-	p.isParam = true
 }
 
 // ID returns the ID of a model parameter.
@@ -158,7 +159,7 @@ func (mp *Model) ID(name string, tp Type) int {
 func (mp *Model) IDs() []int {
 	v := make(map[int]bool)
 	for _, p := range mp.vars {
-		if !p.isParam {
+		if p.id == 0 {
 			continue
 		}
 		v[p.id] = true
@@ -174,16 +175,7 @@ func (mp *Model) IDs() []int {
 
 // Fix sets a value as a fixed value.
 func (mp *Model) Fix(name string, tp Type) {
-	name = strings.Join(strings.Fields(strings.ToLower(name)), " ")
-	p, ok := mp.getParam(name, tp)
-	if !ok {
-		return
-	}
-	if !p.isParam {
-		return
-	}
-	p.isParam = false
-	p.id = 0
+	mp.AsParam(name, tp, 0, 0)
 }
 
 // Max returns the maximum value for a variable.
@@ -195,7 +187,7 @@ func (mp *Model) Max(name string, tp Type) float64 {
 	if !ok {
 		return 0
 	}
-	if !p.isParam {
+	if p.id == 0 {
 		return p.val
 	}
 	return p.max
@@ -272,7 +264,7 @@ func (mp *Model) Update(name string, tp Type, val float64) {
 	if !ok {
 		return
 	}
-	if !p.isParam {
+	if p.id == 0 {
 		return
 	}
 	mp.set(p, val)
@@ -301,7 +293,7 @@ func (mp *Model) getParam(name string, tp Type) (*params, bool) {
 }
 
 func (mp *Model) set(p *params, val float64) {
-	if p.isParam {
+	if p.id > 0 {
 		if val == 0 {
 			return
 		}
@@ -403,7 +395,6 @@ func Read(f io.Reader) (*Model, error) {
 			return nil, fmt.Errorf("on row %d: duplicated variable %q (type %q)", ln, name, tp)
 		}
 
-		isParam := false
 		id := 0
 		c = "param"
 		cc := strings.ToLower(row[fields[c]])
@@ -412,7 +403,9 @@ func Read(f io.Reader) (*Model, error) {
 			if err != nil {
 				return nil, fmt.Errorf("on row %d, field %q: %v", ln, c, err)
 			}
-			isParam = true
+			if id < 0 {
+				continue
+			}
 		}
 
 		c = "value"
@@ -426,7 +419,7 @@ func Read(f io.Reader) (*Model, error) {
 		}
 
 		c = "max"
-		if isParam && row[fields[c]] != "" {
+		if id > 0 && row[fields[c]] != "" {
 			mv, err := strconv.ParseFloat(row[fields[c]], 64)
 			if err != nil {
 				return nil, fmt.Errorf("on row %d, field %q: %v", ln, c, err)
@@ -478,7 +471,7 @@ func (mp *Model) TSV(w io.Writer) error {
 				strconv.FormatFloat(p.val, 'g', 6, 64),
 				"",
 			}
-			if p.isParam {
+			if p.id > 0 {
 				row[2] = strconv.Itoa(p.id)
 				row[4] = strconv.FormatFloat(p.max, 'g', 6, 64)
 			}

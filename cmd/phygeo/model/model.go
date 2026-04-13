@@ -9,6 +9,7 @@ package model
 import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/model/newcmd"
+	"github.com/js-arias/phygeo/cmd/phygeo/model/param"
 )
 
 var Command = &command.Command{
@@ -18,4 +19,5 @@ var Command = &command.Command{
 
 func init() {
 	Command.Add(newcmd.Command)
+	Command.Add(param.Command)
 }

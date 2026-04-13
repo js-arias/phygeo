@@ -105,7 +105,7 @@ func (mp *Model) Validate(t *trait.Data, keys *pixkey.PixKey) error {
 		if p.tp != Mov && p.tp != Sett {
 			continue
 		}
-		if !p.isParam {
+		if p.id == 0 {
 			continue
 		}
 		if !tl[p.name] {
