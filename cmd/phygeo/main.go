@@ -9,6 +9,7 @@ import (
 	"github.com/js-arias/command"
 	"github.com/js-arias/phygeo/cmd/phygeo/diff"
 	"github.com/js-arias/phygeo/cmd/phygeo/geo"
+	"github.com/js-arias/phygeo/cmd/phygeo/model"
 	"github.com/js-arias/phygeo/cmd/phygeo/prj"
 	"github.com/js-arias/phygeo/cmd/phygeo/rangecmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/tree"
@@ -23,6 +24,7 @@ var app = &command.Command{
 func init() {
 	app.Add(geo.Command)
 	app.Add(diff.Command)
+	app.Add(model.Command)
 	app.Add(rangecmd.Command)
 	app.Add(prj.Command)
 	app.Add(tree.Command)

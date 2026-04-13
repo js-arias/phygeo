@@ -7,6 +7,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/js-arias/earth"
 	"github.com/js-arias/earth/pixkey"
@@ -27,31 +28,46 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 	// Default relaxed function is a log-normal
 	// with sigma 1.0
 	// and 9 categories.
-	// Sigma is by default a parameter.
+	// Sigma is by default a parameter
+	// and the max rate is set as 2.
 	mp.Add("lognormal", Rate, 2, 1)
+	mp.SetMax("lognormal", Rate, 2)
 	mp.Add("cats", Rate, 0, 9)
 
-	// By default all movement weights are set equal
-	// (with 1.0)
-	// as the same parameter.
+	if t == nil {
+		// skip traits if they are undefined
+		return mp
+	}
+
+	// trait-landscape combinations
+	tl := make(map[string]bool)
 	for _, n := range t.States() {
 		for _, k := range keys.Keys() {
 			kn := keys.Label(k)
 			pn := n + ":" + kn
-			mp.Add(pn, Mov, 3, 1)
-			mp.SetMax(pn, Mov, 1)
+			tl[pn] = true
 		}
+	}
+	names := make([]string, 0, len(tl))
+	for n := range tl {
+		names = append(names, n)
+	}
+	slices.Sort(names)
+
+	// By default all movement weights are set equal
+	// (with 1.0)
+	// but as different parameters,
+	kv := 3
+	for i, n := range names {
+		mp.Add(n, Mov, kv+i, 1)
+		mp.SetMax(n, Mov, 1)
 	}
 
 	// By default all settlement weights are set equal
 	// (with 1.0)
 	// and fixed.
-	for _, n := range t.States() {
-		for _, k := range keys.Keys() {
-			kn := keys.Label(k)
-			pn := n + ":" + kn
-			mp.Add(pn, Mov, 0, 1)
-		}
+	for _, n := range names {
+		mp.Add(n, Sett, 0, 1)
 	}
 
 	return mp
