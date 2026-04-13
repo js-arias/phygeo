@@ -17,7 +17,7 @@ func TestWalkParam(t *testing.T) {
 	pix := earth.NewPixelation(120)
 
 	name := "tmp-walk-parameters-for-test.tab"
-	wp := walkparam.New(name, pix)
+	wp := walkparam.New(name, pix.Equator())
 	testWP(t, wp, nil, name, pix)
 
 	wp.SetCats(11)
@@ -41,7 +41,7 @@ func testWP(t testing.TB, wp, want *walkparam.WP, name string, pix *earth.Pixela
 	t.Helper()
 
 	if want == nil {
-		want = walkparam.New(name, pix)
+		want = walkparam.New(name, pix.Equator())
 	}
 
 	if wp.Name() != want.Name() {

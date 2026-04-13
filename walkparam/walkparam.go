@@ -58,12 +58,12 @@ type WP struct {
 }
 
 // New creates a new parameter collection.
-func New(name string, pix *earth.Pixelation) *WP {
+func New(name string, steps int) *WP {
 	return &WP{
 		name:  name,
 		r:     "lognormal",
 		c:     9,
-		steps: pix.Equator(),
+		steps: steps,
 	}
 }
 
@@ -112,7 +112,7 @@ func Read(name string, pix *earth.Pixelation) (*WP, error) {
 		}
 	}
 
-	wp := New(name, pix)
+	wp := New(name, pix.Equator())
 	for {
 		row, err := tsv.Read()
 		if errors.Is(err, io.EOF) {

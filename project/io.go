@@ -280,7 +280,7 @@ func (p *Project) WalkParam(pix *earth.Pixelation) (*walkparam.WP, error) {
 	name := p.Path(WalkParam)
 	if name == "" {
 		name = p.NameRoot() + "-walk-param.tab"
-		return walkparam.New(name, pix), nil
+		return walkparam.New(name, pix.Equator()), nil
 	}
 
 	wp, err := walkparam.Read(name, pix)
