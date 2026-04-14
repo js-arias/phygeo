@@ -233,6 +233,11 @@ func (mp *Model) SetMax(name string, tp Type, max float64) {
 	if !ok {
 		return
 	}
+	if p.tp == Mov || p.tp == Sett {
+		if max > 1 {
+			max = 1
+		}
+	}
 	p.max = max
 	if p.val > max {
 		p.val = max
