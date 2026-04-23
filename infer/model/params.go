@@ -82,6 +82,23 @@ func (mp *Model) Settlement(t *trait.Data, keys *pixkey.PixKey) *trait.Matrix {
 	return mp.movSettMat(t, keys, Sett)
 }
 
+// IsScaled returns true if at least one of the fixed values
+// for movement is set to 1.0
+func (mp *Model) IsScaled() bool {
+	for _, p := range mp.vars {
+		if p.tp != Mov {
+			continue
+		}
+		if p.id != 0 {
+			continue
+		}
+		if p.val == 1 {
+			return true
+		}
+	}
+	return false
+}
+
 func (mp *Model) movSettMat(t *trait.Data, keys *pixkey.PixKey, tp Type) *trait.Matrix {
 	m := trait.NewMatrix(t, keys)
 	for _, p := range mp.vars {

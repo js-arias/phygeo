@@ -12,6 +12,7 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/lambda"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/like"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/mapcmd"
+	"github.com/js-arias/phygeo/cmd/phygeo/walk/ml"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/move"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/param"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/particles"
@@ -30,6 +31,7 @@ func init() {
 	Command.Add(lambda.Command)
 	Command.Add(like.Command)
 	Command.Add(mapcmd.Command)
+	Command.Add(ml.Command)
 	Command.Add(move.Command)
 	Command.Add(param.Command)
 	Command.Add(particles.Command)

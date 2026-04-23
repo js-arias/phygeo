@@ -130,6 +130,9 @@ func (mp *Model) AsParam(name string, tp Type, id int, max float64) {
 			max = p.max
 		}
 	}
+	if max < 0 {
+		max = p.max
+	}
 	if max == 0 {
 		max = math.Inf(1)
 	}

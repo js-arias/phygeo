@@ -27,4 +27,5 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/image v0.27.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 )
