@@ -17,13 +17,11 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/project"
-	"github.com/js-arias/phygeo/trait"
 	"gonum.org/v1/gonum/optimize"
 )
 
@@ -58,9 +56,9 @@ By default, the result of a search iteration is considered significant if the
 likelihood improvement is above 1e-4. Use the flag --delta to define a
 different value.
 
-By default, the search stops after five function evaluations, or the number of
-parameters times two, without a significant improvement. Use the flag --eval
-to define a different value.
+By default, the search stops after five function evaluations per free
+parameter, without a significant improvement. Use the flag --eval
+to define a different value of evaluations per free parameter.
 
 By default, initial values for the parameters will be set at random. Use
 --current flag to set the values to the current values as defined in the model
@@ -90,7 +88,7 @@ var modelFile string
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&current, "current", false, "")
 	c.Flags().IntVar(&numCPU, "cpu", runtime.NumCPU(), "")
-	c.Flags().IntVar(&numEval, "eval", 0, "")
+	c.Flags().IntVar(&numEval, "eval", 5, "")
 	c.Flags().IntVar(&numIter, "iter", 5, "")
 	c.Flags().Float64Var(&multLambda, "mult", 100, "")
 	c.Flags().Float64Var(&deltaFlag, "delta", 1e-4, "")
@@ -111,6 +109,9 @@ func run(c *command.Command, args []string) error {
 	}
 	if numIter <= 0 {
 		numIter = 1
+	}
+	if numEval <= 0 {
+		numEval = 1
 	}
 
 	p, err := project.Read(args[0])
@@ -184,7 +185,7 @@ func run(c *command.Command, args []string) error {
 		t := tc.Tree(tn)
 		states := tr.States()
 		fn := func(x []float64) float64 {
-			fm, ok := fromParamToModel(x, mp, paramIDs, tr, keys)
+			fm, ok := fromParamToModel(x, mp, paramIDs)
 			if !ok {
 				return math.Inf(1)
 			}
@@ -270,7 +271,7 @@ func run(c *command.Command, args []string) error {
 				copy(bestParam, result.X)
 			}
 		}
-		best, ok := fromParamToModel(bestParam, mp, paramIDs, tr, keys)
+		best, ok := fromParamToModel(bestParam, mp, paramIDs)
 		if !ok {
 			return fmt.Errorf("tree %q: unable to converge", tn)
 		}
@@ -328,7 +329,7 @@ func getParamIDs(mp *model.Model) map[int]int {
 	return pID
 }
 
-func fromParamToModel(x []float64, mp *model.Model, paramIDs map[int]int, tr *trait.Data, keys *pixkey.PixKey) (*model.Model, bool) {
+func fromParamToModel(x []float64, mp *model.Model, paramIDs map[int]int) (*model.Model, bool) {
 	fm := mp.Copy()
 	for _, tp := range fm.Types() {
 		for _, pn := range fm.Names(tp) {
@@ -412,10 +413,7 @@ func (fc *funcConv) Init(dim int) {
 	fc.last = math.Inf(1)
 	fc.iter = 0
 	fc.param = make([]float64, dim)
-	fc.maxIter = max(dim*2, 5)
-	if numEval > 0 {
-		fc.maxIter = numEval
-	}
+	fc.maxIter = dim * numEval
 }
 
 func (fc *funcConv) Converged(l *optimize.Location) optimize.Status {
