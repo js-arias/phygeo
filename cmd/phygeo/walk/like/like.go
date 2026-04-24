@@ -14,56 +14,39 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/phygeo/cats"
 	"github.com/js-arias/phygeo/infer/catwalk"
+	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/project"
-	"github.com/js-arias/phygeo/trait"
 )
 
 var Command = &command.Command{
 	Usage: `like [--stem <age>]
-	[--lambda <value>]
-	[--relaxed <value>]
 	[-o|--output <file>]
 	[--cpu <number>]
+	--model <model-file>
 	<project-file>`,
 	Short: "perform a likelihood reconstruction",
 	Long: `
-Command like reads a PhyGeo project and performs a likelihood reconstruction
-for the trees in the project using a random walk.
+Command like reads a PhyGeo project and a model definition and performs a
+likelihood reconstruction for the trees in the project using a random walk.
 
 The argument of the command is the name of the project file.
+
+The flag --model is required, and it is used to read the model parameter
+values. Any undefined value will be set as zero.
 
 By default, the inference of the root will use the pixel settlement weights at
 the root as pixel priors. Use the flag --stem, with a value in million of
 years, to add a "root branch" with the indicated length. In that case the root
 pixels will be closer to the expected equilibrium of the model, at the cost of
 increasing computing time.
-
-The flag --lambda defines the concentration parameter of the spherical normal
-(equivalent to the kappa parameter of the von Mises-Fisher distribution)
-resulting from running the random walk over a million years. It uses
-1/radian^2 units. If no value is defined, it will use 100. As the kappa
-parameter, larger values indicate low diffusivity, while smaller values
-indicate high diffusivity.
-
-By default, if a relaxed random walk is used, it will use the function defined
-in the random walk parameters file, with the default parameters for the function.
-To set the parameter of that distribution, use the flag --relaxed with the
-parameter(s) of the function. The format is
-
-	"<param>[,<param>]"
-
-Always use the quotations if more than one parameter is defined.
 
 The output file is a pixel probability file with the conditional likelihoods
 (i.e., down-pass results) for each pixel at each node. The prefix of the
@@ -78,17 +61,15 @@ By default, all available CPU will be used in the calculations. Set the flag
 	Run:      run,
 }
 
-var lambdaFlag float64
 var stemAge float64
 var numCPU int
-var relaxed string
 var output string
+var modelFile string
 
 func setFlags(c *command.Command) {
-	c.Flags().Float64Var(&lambdaFlag, "lambda", 100, "")
 	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
-	c.Flags().StringVar(&relaxed, "relaxed", "", "")
+	c.Flags().StringVar(&modelFile, "model", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
 	c.Flags().StringVar(&output, "o", "", "")
 }
@@ -96,6 +77,9 @@ func setFlags(c *command.Command) {
 func run(c *command.Command, args []string) error {
 	if len(args) < 1 {
 		c.UsageError("expecting project file")
+	}
+	if modelFile == "" {
+		return c.UsageError("--model flag should be defined")
 	}
 
 	p, err := project.Read(args[0])
@@ -156,22 +140,22 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	wp, err := p.WalkParam(landscape.Pixelation())
-	if err != nil {
-		return err
-	}
-
-	params, err := parseParams()
+	mp, err := openModel(modelFile)
 	if err != nil {
 		return err
 	}
 
 	net := earth.NewNetwork(landscape.Pixelation())
 
-	dd := wp.Relaxed(params)
-	settCats := catwalk.Cats(landscape.Pixelation(), net, lambdaFlag, wp.Steps(), dd)
-
-	landProb, err := landscapeModel(p, landscape, tr, keys, settCats)
+	dd := mp.Relaxed()
+	discrete := catwalk.Cats(landscape.Pixelation(), net, mp.Lambda(), int(mp.Steps()), dd)
+	mv := mp.Movement(tr, keys)
+	st := mp.Settlement(tr, keys)
+	landProb := make([]walker.Model, len(discrete))
+	for i, c := range discrete {
+		lp := walker.New(landscape, net, mv, st, c, tr.States(), keys)
+		landProb[i] = lp
+	}
 
 	param := walk.Param{
 		Landscape: landscape,
@@ -181,9 +165,8 @@ func run(c *command.Command, args []string) error {
 		Traits:    tr,
 		Keys:      keys,
 		Walker:    landProb,
-		Steps:     wp.Steps(),
-		MinSteps:  wp.MinSteps(),
-		Discrete:  settCats,
+		Steps:     int(mp.Steps()),
+		Discrete:  discrete,
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
@@ -198,7 +181,7 @@ func run(c *command.Command, args []string) error {
 		}
 
 		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
-		if err := writeTreeConditional(wt, name, p.Name(), dd); err != nil {
+		if err := writeTreeConditional(wt, name, p.Name(), mp.Lambda(), dd); err != nil {
 			return err
 		}
 	}
@@ -206,30 +189,21 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func landscapeModel(p *project.Project, landscape *model.TimePix, tr *trait.Data, keys *pixkey.PixKey, discrete []float64) ([]walker.Model, error) {
-	net := earth.NewNetwork(landscape.Pixelation())
-
-	mv, err := p.Movement(tr, keys)
+func openModel(name string) (*model.Model, error) {
+	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
-	st, err := p.Settlement(tr, keys)
+	mp, err := model.Read(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("on file %q: %v", name, err)
 	}
-
-	states := tr.States()
-
-	landProb := make([]walker.Model, len(discrete))
-	for i, c := range discrete {
-		lp := walker.New(landscape, net, mv, st, c, states, keys)
-		landProb[i] = lp
-	}
-	return landProb, nil
+	return mp, nil
 }
 
-func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err error) {
+func writeTreeConditional(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -243,7 +217,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
-	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambdaFlag)
+	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
 	fmt.Fprintf(w, "# relaxed diffusion function: %s with %d categories\n", dd, len(dd.Cats()))
 	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
@@ -275,7 +249,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 	cats := t.Cats()
 	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
-	lambdaVal := strconv.FormatFloat(lambdaFlag, 'f', 6, 64)
+	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -287,7 +261,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 			for i, c := range cats {
 				traits := t.Traits()
 				currCat := strconv.Itoa(i + 1)
-				scaled := strconv.FormatFloat(lambdaFlag*c, 'f', 6, 64)
+				scaled := strconv.FormatFloat(lambda*c, 'f', 6, 64)
 				for _, tr := range traits {
 					cond := t.Conditional(n, a, i, tr)
 					for px := range t.Pixels() {
@@ -328,20 +302,4 @@ func writeTreeConditional(t *walk.Tree, name, p string, dd cats.Discrete) (err e
 		return fmt.Errorf("while writing data on %q: %v", name, err)
 	}
 	return nil
-}
-
-func parseParams() ([]float64, error) {
-	if relaxed == "" {
-		return nil, nil
-	}
-	pv := strings.Split(relaxed, ",")
-	p := make([]float64, 0, len(pv))
-	for _, v := range pv {
-		x, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return nil, fmt.Errorf("flag --relaxed: %v", err)
-		}
-		p = append(p, x)
-	}
-	return p, nil
 }
