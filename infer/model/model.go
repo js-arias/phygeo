@@ -241,6 +241,22 @@ func (mp *Model) SetMax(name string, tp Type, max float64) {
 			max = 1
 		}
 	}
+
+	// If a parameter
+	// set the same maximum for all values
+	if p.id > 0 {
+		for _, pp := range mp.vars {
+			if pp.id != p.id {
+				continue
+			}
+			pp.max = max
+			if pp.val > max {
+				pp.val = max
+			}
+		}
+		return
+	}
+
 	p.max = max
 	if p.val > max {
 		p.val = max
@@ -301,13 +317,27 @@ func (mp *Model) getParam(name string, tp Type) (*params, bool) {
 }
 
 func (mp *Model) set(p *params, val float64) {
+	// If a parameter
+	// set all values with the same parameter ID
 	if p.id > 0 {
 		if val == 0 {
 			return
 		}
-		if val > p.max {
-			val = p.max
+		for _, pp := range mp.vars {
+			if pp.id != p.id {
+				continue
+			}
+			if val > pp.max {
+				val = pp.max
+			}
 		}
+		for _, pp := range mp.vars {
+			if pp.id != p.id {
+				continue
+			}
+			pp.val = val
+		}
+		return
 	}
 
 	p.val = val

@@ -208,7 +208,8 @@ func run(c *command.Command, args []string) error {
 				Traits:    tr,
 				Keys:      keys,
 				Walker:    landProb,
-				Steps:     int(fm.Steps()),
+				Stem:      fm.StemAge(),
+				Steps:     fm.Steps(),
 				Discrete:  discrete,
 			}
 			wt := walk.New(t, param)

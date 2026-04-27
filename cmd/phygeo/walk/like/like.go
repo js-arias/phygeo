@@ -27,7 +27,7 @@ import (
 )
 
 var Command = &command.Command{
-	Usage: `like [--stem <age>]
+	Usage: `like
 	[-o|--output <file>]
 	[--cpu <number>]
 	--model <model-file>
@@ -42,12 +42,6 @@ The argument of the command is the name of the project file.
 The flag --model is required, and it is used to read the model parameter
 values. Any undefined value will be set as zero.
 
-By default, the inference of the root will use the pixel settlement weights at
-the root as pixel priors. Use the flag --stem, with a value in million of
-years, to add a "root branch" with the indicated length. In that case the root
-pixels will be closer to the expected equilibrium of the model, at the cost of
-increasing computing time.
-
 The output file is a pixel probability file with the conditional likelihoods
 (i.e., down-pass results) for each pixel at each node. The prefix of the
 output file name is the name of the project file. To set a different prefix,
@@ -61,13 +55,11 @@ By default, all available CPU will be used in the calculations. Set the flag
 	Run:      run,
 }
 
-var stemAge float64
 var numCPU int
 var output string
 var modelFile string
 
 func setFlags(c *command.Command) {
-	c.Flags().Float64Var(&stemAge, "stem", 0, "")
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
 	c.Flags().StringVar(&modelFile, "model", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
@@ -165,14 +157,14 @@ func run(c *command.Command, args []string) error {
 		Traits:    tr,
 		Keys:      keys,
 		Walker:    landProb,
-		Steps:     int(mp.Steps()),
+		Stem:      mp.StemAge(),
+		Steps:     mp.Steps(),
 		Discrete:  discrete,
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
 	for _, tn := range tc.Names() {
 		t := tc.Tree(tn)
-		param.Stem = int64(stemAge * 1_000_000)
 		wt := walk.New(t, param)
 		l := wt.DownPass()
 		fmt.Fprintf(c.Stdout(), "%s\t%.6f\n", tn, l)
