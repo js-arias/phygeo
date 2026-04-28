@@ -39,12 +39,9 @@ func (n *node) fullMap(t *Tree, pc chan PathChan) {
 }
 
 func (n *node) mapUppass(t *Tree, pc chan PathChan) {
-	tmpEnd := make([][][]float64, len(t.landProb))
+	tmpEnd := make([][]float64, len(t.landProb))
 	for i := range tmpEnd {
-		tmpEnd[i] = make([][]float64, len(t.landProb[i].Traits()))
-		for j := range tmpEnd[i] {
-			tmpEnd[i][j] = make([]float64, t.tp.Pixelation().Len())
-		}
+		tmpEnd[i] = make([]float64, t.tp.Pixelation().Len())
 	}
 
 	if t.t.IsRoot(n.id) {
@@ -62,11 +59,9 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 
 			// pick the pixel
 			for {
-				cat := rand.IntN(len(t.landProb))
-				trait := rand.IntN(len(t.landProb[cat].Traits()))
+				trait := rand.IntN(len(t.landProb))
 				px := rand.IntN(t.tp.Pixelation().Len())
-				if rand.Float64() < tmpEnd[cat][trait][px] {
-					locs[i].cat = cat
+				if rand.Float64() < tmpEnd[trait][px] {
 					locs[i].locs[0] = pointLocation{
 						pixel: px,
 						trait: trait,
@@ -98,7 +93,6 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 		for j := range paths {
 			paths[j].locs = make([]pointLocation, steps)
 			paths[j].locs[0] = prev.locs[j].locs[last]
-			paths[j].cat = prev.locs[j].cat
 		}
 
 		// rotate if there is an state change
@@ -108,7 +102,8 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 			age := t.tp.ClosestStageAge(ts.age)
 			rot := t.rot.OldToYoung(prevAge)
 			for j := range paths {
-				prior := t.landProb[paths[j].cat].StageProb(age, paths[j].locs[0].trait)
+				state := paths[j].locs[0].trait
+				prior := t.landProb[state].StageProb(age)
 				paths[j].locs[0].pixel = rotPixel(rot.Rot, paths[j].locs[0].pixel, prior.Prior)
 			}
 		}
@@ -121,7 +116,6 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 			locs[j].locs = make([]pointLocation, 2)
 			locs[j].locs[0] = paths[j].locs[0]
 			locs[j].locs[1] = paths[j].locs[last]
-			locs[j].cat = paths[j].cat
 		}
 		ts.locs = locs
 
@@ -139,11 +133,9 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 
 		// In a split node
 		// copy the particles in the descendants.
-		// Now copy the marginals in each descendant.
 		for _, d := range t.t.Children(n.id) {
 			c := t.nodes[d]
 			cs := c.stages[0]
-			scaleLogProb(tmpEnd, cs.logLike)
 
 			locs := make([]Path, t.particles)
 
@@ -152,24 +144,6 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 			for j := range locs {
 				locs[j].locs = make([]pointLocation, steps)
 				locs[j].locs[0] = split.locs[j].locs[last]
-
-				// to pick the category
-				// we weight the conditional of the pixel
-				// for each category
-				var sum float64
-				trait := locs[j].locs[0].trait
-				px := locs[j].locs[0].pixel
-				for cat := range tmpEnd {
-					sum += tmpEnd[cat][trait][px]
-				}
-				for {
-					cat := rand.IntN(len(tmpEnd))
-					p := tmpEnd[cat][trait][px] / sum
-					if rand.Float64() < p {
-						locs[j].cat = cat
-						break
-					}
-				}
 			}
 			cs.locs = locs
 
@@ -183,27 +157,22 @@ func (n *node) mapUppass(t *Tree, pc chan PathChan) {
 	}
 }
 
-func (ts *timeStage) simMap(t *Tree, end [][][]float64, paths []Path) []Path {
+func (ts *timeStage) simMap(t *Tree, end [][]float64, paths []Path) []Path {
 	age := t.tp.ClosestStageAge(ts.age)
 
 	answer := make(chan pathChanAnswer)
 	go func() {
-		for i := range t.landProb {
-			pathChan <- pathChanType{
-				cond:      end[i],
-				particles: paths,
-				w:         t.landProb[i],
-				age:       age,
-				cat:       i,
-				steps:     ts.steps,
-				answer:    answer,
-			}
+		pathChan <- pathChanType{
+			cond:      end,
+			particles: paths,
+			w:         t.landProb,
+			age:       age,
+			steps:     ts.steps,
+			answer:    answer,
 		}
 	}()
 
-	for range t.landProb {
-		<-answer
-	}
+	<-answer
 	close(answer)
 	return paths
 }

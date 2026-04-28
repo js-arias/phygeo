@@ -29,13 +29,6 @@ type pointLocation struct {
 // in a lineage.
 type Path struct {
 	locs []pointLocation
-	cat  int
-}
-
-// Cat returns the category of the relaxed random walk
-// for the particle.
-func (p Path) Cat() int {
-	return p.cat
 }
 
 // Len returns the number of steps
@@ -56,9 +49,8 @@ type pathChanType struct {
 	cond      [][]float64
 	particles []Path
 
-	w     walker.Model
+	w     []walker.Model
 	age   int64
-	cat   int
 	steps int
 
 	answer chan pathChanAnswer
@@ -70,7 +62,6 @@ var pathChan chan pathChanType
 
 type pathChanAnswer struct {
 	particles []Path
-	cat       int
 }
 
 // StartMap prepares the package for stochastic map simulations.
@@ -79,7 +70,7 @@ type pathChanAnswer struct {
 // The default (zero) uses all available CPU.
 // After all optimization is done,
 // use EndMap to close the goroutines.
-func StartMap(cpu int, pix *earth.Pixelation, traits, particles int) {
+func StartMap(cpu int, pix *earth.Pixelation, traits int) {
 	pathChanMutex.Lock()
 	defer pathChanMutex.Unlock()
 
@@ -93,7 +84,7 @@ func StartMap(cpu int, pix *earth.Pixelation, traits, particles int) {
 
 	pathChan = make(chan pathChanType, cpu*2)
 	for range cpu {
-		go mapSim(pathChan, pix.Len(), traits, particles)
+		go mapSim(pathChan, pix.Len(), traits)
 	}
 	openPathChan = true
 }
@@ -106,7 +97,7 @@ func EndMap() {
 	openPathChan = false
 }
 
-func mapSim(c chan pathChanType, sz, traits, particles int) {
+func mapSim(c chan pathChanType, sz, traits int) {
 	prev := make([][]float64, traits)
 	curr := make([][]float64, traits)
 	stepCond := make([][]float64, traits)
@@ -115,7 +106,6 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 		curr[i] = make([]float64, sz)
 		stepCond[i] = make([]float64, sz)
 	}
-	ids := make([]int, particles)
 
 	// ensure temporal data will be deleted on a panic
 	lastDir := ""
@@ -126,21 +116,6 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 	}()
 
 	for cc := range c {
-		ids = ids[:0]
-		for i := range cc.particles {
-			if cc.particles[i].cat == cc.cat {
-				ids = append(ids, i)
-			}
-		}
-		if len(ids) == 0 {
-			// skip un-sampled categories
-			cc.answer <- pathChanAnswer{
-				particles: cc.particles,
-				cat:       cc.cat,
-			}
-			continue
-		}
-
 		dir, err := os.MkdirTemp("", "tmp-up")
 		if err != nil {
 			panic(err)
@@ -154,9 +129,9 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 		// so we remove one step
 		catConditionalWrite(dir, cc.w, prev, curr, cc.age, cc.steps-1)
 
-		stages := make([]walker.StageProb, len(cc.w.Traits()))
+		stages := make([]walker.StageProb, len(cc.w))
 		for i := range stages {
-			stages[i] = cc.w.StageProb(cc.age, i)
+			stages[i] = cc.w[i].StageProb(cc.age)
 		}
 
 		for step := range cc.steps {
@@ -170,7 +145,7 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 			}
 			f.Close()
 
-			for _, id := range ids {
+			for id := range cc.particles {
 				loc := cc.particles[id].locs[step]
 				stage := stages[loc.trait]
 				move := stage.Move[loc.pixel]
@@ -196,12 +171,11 @@ func mapSim(c chan pathChanType, sz, traits, particles int) {
 		lastDir = ""
 		cc.answer <- pathChanAnswer{
 			particles: cc.particles,
-			cat:       cc.cat,
 		}
 	}
 }
 
-func catConditionalWrite(dir string, w walker.Model, prev, curr [][]float64, age int64, steps int) {
+func catConditionalWrite(dir string, w []walker.Model, prev, curr [][]float64, age int64, steps int) {
 	// The most recent step
 	f, err := os.Create(filepath.Join(dir, fmt.Sprintf("s%d", steps)))
 	if err != nil {
@@ -211,11 +185,11 @@ func catConditionalWrite(dir string, w walker.Model, prev, curr [][]float64, age
 	e.Encode(curr)
 	f.Close()
 
-	// do the conditionals
 	stages := make([]walker.StageProb, len(curr))
 	for i := range stages {
-		stages[i] = w.StageProb(age, i)
+		stages[i] = w[i].StageProb(age)
 	}
+	// do the conditionals
 	for s := range steps {
 		for i := range prev {
 			prev[i], curr[i] = curr[i], prev[i]

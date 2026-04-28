@@ -22,20 +22,19 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/earth/model"
-	"github.com/js-arias/earth/pixkey"
-	"github.com/js-arias/phygeo/cats"
-	"github.com/js-arias/phygeo/infer/catwalk"
+	geomodel "github.com/js-arias/earth/model"
+	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/project"
-	"github.com/js-arias/phygeo/trait"
 )
 
 var Command = &command.Command{
 	Usage: `particles [-p|--particles <number>]
 	-i|--input <file> [-o|--output <file>]
-	[--cpu <number>] <project-file>`,
+	[--cpu <number>]
+	--model <model-file>
+	<project-file>`,
 	Short: "perform a stochastic mapping",
 	Long: `
 Command particles reads a file with the conditional likelihoods of one or more
@@ -45,6 +44,9 @@ The argument of the command is the name of the project file.
 
 By default, 1000 particles will be simulated for the stochastic mapping. The
 number of particles can be changed with the flag --particles, or -p.
+
+The flag --model is required, and it is used to read the model parameter
+values. Any undefined value will be set as zero.
 
 The flag --input, or -i, is required and indicates the input file. The input
 file is a pixel probability file with stored log-likelihoods.
@@ -70,6 +72,7 @@ var numCPU int
 var numParticles int
 var inputFile string
 var outPrefix string
+var modelFile string
 
 func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numCPU, "cpu", 0, "")
@@ -77,6 +80,7 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numParticles, "particles", 1000, "")
 	c.Flags().StringVar(&inputFile, "input", "", "")
 	c.Flags().StringVar(&inputFile, "i", "", "")
+	c.Flags().StringVar(&modelFile, "model", "", "")
 	c.Flags().StringVar(&outPrefix, "output", "", "")
 	c.Flags().StringVar(&outPrefix, "o", "", "")
 }
@@ -84,6 +88,9 @@ func setFlags(c *command.Command) {
 func run(c *command.Command, args []string) error {
 	if len(args) < 1 {
 		c.UsageError("expecting project file")
+	}
+	if modelFile == "" {
+		return c.UsageError("--model flag should be defined")
 	}
 
 	p, err := project.Read(args[0])
@@ -144,12 +151,22 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	wp, err := p.WalkParam(landscape.Pixelation())
+	mp, err := openModel(modelFile)
 	if err != nil {
 		return err
 	}
 
 	net := earth.NewNetwork(landscape.Pixelation())
+
+	mv := mp.Movement(tr, keys)
+	st := mp.Settlement(tr, keys)
+	states := tr.States()
+	landProb := make([]walker.Model, len(states))
+	for i, c := range states {
+		sett := walker.Settlement(landscape.Pixelation(), net, mp.Lambda(), int(mp.Steps()))
+		lp := walker.New(landscape, net, mv, st, sett, c, i, keys)
+		landProb[i] = lp
+	}
 
 	rt, err := getRec(inputFile, landscape)
 	if err != nil {
@@ -163,31 +180,18 @@ func run(c *command.Command, args []string) error {
 		Ranges:    rc,
 		Traits:    tr,
 		Keys:      keys,
-		Steps:     wp.Steps(),
-		MinSteps:  wp.MinSteps(),
+		Walker:    landProb,
+		Steps:     mp.Steps(),
+		Stem:      mp.StemAge(),
 		Particles: numParticles,
 	}
 
-	walk.StartMap(numCPU, landscape.Pixelation(), len(tr.States()), numParticles)
+	walk.StartMap(numCPU, landscape.Pixelation(), len(states))
 	for _, t := range rt {
 		ct := tc.Tree(t.name)
 		if ct == nil {
 			continue
 		}
-
-		dd, err := cats.Parse(t.relaxed, wp.Cats())
-		if err != nil {
-			return fmt.Errorf("tree %s: relaxed function: %v", t.name, err)
-		}
-		if dd.Function() != wp.Function() {
-			return fmt.Errorf("tree %s: invalid relaxed function, got %q, want %q", t.name, dd.Function(), wp.Function())
-		}
-		settCats := catwalk.Cats(landscape.Pixelation(), net, t.lambda, wp.Steps(), dd)
-
-		landProb, err := landscapeModel(p, landscape, net, tr, keys, settCats)
-
-		param.Discrete = settCats
-		param.Walker = landProb
 
 		wt := walk.New(ct, param)
 		nodes := wt.Nodes()
@@ -203,25 +207,18 @@ func run(c *command.Command, args []string) error {
 					return fmt.Errorf("tree %q: node %d: age %d: undefined stage", wt.Name(), n, a)
 				}
 
-				for i := range wt.Cats() {
-					c, ok := s.cats[i+1]
+				states := wt.States()
+				for _, tr := range states {
+					logLike, ok := s.traits[tr]
 					if !ok {
 						continue
 					}
-
-					traits := wt.Traits()
-					for _, tr := range traits {
-						logLike, ok := c.traits[tr]
-						if !ok {
-							continue
-						}
-						wt.SetConditional(n, a, i, tr, logLike.rec)
-					}
+					wt.SetConditional(n, a, tr, logLike.rec)
 				}
 			}
 		}
 		name := fmt.Sprintf("%s-up-%s-x%d.tab", outPrefix, wt.Name(), numParticles)
-		if err := upPass(wt, name, p.Name(), t.lambda, dd); err != nil {
+		if err := upPass(wt, name, p.Name(), mp); err != nil {
 			return err
 		}
 	}
@@ -229,28 +226,21 @@ func run(c *command.Command, args []string) error {
 	return nil
 }
 
-func landscapeModel(p *project.Project, landscape *model.TimePix, net earth.Network, tr *trait.Data, keys *pixkey.PixKey, discrete []float64) ([]walker.Model, error) {
-	mv, err := p.Movement(tr, keys)
+func openModel(name string) (*model.Model, error) {
+	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
-	st, err := p.Settlement(tr, keys)
+	mp, err := model.Read(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("on file %q: %v", name, err)
 	}
-
-	states := tr.States()
-
-	landProb := make([]walker.Model, len(discrete))
-	for i, c := range discrete {
-		lp := walker.New(landscape, net, mv, st, c, states, keys)
-		landProb[i] = lp
-	}
-	return landProb, nil
+	return mp, nil
 }
 
-func getRec(name string, landscape *model.TimePix) (map[string]*recTree, error) {
+func getRec(name string, landscape *geomodel.TimePix) (map[string]*recTree, error) {
 	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
@@ -265,11 +255,8 @@ func getRec(name string, landscape *model.TimePix) (map[string]*recTree, error) 
 }
 
 type recTree struct {
-	name    string
-	relaxed string
-	nodes   map[int]*recNode
-	lambda  float64
-	oldest  int64
+	name  string
+	nodes map[int]*recNode
 }
 
 type recNode struct {
@@ -279,19 +266,13 @@ type recNode struct {
 }
 
 type recStage struct {
-	node *recNode
-	age  int64
-	cats map[int]*recCat
-}
-
-type recCat struct {
-	stage  *recStage
-	cat    int
+	node   *recNode
+	age    int64
 	traits map[string]*recTrait
 }
 
 type recTrait struct {
-	cat   *recCat
+	stage *recStage
 	trait string
 	rec   map[int]float64
 }
@@ -301,16 +282,13 @@ var headerFields = []string{
 	"node",
 	"age",
 	"type",
-	"lambda",
-	"relaxed",
-	"cat",
-	"trait",
+	"state",
 	"equator",
 	"pixel",
 	"value",
 }
 
-func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, error) {
+func readRecon(r io.Reader, landscape *geomodel.TimePix) (map[string]*recTree, error) {
 	tsv := csv.NewReader(r)
 	tsv.Comma = '\t'
 	tsv.Comment = '#'
@@ -347,15 +325,6 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 			return nil, fmt.Errorf("on row %d: field %q: expecting log-like type", ln, f)
 		}
 
-		f = "lambda"
-		lambda, err := strconv.ParseFloat(row[fields[f]], 64)
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-
-		f = "relaxed"
-		relaxed := strings.ToLower(strings.Join(strings.Fields(row[fields[f]]), " "))
-
 		f = "tree"
 		tn := strings.Join(strings.Fields(row[fields[f]]), " ")
 		if tn == "" {
@@ -365,18 +334,10 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 		t, ok := rt[tn]
 		if !ok {
 			t = &recTree{
-				name:    tn,
-				nodes:   make(map[int]*recNode),
-				lambda:  lambda,
-				relaxed: relaxed,
+				name:  tn,
+				nodes: make(map[int]*recNode),
 			}
 			rt[tn] = t
-		}
-		if t.lambda != lambda {
-			return nil, fmt.Errorf("on row %d: field %q: got %.6f want %.6f", ln, "lambda", lambda, t.lambda)
-		}
-		if t.relaxed != relaxed {
-			return nil, fmt.Errorf("on row %d: field %q: got %q want %q", ln, "relaxed", relaxed, t.relaxed)
 		}
 
 		f = "node"
@@ -402,38 +363,23 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 		st, ok := n.stages[age]
 		if !ok {
 			st = &recStage{
-				node: n,
-				age:  age,
-				cats: make(map[int]*recCat),
+				node:   n,
+				age:    age,
+				traits: make(map[string]*recTrait),
 			}
 			n.stages[age] = st
 		}
 
-		f = "cat"
-		cat, err := strconv.Atoi(row[fields[f]])
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-		dc, ok := st.cats[cat]
-		if !ok {
-			dc = &recCat{
-				stage:  st,
-				cat:    cat,
-				traits: make(map[string]*recTrait),
-			}
-			st.cats[cat] = dc
-		}
-
-		f = "trait"
+		f = "state"
 		trait := strings.ToLower(strings.Join(strings.Fields(row[fields[f]]), " "))
-		tr, ok := dc.traits[trait]
+		tr, ok := st.traits[trait]
 		if !ok {
 			tr = &recTrait{
-				cat:   dc,
+				stage: st,
 				trait: trait,
 				rec:   make(map[int]float64),
 			}
-			dc.traits[trait] = tr
+			st.traits[trait] = tr
 		}
 
 		f = "equator"
@@ -460,10 +406,6 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
 		}
 		tr.rec[px] = v
-
-		if age > t.oldest {
-			t.oldest = age
-		}
 	}
 	if len(rt) == 0 {
 		return nil, fmt.Errorf("while reading data: %v", io.EOF)
@@ -472,7 +414,7 @@ func readRecon(r io.Reader, landscape *model.TimePix) (map[string]*recTree, erro
 	return rt, nil
 }
 
-func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err error) {
+func upPass(t *walk.Tree, name, p string, mp *model.Model) (err error) {
 	pc := t.Mapping()
 
 	f, err := os.Create(name)
@@ -488,9 +430,7 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# stochastic mapping on tree %q of project %q\n", t.Name(), p)
-	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
-	fmt.Fprintf(w, "# relaxed diffusion function: %s with %d categories\n", dd, len(dd.Cats()))
-	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
+	mp.WriteAsComment(w)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# up-pass particles: %d\n", numParticles)
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
@@ -504,11 +444,6 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 		"particle",
 		"node",
 		"age",
-		"lambda",
-		"relaxed",
-		"cats",
-		"cat",
-		"scaled",
 		"equator",
 		"from",
 		"to",
@@ -517,7 +452,7 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 	if err := tsv.Write(header); err != nil {
 		return fmt.Errorf("while writing header on %q: %v", name, err)
 	}
-	if err := writeUpPass(tsv, pc, t, lambda, dd); err != nil {
+	if err := writeUpPass(tsv, pc, t); err != nil {
 		return fmt.Errorf("while writing data on %q: %v", name, err)
 	}
 	tsv.Flush()
@@ -530,13 +465,10 @@ func upPass(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err
 	return nil
 }
 
-func writeUpPass(tsv *csv.Writer, pc chan walk.PathChan, t *walk.Tree, lambda float64, dd cats.Discrete) error {
-	cats := dd.Cats()
+func writeUpPass(tsv *csv.Writer, pc chan walk.PathChan, t *walk.Tree) error {
 	eq := strconv.Itoa(t.Equator())
-	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
-	states := t.Traits()
+	states := t.States()
 
-	numberCats := strconv.Itoa(len(cats))
 	for path := range pc {
 		// skip "post-split" stages
 		if !t.IsRoot(path.Node) {
@@ -550,19 +482,11 @@ func writeUpPass(tsv *csv.Writer, pc chan walk.PathChan, t *walk.Tree, lambda fl
 		stageAge := strconv.FormatInt(path.Age, 10)
 		for i, p := range path.Particles {
 			particleID := strconv.Itoa(i)
-			c := p.Cat()
-			currCat := strconv.Itoa(c + 1)
-			scaled := strconv.FormatFloat(lambda*cats[c], 'f', 6, 64)
 			row := []string{
 				path.Tree,
 				particleID,
 				nID,
 				stageAge,
-				lambdaVal,
-				dd.String(),
-				numberCats,
-				currCat,
-				scaled,
 				eq,
 				pathLocation(p, 0, states),
 				pathLocation(p, p.Len()-1, states),
@@ -572,54 +496,6 @@ func writeUpPass(tsv *csv.Writer, pc chan walk.PathChan, t *walk.Tree, lambda fl
 				// consume the channel
 				for range pc {
 				}
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func x_writeUpPass(tsv *csv.Writer, p int, t *walk.Tree, lambda float64, dd cats.Discrete) error {
-	particle := strconv.Itoa(p)
-	cats := dd.Cats()
-	numberCats := strconv.Itoa(len(cats))
-	eq := strconv.Itoa(t.Equator())
-	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
-	// states := t.Traits()
-
-	nodes := t.Nodes()
-	for _, n := range nodes {
-		nID := strconv.Itoa(n)
-		stages := t.Stages(n)
-		for _, a := range stages {
-			if !t.IsRoot(n) {
-				// skip "post-split" stages
-				anc := t.Parent(n)
-				if t.Age(anc) == a {
-					continue
-				}
-			}
-			stageAge := strconv.FormatInt(a, 10)
-			// path := t.Path(n, a, p)
-			// c := path.Cat()
-			// currCat := strconv.Itoa(c + 1)
-			// scaled := strconv.FormatFloat(lambda*cats[c], 'f', 6, 64)
-			row := []string{
-				t.Name(),
-				particle,
-				nID,
-				stageAge,
-				lambdaVal,
-				dd.String(),
-				numberCats,
-				// currCat,
-				// scaled,
-				eq,
-				// pathLocation(path, 0, states),
-				// pathLocation(path, path.Len()-1, states),
-				// fullPath(path, states),
-			}
-			if err := tsv.Write(row); err != nil {
 				return err
 			}
 		}
