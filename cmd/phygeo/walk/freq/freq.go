@@ -137,19 +137,13 @@ type recNode struct {
 type recStage struct {
 	node      *recNode
 	age       int64
-	cats      map[int]*recCat
+	traits    map[string]*recTrait
 	particles int
-}
-
-type recCat struct {
-	cat    int
-	stage  *recStage
-	traits map[string]*recTrait
 }
 
 type recTrait struct {
 	trait string
-	cat   *recCat
+	stage *recStage
 	freq  map[int]float64
 	count map[int]float64
 }
@@ -158,7 +152,6 @@ var headerFields = []string{
 	"tree",
 	"node",
 	"age",
-	"cat",
 	"equator",
 	"to",
 	"path",
@@ -237,26 +230,11 @@ func readRecPixels(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map
 		st, ok := n.stages[age]
 		if !ok {
 			st = &recStage{
-				node: n,
-				age:  age,
-				cats: make(map[int]*recCat),
-			}
-			n.stages[age] = st
-		}
-
-		f = "cat"
-		cv, err := strconv.Atoi(row[fields[f]])
-		if err != nil {
-			return nil, fmt.Errorf("on row %d: field %q: %v", ln, f, err)
-		}
-		cat, ok := st.cats[cv]
-		if !ok {
-			cat = &recCat{
-				stage:  st,
-				cat:    cv,
+				node:   n,
+				age:    age,
 				traits: make(map[string]*recTrait),
 			}
-			st.cats[cv] = cat
+			n.stages[age] = st
 		}
 
 		f = "equator"
@@ -284,14 +262,14 @@ func readRecPixels(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map
 					return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
 				}
 
-				trait, ok := cat.traits[tr]
+				trait, ok := st.traits[tr]
 				if !ok {
 					trait = &recTrait{
 						trait: tr,
-						cat:   cat,
+						stage: st,
 						count: make(map[int]float64),
 					}
-					cat.traits[tr] = trait
+					st.traits[tr] = trait
 				}
 				trait.count[px] += fraction
 			}
@@ -305,14 +283,14 @@ func readRecPixels(r io.Reader, tc *timetree.Collection, tp *model.TimePix) (map
 				return nil, fmt.Errorf("on row %d: field %q: invalid pixel value %d", ln, f, px)
 			}
 
-			trait, ok := cat.traits[tr]
+			trait, ok := st.traits[tr]
 			if !ok {
 				trait = &recTrait{
 					trait: tr,
-					cat:   cat,
+					stage: st,
 					count: make(map[int]float64),
 				}
-				cat.traits[tr] = trait
+				st.traits[tr] = trait
 			}
 			trait.count[px]++
 		}
@@ -351,12 +329,10 @@ func scale(rt map[string]*recTree) {
 
 func scaleStage(s *recStage) {
 	p := float64(s.particles)
-	for _, c := range s.cats {
-		for _, tr := range c.traits {
-			tr.freq = make(map[int]float64)
-			for px, count := range tr.count {
-				tr.freq[px] = count / p
-			}
+	for _, tr := range s.traits {
+		tr.freq = make(map[int]float64)
+		for px, count := range tr.count {
+			tr.freq[px] = count / p
 		}
 	}
 }
@@ -394,7 +370,6 @@ func writeFrequencies(t *recTree, tp *model.TimePix, p string) (err error) {
 		"node",
 		"age",
 		"type",
-		"cat",
 		"trait",
 		"equator",
 		"pixel",
@@ -426,41 +401,31 @@ func writeFrequencies(t *recTree, tp *model.TimePix, p string) (err error) {
 		for i := len(stages) - 1; i >= 0; i-- {
 			s := n.stages[stages[i]]
 			age := strconv.FormatInt(s.age, 10)
-			cats := make([]int, 0, len(s.cats))
-			for c := range s.cats {
-				cats = append(cats, c)
+			traits := make([]string, 0, len(s.traits))
+			for tr := range s.traits {
+				traits = append(traits, tr)
 			}
-			slices.Sort(cats)
-			for _, cv := range cats {
-				c := s.cats[cv]
-				cat := strconv.Itoa(c.cat)
-				traits := make([]string, 0, len(c.traits))
-				for tr := range c.traits {
-					traits = append(traits, tr)
+			slices.Sort(traits)
+			for _, tr := range traits {
+				trait := s.traits[tr]
+				pix := make([]int, 0, len(trait.freq))
+				for px := range trait.freq {
+					pix = append(pix, px)
 				}
-				slices.Sort(traits)
-				for _, tr := range traits {
-					trait := c.traits[tr]
-					pix := make([]int, 0, len(trait.freq))
-					for px := range trait.freq {
-						pix = append(pix, px)
+				slices.Sort(pix)
+				for _, px := range pix {
+					row := []string{
+						t.name,
+						node,
+						age,
+						tpField,
+						tr,
+						eq,
+						strconv.Itoa(px),
+						strconv.FormatFloat(trait.freq[px], 'f', 6, 64),
 					}
-					slices.Sort(pix)
-					for _, px := range pix {
-						row := []string{
-							t.name,
-							node,
-							age,
-							tpField,
-							cat,
-							tr,
-							eq,
-							strconv.Itoa(px),
-							strconv.FormatFloat(trait.freq[px], 'f', 6, 64),
-						}
-						if err := tsv.Write(row); err != nil {
-							return fmt.Errorf("while writing data on %q: %v", name, err)
-						}
+					if err := tsv.Write(row); err != nil {
+						return fmt.Errorf("while writing data on %q: %v", name, err)
 					}
 				}
 			}
