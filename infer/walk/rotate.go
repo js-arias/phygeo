@@ -7,16 +7,14 @@ package walk
 import "math/rand/v2"
 
 // Rotation rotates a logLike field using a rotation.
-func rotation(rot [][]int, dst, rng [][][]float64) {
-	for c := range rng {
-		for t := range rng[c] {
-			for px, p := range rng[c][t] {
-				np := rot[px]
+func rotation(rot [][]int, dst, rng [][]float64) {
+	for t := range rng {
+		for px, p := range rng[t] {
+			np := rot[px]
 
-				for _, ip := range np {
-					if p > dst[c][t][ip] {
-						dst[c][t][ip] = p
-					}
+			for _, ip := range np {
+				if p > dst[t][ip] {
+					dst[t][ip] = p
 				}
 			}
 		}

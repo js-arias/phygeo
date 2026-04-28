@@ -17,7 +17,6 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/infer/walker"
@@ -190,13 +189,12 @@ func run(c *command.Command, args []string) error {
 				return math.Inf(1)
 			}
 
-			dd := fm.Relaxed()
-			discrete := catwalk.Cats(landscape.Pixelation(), net, fm.Lambda(), int(fm.Steps()), dd)
 			mv := fm.Movement(tr, keys)
 			st := fm.Settlement(tr, keys)
-			landProb := make([]walker.Model, len(discrete))
-			for i, c := range discrete {
-				lp := walker.New(landscape, net, mv, st, c, states, keys)
+			landProb := make([]walker.Model, len(states))
+			for i, c := range states {
+				sett := walker.Settlement(landscape.Pixelation(), net, fm.Lambda(), int(mp.Steps()))
+				lp := walker.New(landscape, net, mv, st, sett, c, i, keys)
 				landProb[i] = lp
 			}
 
@@ -210,7 +208,6 @@ func run(c *command.Command, args []string) error {
 				Walker:    landProb,
 				Stem:      fm.StemAge(),
 				Steps:     fm.Steps(),
-				Discrete:  discrete,
 			}
 			wt := walk.New(t, param)
 			l := wt.DownPass()

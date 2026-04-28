@@ -16,9 +16,8 @@ type likeChanType struct {
 	like [][]float64
 	raw  [][]float64
 
-	w     walker.Model
+	w     []walker.Model
 	age   int64
-	cat   int
 	steps int
 
 	answer chan likeChanAnswer
@@ -63,7 +62,6 @@ func EndDown() {
 
 type likeChanAnswer struct {
 	rawLike [][]float64
-	cat     int
 }
 
 func downLike(c chan likeChanType, sz, traits int) {
@@ -83,15 +81,14 @@ func downLike(c chan likeChanType, sz, traits int) {
 		}
 		cc.answer <- likeChanAnswer{
 			rawLike: cc.raw,
-			cat:     cc.cat,
 		}
 	}
 }
 
-func catConditional(w walker.Model, prev, curr [][]float64, age int64, steps int) [][]float64 {
-	stages := make([]walker.StageProb, len(curr))
+func catConditional(w []walker.Model, prev, curr [][]float64, age int64, steps int) [][]float64 {
+	stages := make([]walker.StageProb, len(w))
 	for i := range stages {
-		stages[i] = w.StageProb(age, i)
+		stages[i] = w[i].StageProb(age)
 	}
 	for range steps {
 		for i := range prev {

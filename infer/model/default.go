@@ -5,7 +5,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -24,15 +23,6 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 
 	// Default number of steps is the number of pixels in the equator
 	mp.Add("steps", Walk, 0, float64(pix.Equator()))
-
-	// Default relaxed function is a log-normal
-	// with sigma 1.0
-	// and 9 categories.
-	// Sigma is by default a parameter
-	// and the max rate is set as 2.
-	mp.Add("lognormal", Rate, 2, 1)
-	mp.SetMax("lognormal", Rate, 2)
-	mp.Add("cats", Rate, 0, 9)
 
 	if t == nil {
 		// skip traits if they are undefined
@@ -77,21 +67,6 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 // are defined in the underlying data.
 // It stop at the first error
 func (mp *Model) Validate(t *trait.Data, keys *pixkey.PixKey) error {
-	// check if there are more than one discrete rate function
-	fn := make(map[string]bool)
-	for _, p := range mp.vars {
-		if p.tp != Rate {
-			continue
-		}
-		if p.name == "cats" {
-			continue
-		}
-		fn[p.name] = true
-	}
-	if len(fn) > 2 {
-		return errors.New("too many rate function definitions")
-	}
-
 	// trait-landscape combinations
 	tl := make(map[string]bool)
 	for _, n := range t.States() {

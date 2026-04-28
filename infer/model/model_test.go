@@ -38,8 +38,6 @@ func newMP() *model.Model {
 	mp := model.New()
 	mp.Add("lambda", model.Walk, 1, 100)
 	mp.Add("steps", model.Walk, 0, 120)
-	mp.Add("lognormal", model.Rate, 2, 1)
-	mp.Add("cats", model.Rate, 0, 9)
 	mp.Add("land:ocean", model.Mov, 3, 1)
 	mp.Add("land:oceanic plateaus", model.Mov, 3, 1)
 	mp.Add("land:lands", model.Mov, 0, 1)
@@ -47,7 +45,6 @@ func newMP() *model.Model {
 	mp.Add("land:oceanic plateaus", model.Sett, 0, 0.0001)
 	mp.Add("land:lands", model.Sett, 0, 1)
 
-	mp.SetMax("lognormal:sigma", model.Rate, 2)
 	mp.SetMax("land:ocean", model.Mov, 1)
 	mp.SetMax("land:oceanic plateaus", model.Mov, 1)
 

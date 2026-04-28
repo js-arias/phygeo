@@ -8,10 +8,8 @@ import (
 	"strings"
 
 	"github.com/js-arias/earth/pixkey"
-	"github.com/js-arias/phygeo/cats"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/phygeo/trait"
-	"gonum.org/v1/gonum/stat/distuv"
 )
 
 // Lambda returns the lambda parameter for the random walk.
@@ -37,57 +35,6 @@ func (mp *Model) StemAge() int64 {
 		return 0
 	}
 	return int64(age * timestage.MillionYears)
-}
-
-// Relaxed returns the relaxed function for the random walk.
-func (mp *Model) Relaxed() cats.Discrete {
-	numCats := int(mp.Val("cats", Rate))
-	if numCats <= 1 {
-		// default is a single rate logNormal
-		return cats.LogNormal{
-			Param: distuv.LogNormal{
-				Mu:    0,
-				Sigma: 1,
-			},
-			NumCat: numCats,
-		}
-	}
-
-	fn := "lognormal"
-	val := 1.0
-	for _, p := range mp.vars {
-		if p.tp != Rate {
-			continue
-		}
-		if p.name == "gamma" {
-			fn = "gamma"
-			val = p.val
-			break
-		}
-		if p.name == "lognormal" {
-			val = p.val
-			break
-		}
-	}
-
-	if fn == "gamma" {
-		return cats.Gamma{
-			Param: distuv.Gamma{
-				Alpha: val,
-				Beta:  val,
-			},
-			NumCat: numCats,
-		}
-	}
-
-	// default is logNormal
-	return cats.LogNormal{
-		Param: distuv.LogNormal{
-			Mu:    0,
-			Sigma: val,
-		},
-		NumCat: numCats,
-	}
 }
 
 // Movement returns the movement matrix

@@ -18,8 +18,6 @@ import (
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/phygeo/cats"
-	"github.com/js-arias/phygeo/infer/catwalk"
 	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/infer/walk"
 	"github.com/js-arias/phygeo/infer/walker"
@@ -139,13 +137,13 @@ func run(c *command.Command, args []string) error {
 
 	net := earth.NewNetwork(landscape.Pixelation())
 
-	dd := mp.Relaxed()
-	discrete := catwalk.Cats(landscape.Pixelation(), net, mp.Lambda(), int(mp.Steps()), dd)
 	mv := mp.Movement(tr, keys)
 	st := mp.Settlement(tr, keys)
-	landProb := make([]walker.Model, len(discrete))
-	for i, c := range discrete {
-		lp := walker.New(landscape, net, mv, st, c, tr.States(), keys)
+	states := tr.States()
+	landProb := make([]walker.Model, len(states))
+	for i, c := range states {
+		sett := walker.Settlement(landscape.Pixelation(), net, mp.Lambda(), int(mp.Steps()))
+		lp := walker.New(landscape, net, mv, st, sett, c, i, keys)
 		landProb[i] = lp
 	}
 
@@ -159,7 +157,6 @@ func run(c *command.Command, args []string) error {
 		Walker:    landProb,
 		Stem:      mp.StemAge(),
 		Steps:     mp.Steps(),
-		Discrete:  discrete,
 	}
 
 	walk.StartDown(numCPU, landscape.Pixelation(), len(tr.States()))
@@ -173,7 +170,7 @@ func run(c *command.Command, args []string) error {
 		}
 
 		name := fmt.Sprintf("%s-down-%s.tab", output, t.Name())
-		if err := writeTreeConditional(wt, name, p.Name(), mp.Lambda(), dd); err != nil {
+		if err := writeTreeConditional(wt, name, p.Name(), mp); err != nil {
 			return err
 		}
 	}
@@ -195,7 +192,7 @@ func openModel(name string) (*model.Model, error) {
 	return mp, nil
 }
 
-func writeTreeConditional(t *walk.Tree, name, p string, lambda float64, dd cats.Discrete) (err error) {
+func writeTreeConditional(t *walk.Tree, name, p string, mp *model.Model) (err error) {
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -209,9 +206,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, lambda float64, dd cats.
 
 	w := bufio.NewWriter(f)
 	fmt.Fprintf(w, "# conditional likelihoods of tree %q of project %q\n", t.Name(), p)
-	fmt.Fprintf(w, "# lambda: %.6f * 1/radian^2\n", lambda)
-	fmt.Fprintf(w, "# relaxed diffusion function: %s with %d categories\n", dd, len(dd.Cats()))
-	fmt.Fprintf(w, "# steps per million year: %d\n", t.Steps())
+	mp.WriteAsComment(w)
 	fmt.Fprintf(w, "# logLikelihood: %.6f\n", t.LogLike())
 	fmt.Fprintf(w, "# date: %s\n", time.Now().Format(time.RFC3339))
 
@@ -223,13 +218,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, lambda float64, dd cats.
 		"node",
 		"age",
 		"type",
-		"lambda",
-		"steps",
-		"relaxed",
-		"cats",
-		"cat",
-		"scaled",
-		"trait",
+		"state",
 		"equator",
 		"pixel",
 		"value",
@@ -238,10 +227,7 @@ func writeTreeConditional(t *walk.Tree, name, p string, lambda float64, dd cats.
 		return err
 	}
 
-	cats := t.Cats()
-	numberCats := strconv.Itoa(len(cats))
 	eq := strconv.Itoa(t.Equator())
-	lambdaVal := strconv.FormatFloat(lambda, 'f', 6, 64)
 
 	nodes := t.Nodes()
 	for _, n := range nodes {
@@ -249,37 +235,26 @@ func writeTreeConditional(t *walk.Tree, name, p string, lambda float64, dd cats.
 		stages := t.Stages(n)
 		for _, a := range stages {
 			stageAge := strconv.FormatInt(a, 10)
-			steps := strconv.Itoa(t.StageSteps(n, a))
-			for i, c := range cats {
-				traits := t.Traits()
-				currCat := strconv.Itoa(i + 1)
-				scaled := strconv.FormatFloat(lambda*c, 'f', 6, 64)
-				for _, tr := range traits {
-					cond := t.Conditional(n, a, i, tr)
-					for px := range t.Pixels() {
-						lk, ok := cond[px]
-						if !ok {
-							continue
-						}
-						row := []string{
-							t.Name(),
-							nID,
-							stageAge,
-							"log-like",
-							lambdaVal,
-							steps,
-							dd.String(),
-							numberCats,
-							currCat,
-							scaled,
-							tr,
-							eq,
-							strconv.Itoa(px),
-							strconv.FormatFloat(lk, 'f', 16, 64),
-						}
-						if err := tsv.Write(row); err != nil {
-							return err
-						}
+			states := t.States()
+			for _, tr := range states {
+				cond := t.Conditional(n, a, tr)
+				for px := range t.Pixels() {
+					lk, ok := cond[px]
+					if !ok {
+						continue
+					}
+					row := []string{
+						t.Name(),
+						nID,
+						stageAge,
+						"log-like",
+						tr,
+						eq,
+						strconv.Itoa(px),
+						strconv.FormatFloat(lk, 'f', 16, 64),
+					}
+					if err := tsv.Write(row); err != nil {
+						return err
 					}
 				}
 			}

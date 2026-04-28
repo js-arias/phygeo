@@ -8,6 +8,7 @@ package model
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -26,9 +27,6 @@ type Type string
 const (
 	// Walk is for parameters of the random walk
 	Walk Type = "walk"
-
-	// Rate is for parameters of the rate category
-	Rate = "rate"
 
 	// Mov is for the movement weight parameters
 	Mov = "mov"
@@ -379,8 +377,6 @@ var header = []string{
 //	mov	land:lands	fixed	1
 //	mov	land:ocean	3	1	1
 //	mov	land:oceanic plateaus	3	1	1
-//	rate	cats	fixed	9
-//	rate	lognormal:sigma	2	1	2
 //	sett	land:lands	fixed	1
 //	sett	land:ocean	fixed	0
 //	sett	land:oceanic plateaus	fixed	0.0001
@@ -476,8 +472,6 @@ func getType(s string) Type {
 	switch s {
 	case string(Walk):
 		return Walk
-	case string(Rate):
-		return Rate
 	case string(Mov):
 		return Mov
 	case string(Sett):
@@ -524,6 +518,33 @@ func (mp *Model) TSV(w io.Writer) error {
 	}
 	if err := bw.Flush(); err != nil {
 		return fmt.Errorf("while writing data: %v", err)
+	}
+	return nil
+}
+
+// WriteAsComment writes a model as a text comment
+// indicated by two hash marks (`##`) per line.
+func (mp *Model) WriteAsComment(w io.Writer) error {
+	var buf bytes.Buffer
+	if err := mp.TSV(&buf); err != nil {
+		return err
+	}
+
+	bw := bufio.NewWriter(w)
+	for {
+		line, err := buf.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if _, err := bw.WriteString("## " + line); err != nil {
+			return err
+		}
+	}
+	if err := bw.Flush(); err != nil {
+		return err
 	}
 	return nil
 }

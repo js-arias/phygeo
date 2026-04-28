@@ -38,10 +38,6 @@ type PixProb struct {
 // related to building the stage probabilities.
 type Model interface {
 	// StageProb retrieves the pixel probabilities
-	// of a given time,
-	// and a particular trait ID.
-	StageProb(age int64, trait int) StageProb
-
-	// Traits returns the traits defined for the model.
-	Traits() []string
+	// of a given time.
+	StageProb(age int64) StageProb
 }

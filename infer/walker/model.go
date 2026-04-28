@@ -16,7 +16,7 @@ import (
 // WalkModel contains the landscape model for the random walk
 type walkModel struct {
 	lock   sync.Mutex
-	stages map[int64][]StageProb
+	stages map[int64]StageProb
 
 	tp  *model.TimePix
 	net earth.Network
@@ -26,25 +26,25 @@ type walkModel struct {
 
 	settProb float64
 
-	traits []string
-	key    *pixkey.PixKey
+	state string
+	id    int //state ID
+	key   *pixkey.PixKey
 
-	buildPixProb func(w *walkModel, age int64, t string) [][]PixProb
+	buildPixProb func(w *walkModel, age int64) [][]PixProb
 }
 
 // New creates a new landscape model
-// using the default PhyGeo model
-// (A model in which probability vanished
-// when moving over unsuitable landscapes).
-func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, settProb float64, traits []string, keys *pixkey.PixKey) Model {
+// using the default PhyGeo model.
+func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, settProb float64, state string, stateID int, keys *pixkey.PixKey) Model {
 	return &walkModel{
-		stages:       make(map[int64][]StageProb),
+		stages:       make(map[int64]StageProb),
 		tp:           landscape,
 		net:          net,
 		movement:     movement,
 		settlement:   settlement,
 		settProb:     settProb,
-		traits:       traits,
+		state:        state,
+		id:           stateID,
 		key:          keys,
 		buildPixProb: defPixProb,
 	}
@@ -53,55 +53,55 @@ func New(landscape *model.TimePix, net earth.Network, movement, settlement *trai
 // Bouckaert creates a new landscape model
 // using a generalized definition of the model from
 // Bouckaert et al. (2012) Science 337:957-960.
-func Bouckaert(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, settProb float64, traits []string, keys *pixkey.PixKey) Model {
+func Bouckaert(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, settProb float64, state string, stateID int, keys *pixkey.PixKey) Model {
 	return &walkModel{
-		stages:       make(map[int64][]StageProb),
+		stages:       make(map[int64]StageProb),
 		tp:           landscape,
 		net:          net,
 		movement:     movement,
 		settlement:   settlement,
 		settProb:     settProb,
-		traits:       traits,
+		state:        state,
+		id:           stateID,
 		key:          keys,
 		buildPixProb: buildBouckaert,
 	}
 }
 
-func (w *walkModel) StageProb(age int64, t int) StageProb {
+func (w *walkModel) StageProb(age int64) StageProb {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	if s, ok := w.stages[age]; ok {
-		return s[t]
+		return s
 	}
 	s := w.prepare(age)
-	return s[t]
+	return s
 }
 
-func (w *walkModel) Traits() []string {
-	return w.traits
+// State returns the trait state
+// assigned to the model
+func (w *walkModel) State() string {
+	return w.state
 }
 
-func (w *walkModel) prepare(age int64) []StageProb {
+func (w *walkModel) prepare(age int64) StageProb {
 	age = w.tp.ClosestStageAge(age)
 	if s, ok := w.stages[age]; ok {
 		return s
 	}
 
-	trStage := make([]StageProb, len(w.traits))
-	for i, t := range w.traits {
-		prob := w.buildPixProb(w, age, t)
-		prior, sett := w.buildPrior(age, t)
-		trStage[i] = StageProb{
-			Move:       prob,
-			Prior:      prior,
-			Settlement: sett,
-		}
+	prob := w.buildPixProb(w, age)
+	prior, sett := w.buildPrior(age)
+	stageProb := StageProb{
+		Move:       prob,
+		Prior:      prior,
+		Settlement: sett,
 	}
-	w.stages[age] = trStage
-	return trStage
+	w.stages[age] = stageProb
+	return stageProb
 }
 
-func defPixProb(w *walkModel, age int64, t string) [][]PixProb {
+func defPixProb(w *walkModel, age int64) [][]PixProb {
 	landscape := w.tp.Stage(age)
 	moveProb := 1 - w.settProb
 
@@ -117,7 +117,7 @@ func defPixProb(w *walkModel, age int64, t string) [][]PixProb {
 				sp = i
 			}
 			v := landscape[x]
-			p := mv * w.movement.Weight(t, w.key.Label(v))
+			p := mv * w.movement.Weight(w.state, w.key.Label(v))
 			prob[i] = PixProb{
 				ID:   x,
 				Prob: p,
@@ -125,7 +125,7 @@ func defPixProb(w *walkModel, age int64, t string) [][]PixProb {
 			settProb -= p
 		}
 		s := landscape[px]
-		settProb *= w.settlement.Weight(t, w.key.Label(s))
+		settProb *= w.settlement.Weight(w.state, w.key.Label(s))
 		prob[sp] = PixProb{
 			ID:   px,
 			Prob: settProb,
@@ -136,7 +136,7 @@ func defPixProb(w *walkModel, age int64, t string) [][]PixProb {
 }
 
 // Build the Bouckaert et al. (2012) model.
-func buildBouckaert(w *walkModel, age int64, t string) [][]PixProb {
+func buildBouckaert(w *walkModel, age int64) [][]PixProb {
 	landscape := w.tp.Stage(age)
 	moveProb := 1 - w.settProb
 	pp := make([][]PixProb, w.tp.Pixelation().Len())
@@ -147,7 +147,7 @@ func buildBouckaert(w *walkModel, age int64, t string) [][]PixProb {
 		s := landscape[px]
 
 		// If we cannot settle we have to move all the probability out
-		if w.settlement.Weight(t, w.key.Label(s)) == 0 {
+		if w.settlement.Weight(w.state, w.key.Label(s)) == 0 {
 			mv = 1.0 / float64(len(n)-1)
 			for i, x := range n {
 				p := mv
@@ -168,7 +168,7 @@ func buildBouckaert(w *walkModel, age int64, t string) [][]PixProb {
 				continue
 			}
 			v := landscape[x]
-			p := mv * w.movement.Weight(t, w.key.Label(v))
+			p := mv * w.movement.Weight(w.state, w.key.Label(v))
 			prob[i] = PixProb{
 				ID:   x,
 				Prob: p,
@@ -189,7 +189,7 @@ func buildBouckaert(w *walkModel, age int64, t string) [][]PixProb {
 	return pp
 }
 
-func (w *walkModel) buildPrior(age int64, t string) (prior, settlement []float64) {
+func (w *walkModel) buildPrior(age int64) (prior, settlement []float64) {
 	landscape := w.tp.Stage(age)
 
 	prior = make([]float64, w.tp.Pixelation().Len())
@@ -197,7 +197,7 @@ func (w *walkModel) buildPrior(age int64, t string) (prior, settlement []float64
 	var sum float64
 	for px := range prior {
 		s := landscape[px]
-		p := w.settlement.Weight(t, w.key.Label(s))
+		p := w.settlement.Weight(w.state, w.key.Label(s))
 		prior[px] = p
 		settlement[px] = p
 		sum += p

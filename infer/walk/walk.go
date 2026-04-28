@@ -36,7 +36,7 @@ type Param struct {
 	Ranges *ranges.Collection
 
 	// Walker contains the random-walk model
-	// for each diffusion discrete category
+	// for each trait
 	Walker []walker.Model
 
 	// Traits is the collection of terminal traits
@@ -50,13 +50,6 @@ type Param struct {
 
 	// Steps is the number of steps per million year
 	Steps int
-
-	// Minimum number of steps in a branch.
-	MinSteps int
-
-	// Discrete contains the values for the settlement probability
-	// for the diffusion categories.
-	Discrete []float64
 
 	// Number of particles used for stochastic mapping
 	Particles int
@@ -72,7 +65,7 @@ type Tree struct {
 	landProb []walker.Model
 
 	steps     int
-	dd        []float64
+	states    []string
 	particles int
 }
 
@@ -86,7 +79,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 		tp:        p.Landscape,
 		landProb:  p.Walker,
 		steps:     p.Steps,
-		dd:        p.Discrete,
+		states:    states,
 		particles: p.Particles,
 	}
 
@@ -98,7 +91,7 @@ func New(t *timetree.Tree, p Param) *Tree {
 
 	// Prepare nodes and time stages
 	for _, n := range nt.nodes {
-		n.setSteps(nt, p.Steps, p.MinSteps)
+		n.setSteps(p.Steps)
 
 		// add observed ranges
 		if !nt.t.IsTerm(n.id) {
@@ -117,24 +110,21 @@ func New(t *timetree.Tree, p Param) *Tree {
 		}
 		obs := p.Traits.Obs(tx)
 
-		st.logLike = make([][][]float64, len(nt.dd))
+		st.logLike = make([][]float64, len(states))
 
-		for c := range st.logLike {
-			st.logLike[c] = make([][]float64, len(nt.landProb[c].Traits()))
-			for tr := range st.logLike[c] {
-				like := make([]float64, p.Landscape.Pixelation().Len())
-				isObs := slices.Contains(obs, states[tr])
-				for px := range like {
-					like[px] = math.Inf(-1)
-					if !isObs {
-						continue
-					}
-					if p, ok := rng[px]; ok {
-						like[px] = math.Log(p) - math.Log(sum)
-					}
+		for tr := range st.logLike {
+			like := make([]float64, p.Landscape.Pixelation().Len())
+			isObs := slices.Contains(obs, states[tr])
+			for px := range like {
+				like[px] = math.Inf(-1)
+				if !isObs {
+					continue
 				}
-				st.logLike[c][tr] = like
+				if p, ok := rng[px]; ok {
+					like[px] = math.Log(p) - math.Log(sum)
+				}
 			}
+			st.logLike[tr] = like
 		}
 	}
 	return nt
@@ -145,21 +135,14 @@ func (t *Tree) Age(n int) int64 {
 	return t.t.Age(n)
 }
 
-// Cats returns the settlement probability
-// for each relaxed diffusion category.
-func (t *Tree) Cats() []float64 {
-	return t.dd
-}
-
 // Conditional returns the conditional likelihood
 // for a given node
 // at a given time stage
 // (in years)
-// in the given diffusion category
-// with a given trait.
+// with a given trait state.
 // The conditional likelihood is returned as a map of pixels
 // to the logLikelihood of the pixels.
-func (t *Tree) Conditional(n int, age int64, cat int, tr string) map[int]float64 {
+func (t *Tree) Conditional(n int, age int64, tr string) map[int]float64 {
 	nn, ok := t.nodes[n]
 	if !ok {
 		return nil
@@ -179,16 +162,13 @@ func (t *Tree) Conditional(n int, age int64, cat int, tr string) map[int]float64
 	}
 
 	ts := nn.stages[i]
-	if cat < 0 || cat >= len(t.landProb) {
-		return nil
-	}
 
-	j, ok := slices.BinarySearch(t.landProb[cat].Traits(), tr)
+	j, ok := slices.BinarySearch(t.states, tr)
 	if !ok {
 		return nil
 	}
-	cLike := make(map[int]float64, len(ts.logLike[cat][j]))
-	for px, p := range ts.logLike[cat][j] {
+	cLike := make(map[int]float64, len(ts.logLike[j]))
+	for px, p := range ts.logLike[j] {
 		if math.IsInf(p, 0) {
 			continue
 		}
@@ -227,22 +207,18 @@ func (t *Tree) LogLike() float64 {
 	rs := root.stages[0]
 
 	max := math.Inf(-1)
-	for _, c := range rs.logLike {
-		for _, tr := range c {
-			for _, l := range tr {
-				if l > max {
-					max = l
-				}
+	for _, tr := range rs.logLike {
+		for _, l := range tr {
+			if l > max {
+				max = l
 			}
 		}
 	}
 
 	var sum float64
-	for _, c := range rs.logLike {
-		for _, tr := range c {
-			for _, l := range tr {
-				sum += math.Exp(l - max)
-			}
+	for _, tr := range rs.logLike {
+		for _, l := range tr {
+			sum += math.Exp(l - max)
 		}
 	}
 	return math.Log(sum) + max
@@ -290,7 +266,7 @@ func (t *Tree) Pixels() int {
 // of a node at a given time stage,
 // rate category
 // and trait.
-func (t *Tree) SetConditional(n int, age int64, cat int, tr string, logLike map[int]float64) {
+func (t *Tree) SetConditional(n int, age int64, tr string, logLike map[int]float64) {
 	nn, ok := t.nodes[n]
 	if !ok {
 		return
@@ -310,11 +286,8 @@ func (t *Tree) SetConditional(n int, age int64, cat int, tr string, logLike map[
 	}
 
 	ts := nn.stages[i]
-	if cat < 0 || cat >= len(t.landProb) {
-		return
-	}
 
-	j, ok := slices.BinarySearch(t.landProb[cat].Traits(), tr)
+	j, ok := slices.BinarySearch(t.states, tr)
 	if !ok {
 		return
 	}
@@ -322,21 +295,18 @@ func (t *Tree) SetConditional(n int, age int64, cat int, tr string, logLike map[
 	// if there are no assigned log Likelihoods,
 	// create the arrays
 	if ts.logLike == nil {
-		tmpLike := make([][][]float64, len(t.landProb))
-		for c := range tmpLike {
-			tmpLike[c] = make([][]float64, len(t.landProb[c].Traits()))
-			for trv := range tmpLike[c] {
-				tmpLike[c][trv] = make([]float64, t.tp.Pixelation().Len())
-				for px := range tmpLike[c][trv] {
-					tmpLike[c][trv][px] = math.Inf(-1)
-				}
+		tmpLike := make([][]float64, len(t.landProb))
+		for trv := range tmpLike {
+			tmpLike[trv] = make([]float64, t.tp.Pixelation().Len())
+			for px := range tmpLike[trv] {
+				tmpLike[trv][px] = math.Inf(-1)
 			}
 		}
 		ts.logLike = tmpLike
 	}
 
 	for px, p := range logLike {
-		ts.logLike[cat][j][px] = p
+		ts.logLike[j][px] = p
 	}
 }
 
@@ -383,18 +353,18 @@ func (t *Tree) StageSteps(n int, age int64) int {
 	return ts.steps
 }
 
+// States returns the names of the trait states
+// defined for the terminals of a tree.
+func (t *Tree) States() []string {
+	tr := make([]string, len(t.states))
+	copy(tr, t.states)
+	return tr
+}
+
 // Steps returns the number of steps
 // per million years.
 func (t *Tree) Steps() int {
 	return t.steps
-}
-
-// Traits returns the names of the traits defined for the terminals
-// of a tree.
-func (t *Tree) Traits() []string {
-	tr := make([]string, len(t.landProb[0].Traits()))
-	copy(tr, t.landProb[0].Traits())
-	return tr
 }
 
 // A Node is a node in a phylogenetic tree.
@@ -455,27 +425,15 @@ func (n *node) copySource(t *Tree, stem int64, stages []int64) {
 	n.stages = append(n.stages, ts)
 }
 
-func (n *node) setSteps(t *Tree, steps, min int) {
-	if t.t.IsTerm(n.id) {
-		// for terminal nodes,
-		// we check if the length of the branch is enough
-		var sum float64
-		for _, ts := range n.stages {
-			sum += ts.duration
-		}
-
-		// if the length of the branch is too small
-		// we set the length of the branch to its minimum length
-		if st := int(float64(steps) * sum); (min > 0) && (st < min) {
-			steps = int(math.Floor(float64(min)/sum)) + 1
-		}
-	}
-
+func (n *node) setSteps(steps int) {
 	for _, ts := range n.stages {
 		if ts.duration == 0 {
 			continue
 		}
 		ts.steps = int((ts.duration) * float64(steps))
+		if ts.steps == 0 {
+			ts.steps = 1
+		}
 	}
 }
 
@@ -487,8 +445,8 @@ type timeStage struct {
 	age      int64
 	duration float64
 
-	// conditional logLikelihood of each cat-trait-pixel
-	logLike [][][]float64
+	// conditional logLikelihood of each trait-pixel
+	logLike [][]float64
 
 	steps int
 
