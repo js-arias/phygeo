@@ -36,7 +36,24 @@ func Settlement(pix *earth.Pixelation, net earth.Network, lambda float64, steps 
 	return best
 }
 
-func walkProb(pix *earth.Pixelation, net earth.Network, steps int, sett float64) float64 {
+// Expected returns the expected value
+// (in radians)
+// and the variance
+// (in radians^2)
+// of a random walk,
+// for settlement value.
+func Expected(pix *earth.Pixelation, net earth.Network, sett float64, steps int) (exp, v float64) {
+	dist := walkProb(pix, net, steps, sett)
+	var sumE, sumV float64
+	for px, p := range dist {
+		d := earth.ToRad(float64(pix.ID(px).Ring()) * pix.Step())
+		sumE += d * p
+		sumV += d * d * p
+	}
+	return sumE, sumV
+}
+
+func walkProb(pix *earth.Pixelation, net earth.Network, steps int, sett float64) []float64 {
 	move := 1 - sett
 	curr := make([]float64, pix.Len())
 	prev := make([]float64, pix.Len())
@@ -58,14 +75,14 @@ func walkProb(pix *earth.Pixelation, net earth.Network, steps int, sett float64)
 			}
 		}
 	}
-	return curr[0]
+	return curr
 }
 
 func getBest(first, min, max, step float64, pix *earth.Pixelation, net earth.Network, numSteps int) float64 {
 	best := min
 	dist := 2.0
 	for v := min + step; v < max; v += step {
-		wp := walkProb(pix, net, numSteps, v)
+		wp := walkProb(pix, net, numSteps, v)[0]
 		d := math.Abs(first - wp)
 		if d < dist {
 			dist = d

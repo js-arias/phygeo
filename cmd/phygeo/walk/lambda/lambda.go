@@ -9,20 +9,19 @@ package lambda
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/js-arias/command"
 	"github.com/js-arias/earth"
-	"github.com/js-arias/phygeo/cats"
-	"github.com/js-arias/phygeo/infer/catwalk"
+	"github.com/js-arias/phygeo/infer/model"
+	"github.com/js-arias/phygeo/infer/walker"
 	"github.com/js-arias/phygeo/project"
-	"gonum.org/v1/gonum/stat/distuv"
 )
 
 var Command = &command.Command{
-	Usage: `lambda [--steps <number>]
-	[--relaxed <value>] [--cats <number>]
-	<project> <value>`,
+	Usage: `lambda --model <model-file>
+	<project> [<value>]`,
 	Short: "report settlement probabilities from lambda values",
 	Long: `
 Command lambda writes the settlement probability that approximates the
@@ -31,41 +30,32 @@ in a PhyGeo project.
 
 The first argument of the command is the name of the project file.
 
-The second argument of the command is the value of lambda of the diffusion
-process over a million years using 1/radian^2 units.
+The second argument is optional, it is the value of lambda of the diffusion
+process over a million years using 1/radian^2 units. If not defined, the
+lambda value will be taken from the model definition.
 
-The flag --steps define the number of steps per million years in the random
-walk. The default value is the number of pixels at the equator.
+The flag --model is required, and is used to set the name of the model
+definition. The model is used to define the parameters of the random walk.
 
-By default, a relaxed random walk using a logNormal with mean 1 and sigma 1.0,
-and nine categories. To change the number of categories use the parameter
---cats. To change the relaxed distribution, use the parameter --relaxed with
-a distribution function. The format for the relaxed distribution function is
-
-	"<distribution>=<param>[,<param>]"
-
-Always use the quotations. The implemented distributions are:
-
-	- Gamma: with a single parameter (both alpha and beta set as equal).
-	- LogNormal: with a single parameter (sigma), the mean is 1.
+The output indicates the settlement value, as well as the expected value
+(in kilometers per million years), and the variance (km^2 per million years).
 `,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
-var numCats int
-var numSteps int
-var relaxed string
+var modelFile string
 
 func setFlags(c *command.Command) {
-	c.Flags().IntVar(&numSteps, "steps", 0, "")
-	c.Flags().IntVar(&numCats, "cats", 9, "")
-	c.Flags().StringVar(&relaxed, "relaxed", "", "")
+	c.Flags().StringVar(&modelFile, "model", "", "")
 }
 
 func run(c *command.Command, args []string) error {
 	if len(args) < 1 {
 		return c.UsageError("expecting project file")
+	}
+	if modelFile == "" {
+		return c.UsageError("--model flag should be defined")
 	}
 
 	p, err := project.Read(args[0])
@@ -81,40 +71,38 @@ func run(c *command.Command, args []string) error {
 	pix := landscape.Pixelation()
 	net := earth.NewNetwork(pix)
 
-	if len(args) < 2 {
-		return c.UsageError("expecting lambda value (numerical)")
-	}
-	lambda, err := strconv.ParseFloat(args[1], 64)
+	mp, err := openModel(modelFile)
 	if err != nil {
-		return fmt.Errorf("expecting lambda value: %v", err)
+		return err
 	}
+	lambda := mp.Lambda()
 
-	var dd cats.Discrete
-	if relaxed == "" {
-		dd = cats.LogNormal{
-			Param: distuv.LogNormal{
-				Mu:    0,
-				Sigma: 1.0,
-			},
-			NumCat: numCats,
-		}
-	} else {
-		dd, err = cats.Parse(relaxed, numCats)
+	if len(args) >= 2 {
+		lambda, err = strconv.ParseFloat(args[1], 64)
 		if err != nil {
-			return fmt.Errorf("flag --relaxed: %v", err)
+			return fmt.Errorf("lambda value: %v", err)
 		}
 	}
-	if numSteps == 0 {
-		numSteps = landscape.Pixelation().Equator()
-	}
-	cats := dd.Cats()
-	settCats := catwalk.Cats(landscape.Pixelation(), net, lambda, numSteps, dd)
+	sett := walker.Settlement(pix, net, lambda, mp.Steps())
+	E, V := walker.Expected(pix, net, sett, mp.Steps())
+	E *= earth.Radius / 1000
+	V *= earth.Radius / 1000
 
-	fmt.Printf("steps\tlambda\tcat\tscalar\tscaled\tsettlement\n")
-	for i, s := range settCats {
-		cv := cats[i]
-		fmt.Fprintf(c.Stdout(), "%d\t%.6f\t%d\t%.6f\t%.6f\t%.6f\n", numSteps, lambda, i+1, cv, lambda*cv, s)
-	}
-
+	fmt.Printf("steps\tlambda\tE(x)\tvar(x)\tsettlement\n")
+	fmt.Printf("%d\t%.6f\t%.3f\t%.3f\t%.6f\n", int(mp.Steps()), lambda, E, V, sett)
 	return nil
+}
+
+func openModel(name string) (*model.Model, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	mp, err := model.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+	return mp, nil
 }
