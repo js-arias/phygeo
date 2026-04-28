@@ -10,20 +10,21 @@ package taxa
 import (
 	"fmt"
 	"io"
+	"os"
 	"slices"
-	"strings"
 
 	"github.com/js-arias/command"
-	"github.com/js-arias/earth/model"
+	geomodel "github.com/js-arias/earth/model"
 	"github.com/js-arias/earth/pixkey"
 	"github.com/js-arias/earth/stat/pixweight"
+	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/trait"
 	"github.com/js-arias/ranges"
 )
 
 var Command = &command.Command{
-	Usage: `taxa [-m|--model <model-type>]
+	Usage: `taxa [--model <model-file>]
 	[--count] [--val]
 	<project-file>`,
 	Short: "print a list of taxa with distribution ranges",
@@ -45,12 +46,9 @@ will finish silently. Otherwise, any invalid taxon (a taxon without valid
 records) will be reported. To be valid, a taxon must have, at least, one
 valid pixel (i.e. a pixel with a weight greater than zero).
 
-By default, it will assume that the project is for a random walk. The model
-only makes difference if --count or -val flags are used. Use the flag --model,
-or -m, to define a different model. Valid values are:
-
-	walk	a random walk (the default)
-	diff	a diffusion model
+By default, it will assume a diffusion model. If a model file is defined with
+the --model flag, the random walk parameters of the indicated model will be
+used for counting (--count flag) or validating (--val flag).
 	`,
 	SetFlags: setFlags,
 	Run:      run,
@@ -59,14 +57,13 @@ or -m, to define a different model. Valid values are:
 var countFlag bool
 var rangeFlag bool
 var valFlag bool
-var modelFlag string
+var modelFile string
 
 func setFlags(c *command.Command) {
 	c.Flags().BoolVar(&countFlag, "count", false, "")
 	c.Flags().BoolVar(&rangeFlag, "ranges", false, "")
 	c.Flags().BoolVar(&valFlag, "val", false, "")
-	c.Flags().StringVar(&modelFlag, "model", "walk", "")
-	c.Flags().StringVar(&modelFlag, "m", "walk", "")
+	c.Flags().StringVar(&modelFile, "model", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -121,16 +118,12 @@ func run(c *command.Command, args []string) error {
 			return nil
 		}
 
-		modelFlag = strings.ToLower(modelFlag)
-		switch modelFlag {
-		case "diff":
-			pw, err := p.PixWeight()
+		if modelFile != "" {
+			mp, err := openModel(modelFile)
 			if err != nil {
 				return err
 			}
 
-			valCount(c.Stdout(), ls, coll, landscape, pw)
-		case "walk":
 			keys, err := p.Keys()
 			if err != nil {
 				return err
@@ -141,15 +134,16 @@ func run(c *command.Command, args []string) error {
 				return err
 			}
 
-			st, err := p.Settlement(tr, keys)
-			if err != nil {
-				return err
-			}
-
+			st := mp.Settlement(tr, keys)
 			valCountWalk(c.Stdout(), ls, coll, landscape, tr, keys, st)
-		default:
-			return fmt.Errorf("unknown model %q", modelFlag)
+			return nil
 		}
+		pw, err := p.PixWeight()
+		if err != nil {
+			return err
+		}
+
+		valCount(c.Stdout(), ls, coll, landscape, pw)
 		return nil
 	}
 
@@ -159,6 +153,20 @@ func run(c *command.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func openModel(name string) (*model.Model, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	mp, err := model.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+	return mp, nil
 }
 
 func makeTermList(p *project.Project) ([]string, error) {
@@ -189,7 +197,7 @@ func makeTermList(p *project.Project) ([]string, error) {
 	return termList, nil
 }
 
-func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimePix, pw pixweight.Pixel) {
+func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *geomodel.TimePix, pw pixweight.Pixel) {
 	for _, tax := range ls {
 		if !coll.HasTaxon(tax) {
 			if valFlag {
@@ -223,7 +231,7 @@ func valCount(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimeP
 	}
 }
 
-func valCountWalk(w io.Writer, ls []string, coll *ranges.Collection, tp *model.TimePix, tr *trait.Data, key *pixkey.PixKey, sett *trait.Matrix) {
+func valCountWalk(w io.Writer, ls []string, coll *ranges.Collection, tp *geomodel.TimePix, tr *trait.Data, key *pixkey.PixKey, sett *trait.Matrix) {
 	for _, tax := range ls {
 		if !coll.HasTaxon(tax) {
 			if valFlag {

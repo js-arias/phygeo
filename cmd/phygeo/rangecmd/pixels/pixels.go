@@ -9,18 +9,19 @@ package pixels
 import (
 	"encoding/csv"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/js-arias/command"
+	"github.com/js-arias/phygeo/infer/model"
 	"github.com/js-arias/phygeo/project"
 	"github.com/js-arias/phygeo/timestage"
 )
 
 var Command = &command.Command{
 	Usage: `pixels --taxon <string>
-	[-m|--model <model-type>]
+	[--model <model-file>]
 	<project-file>`,
 	Short: "print the pixels of a taxon",
 	Long: `
@@ -32,22 +33,19 @@ The argument of the command is the name of the project file.
 The flag --taxon is required and indicates the name of the taxon to be
 examined.
 
-By default, it will assume that the project is for a random walk. Valid values
-are:
-
-	walk	a random walk (the default)
-	diff	a diffusion model
+By default, it will assume a diffusion model. If a model file is defined with
+the --model flag, the random walk parameters of the indicated model will be
+used for the pixel weights.
 	`,
 	SetFlags: setFlags,
 	Run:      run,
 }
 
-var modelFlag string
+var modelFile string
 var taxonName string
 
 func setFlags(c *command.Command) {
-	c.Flags().StringVar(&modelFlag, "model", "walk", "")
-	c.Flags().StringVar(&modelFlag, "m", "walk", "")
+	c.Flags().StringVar(&modelFile, "model", "", "")
 	c.Flags().StringVar(&taxonName, "taxon", "", "")
 }
 
@@ -95,9 +93,12 @@ func run(c *command.Command, args []string) error {
 	lsc := landscape.Stage(age)
 	ageTax := strconv.FormatFloat(float64(coll.Age(taxonName))/timestage.MillionYears, 'f', 6, 64)
 
-	modelFlag = strings.ToLower(modelFlag)
-	switch modelFlag {
-	case "walk":
+	if modelFile != "" {
+		mp, err := openModel(modelFile)
+		if err != nil {
+			return err
+		}
+
 		keys, err := p.Keys()
 		if err != nil {
 			return err
@@ -108,10 +109,7 @@ func run(c *command.Command, args []string) error {
 			return err
 		}
 
-		st, err := p.Settlement(tr, keys)
-		if err != nil {
-			return err
-		}
+		st := mp.Settlement(tr, keys)
 
 		w.Write([]string{"age", "trait", "pixel", "lon", "lat", "label", "weight", "prob"})
 
@@ -142,37 +140,57 @@ func run(c *command.Command, args []string) error {
 			}
 		}
 		w.Flush()
-	case "diff":
-		pw, err := p.PixWeight()
-		if err != nil {
+		if err := w.Error(); err != nil {
 			return err
 		}
+		return nil
+	}
 
-		w.Write([]string{"age", "pixel", "lon", "lat", "label", "weight", "prob"})
+	pw, err := p.PixWeight()
+	if err != nil {
+		return err
+	}
 
-		pxs := make([]int, 0, len(rng))
-		for px := range rng {
-			pxs = append(pxs, px)
+	w.Write([]string{"age", "pixel", "lon", "lat", "label", "weight", "prob"})
+
+	pxs := make([]int, 0, len(rng))
+	for px := range rng {
+		pxs = append(pxs, px)
+	}
+	slices.Sort(pxs)
+	for _, px := range pxs {
+		p := rng[px]
+		v := lsc[px]
+		weight := pw.Weight(v)
+		pt := landscape.Pixelation().ID(px).Point()
+		row := []string{
+			ageTax,
+			strconv.Itoa(px),
+			strconv.FormatFloat(pt.Longitude(), 'f', 6, 64),
+			strconv.FormatFloat(pt.Latitude(), 'f', 6, 64),
+			strconv.Itoa(v),
+			strconv.FormatFloat(weight, 'f', 6, 64),
+			strconv.FormatFloat(p, 'f', 6, 64),
 		}
-		slices.Sort(pxs)
-		for _, px := range pxs {
-			p := rng[px]
-			v := lsc[px]
-			weight := pw.Weight(v)
-			pt := landscape.Pixelation().ID(px).Point()
-			row := []string{
-				ageTax,
-				strconv.Itoa(px),
-				strconv.FormatFloat(pt.Longitude(), 'f', 6, 64),
-				strconv.FormatFloat(pt.Latitude(), 'f', 6, 64),
-				strconv.Itoa(v),
-				strconv.FormatFloat(weight, 'f', 6, 64),
-				strconv.FormatFloat(p, 'f', 6, 64),
-			}
-			w.Write(row)
-		}
-	default:
-		return fmt.Errorf("unknown model %q", modelFlag)
+		w.Write(row)
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return err
 	}
 	return nil
+}
+
+func openModel(name string) (*model.Model, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	mp, err := model.Read(f)
+	if err != nil {
+		return nil, fmt.Errorf("on file %q: %v", name, err)
+	}
+	return mp, nil
 }

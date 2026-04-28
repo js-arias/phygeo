@@ -71,10 +71,8 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	var keys *pixkey.PixKey
 	if p.Path(project.Keys) != "" {
-		keys, err = readPixKeys(c.Stdout(), p)
-		if err != nil {
+		if _, err := readPixKeys(c.Stdout(), p); err != nil {
 			return err
 		}
 	}
@@ -93,22 +91,8 @@ func run(c *command.Command, args []string) error {
 		}
 	}
 
-	var traits *trait.Data
 	if p.Path(project.Traits) != "" {
-		traits, err = readTraitData(c.Stdout(), p)
-		if err != nil {
-			return err
-		}
-	}
-
-	if p.Path(project.Movement) != "" {
-		if err := readMovementMatrix(c.Stdout(), p, traits, keys); err != nil {
-			return err
-		}
-	}
-
-	if p.Path(project.Settlement) != "" {
-		if err := readSettlementMatrix(c.Stdout(), p, traits, keys); err != nil {
+		if _, err := readTraitData(c.Stdout(), p); err != nil {
 			return err
 		}
 	}
@@ -116,12 +100,6 @@ func run(c *command.Command, args []string) error {
 	tF := p.Path(project.Trees)
 	if tF != "" {
 		if err := readTrees(c.Stdout(), tF); err != nil {
-			return err
-		}
-	}
-
-	if p.Path(project.WalkParam) != "" {
-		if err := readWalkParam(c.Stdout(), p, pix); err != nil {
 			return err
 		}
 	}
@@ -223,21 +201,6 @@ func readTimeStages(w io.Writer, name string, stages timestage.Stages) error {
 	return nil
 }
 
-func readMovementMatrix(w io.Writer, p *project.Project, traits *trait.Data, keys *pixkey.PixKey) error {
-	m, err := p.Movement(traits, keys)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(w, "Movement matrix:\n")
-	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Movement))
-	fmt.Fprintf(w, "\tdefined trait states: %d\n", len(m.Traits()))
-	fmt.Fprintf(w, "\tdefined landscape features: %d\n", len(m.Landscape()))
-	fmt.Fprintf(w, "\n")
-
-	return nil
-}
-
 func readPixKeys(w io.Writer, p *project.Project) (keys *pixkey.PixKey, err error) {
 	keys, err = p.Keys()
 	if err != nil {
@@ -310,21 +273,6 @@ func readRanges(w io.Writer, name string, pix *earth.Pixelation, tp project.Data
 	return nil
 }
 
-func readSettlementMatrix(w io.Writer, p *project.Project, traits *trait.Data, keys *pixkey.PixKey) error {
-	m, err := p.Settlement(traits, keys)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(w, "Settlement matrix:\n")
-	fmt.Fprintf(w, "\tfile: %s\n", p.Path(project.Movement))
-	fmt.Fprintf(w, "\tdefined trait states: %d\n", len(m.Traits()))
-	fmt.Fprintf(w, "\tdefined landscape features: %d\n", len(m.Landscape()))
-	fmt.Fprintf(w, "\n")
-
-	return nil
-}
-
 func readTraitData(w io.Writer, p *project.Project) (d *trait.Data, err error) {
 	d, err = p.Traits()
 	if err != nil {
@@ -385,24 +333,5 @@ func readTrees(w io.Writer, name string) error {
 	fmt.Fprintf(w, "\tage range: %.3f-%.3f Ma\n", min, max)
 	fmt.Fprintf(w, "\n")
 
-	return nil
-}
-
-func readWalkParam(w io.Writer, p *project.Project, pix *earth.Pixelation) error {
-	wp, err := p.WalkParam(pix)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(w, "Random walk parameters:\n")
-	fmt.Fprintf(w, "\tfile: %s\n", wp.Name())
-	fmt.Fprintf(w, "\tsteps per my: %d\n", wp.Steps())
-	if m := wp.MinSteps(); m > 0 {
-		fmt.Fprintf(w, "\tmin steps: %d\n", m)
-	}
-	if c := wp.Cats(); c > 1 {
-		fmt.Fprintf(w, "\trelaxed function: %s\n", wp.Function())
-		fmt.Fprintf(w, "\tcategories: %d\n", c)
-	}
 	return nil
 }

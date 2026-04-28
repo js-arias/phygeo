@@ -14,7 +14,6 @@ import (
 	"github.com/js-arias/earth/stat/pixweight"
 	"github.com/js-arias/phygeo/timestage"
 	"github.com/js-arias/phygeo/trait"
-	"github.com/js-arias/phygeo/walkparam"
 	"github.com/js-arias/ranges"
 	"github.com/js-arias/timetree"
 )
@@ -80,27 +79,6 @@ func (p *Project) Landscape(pix *earth.Pixelation) (*model.TimePix, error) {
 	return tp, nil
 }
 
-// Movement returns a move matrix
-// from a project.
-func (p *Project) Movement(traits *trait.Data, keys *pixkey.PixKey) (*trait.Matrix, error) {
-	name := p.Path(Movement)
-	if name == "" {
-		return nil, fmt.Errorf("movement matrix not defined in project %q", p.name)
-	}
-
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	mv := trait.NewMatrix(traits, keys)
-	if err := mv.ReadTSV(f); err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-	return mv, nil
-}
-
 // PixWeight returns pixel weights
 // from a project.
 func (p *Project) PixWeight() (pixweight.Pixel, error) {
@@ -140,27 +118,6 @@ func (p *Project) Ranges(pix *earth.Pixelation) (*ranges.Collection, error) {
 		return nil, fmt.Errorf("when reading %q: %v", name, err)
 	}
 	return coll, nil
-}
-
-// Settlement returns a settlement matrix
-// from a project.
-func (p *Project) Settlement(traits *trait.Data, keys *pixkey.PixKey) (*trait.Matrix, error) {
-	name := p.Path(Settlement)
-	if name == "" {
-		return nil, fmt.Errorf("settlement matrix not defined in project %q", p.name)
-	}
-
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	st := trait.NewMatrix(traits, keys)
-	if err := st.ReadTSV(f); err != nil {
-		return nil, fmt.Errorf("on file %q: %v", name, err)
-	}
-	return st, nil
 }
 
 // StageRotation returns a stage rotation model
@@ -273,19 +230,4 @@ func (p *Project) Trees() (*timetree.Collection, error) {
 		return nil, fmt.Errorf("while reading file %q: %v", name, err)
 	}
 	return c, nil
-}
-
-// WalkParam returns a collection of random walk parameters.
-func (p *Project) WalkParam(pix *earth.Pixelation) (*walkparam.WP, error) {
-	name := p.Path(WalkParam)
-	if name == "" {
-		name = p.NameRoot() + "-walk-param.tab"
-		return walkparam.New(name, pix.Equator()), nil
-	}
-
-	wp, err := walkparam.Read(name, pix)
-	if err != nil {
-		return nil, err
-	}
-	return wp, nil
 }

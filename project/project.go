@@ -37,9 +37,6 @@ const (
 	// (color and pixel labels).
 	Keys Dataset = "keys"
 
-	// File for the movement matrix used in random walks.
-	Movement Dataset = "movement"
-
 	// File for pixel normalized weights
 	// (a form of pixel prior).
 	PixWeight Dataset = "pixweight"
@@ -58,14 +55,8 @@ const (
 	// File for phylogenetic trees.
 	Trees Dataset = "trees"
 
-	// File for the settlement matrix used in random walks.
-	Settlement Dataset = "settlement"
-
 	// File for the time stages.
 	Stages Dataset = "stages"
-
-	// File for the random walk parameters.
-	WalkParam Dataset = "walkparam"
 )
 
 // A Project represents a collection of paths
