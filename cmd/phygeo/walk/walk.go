@@ -14,7 +14,6 @@ import (
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/mapcmd"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/ml"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/particles"
-	"github.com/js-arias/phygeo/cmd/phygeo/walk/speed"
 	"github.com/js-arias/phygeo/cmd/phygeo/walk/traits"
 )
 
@@ -30,6 +29,5 @@ func init() {
 	Command.Add(mapcmd.Command)
 	Command.Add(ml.Command)
 	Command.Add(particles.Command)
-	Command.Add(speed.Command)
 	Command.Add(traits.Command)
 }
