@@ -24,7 +24,7 @@ type walkModel struct {
 	movement   *trait.Matrix
 	settlement *trait.Matrix
 
-	settProb float64
+	roaming float64
 
 	state string
 	id    int //state ID
@@ -35,14 +35,14 @@ type walkModel struct {
 
 // New creates a new landscape model
 // using the default PhyGeo model.
-func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, settProb float64, state string, stateID int, keys *pixkey.PixKey) Model {
+func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, roaming float64, state string, stateID int, keys *pixkey.PixKey) Model {
 	return &walkModel{
 		stages:       make(map[int64]StageProb),
 		tp:           landscape,
 		net:          net,
 		movement:     movement,
 		settlement:   settlement,
-		settProb:     settProb,
+		roaming:      roaming,
 		state:        state,
 		id:           stateID,
 		key:          keys,
@@ -53,14 +53,14 @@ func New(landscape *model.TimePix, net earth.Network, movement, settlement *trai
 // Bouckaert creates a new landscape model
 // using a generalized definition of the model from
 // Bouckaert et al. (2012) Science 337:957-960.
-func Bouckaert(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, settProb float64, state string, stateID int, keys *pixkey.PixKey) Model {
+func Bouckaert(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, roaming float64, state string, stateID int, keys *pixkey.PixKey) Model {
 	return &walkModel{
 		stages:       make(map[int64]StageProb),
 		tp:           landscape,
 		net:          net,
 		movement:     movement,
 		settlement:   settlement,
-		settProb:     settProb,
+		roaming:      roaming,
 		state:        state,
 		id:           stateID,
 		key:          keys,
@@ -103,7 +103,7 @@ func (w *walkModel) prepare(age int64) StageProb {
 
 func defPixProb(w *walkModel, age int64) [][]PixProb {
 	landscape := w.tp.Stage(age)
-	moveProb := 1 - w.settProb
+	moveProb := w.roaming
 
 	pp := make([][]PixProb, w.tp.Pixelation().Len())
 	for px := range pp {
@@ -138,7 +138,7 @@ func defPixProb(w *walkModel, age int64) [][]PixProb {
 // Build the Bouckaert et al. (2012) model.
 func buildBouckaert(w *walkModel, age int64) [][]PixProb {
 	landscape := w.tp.Stage(age)
-	moveProb := 1 - w.settProb
+	moveProb := w.roaming
 	pp := make([][]PixProb, w.tp.Pixelation().Len())
 	for px := range pp {
 		n := w.net[px]

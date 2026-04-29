@@ -9,6 +9,7 @@ package lambda
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 
@@ -22,23 +23,22 @@ import (
 var Command = &command.Command{
 	Usage: `lambda --model <model-file>
 	<project> [<value>]`,
-	Short: "report settlement probabilities from lambda values",
+	Short: "report the lambda equivalent value",
 	Long: `
-Command lambda writes the settlement probability that approximates the
-indicated lambda parameter of an spherical normal using the pixelation defined
-in a PhyGeo project.
+Command lambda writes the approximate lambda for an spherical normal in an
+homogeneous landscape for a given roaming value.
 
 The first argument of the command is the name of the project file.
 
-The second argument is optional, it is the value of lambda of the diffusion
-process over a million years using 1/radian^2 units. If not defined, the
-lambda value will be taken from the model definition.
+The second argument is optional, it is the value of roaming value (i.e., the
+probability to move out of the pixel per each step. If not defined, the value
+will be taken from the model definition.
 
 The flag --model is required, and is used to set the name of the model
 definition. The model is used to define the parameters of the random walk.
 
-The output indicates the settlement value, as well as the expected value
-(in kilometers per million years), and the variance (km^2 per million years).
+The output indicates the lambda value, as well as the expected value (in
+kilometers per million years), and the variance (km^2 per million years).
 `,
 	SetFlags: setFlags,
 	Run:      run,
@@ -68,6 +68,11 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
+	tr, err := p.Traits()
+	if err != nil {
+		return err
+	}
+
 	pix := landscape.Pixelation()
 	net := earth.NewNetwork(pix)
 
@@ -75,21 +80,23 @@ func run(c *command.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	lambda := mp.Lambda()
 
+	fmt.Fprintf(c.Stdout(), "state\tsteps\tlambda\tE(x)\tvar(x)\troaming\n")
 	if len(args) >= 2 {
-		lambda, err = strconv.ParseFloat(args[1], 64)
-		if err != nil {
-			return fmt.Errorf("lambda value: %v", err)
+		for _, a := range args[1:] {
+			roaming, err := strconv.ParseFloat(a, 64)
+			if err != nil {
+				return fmt.Errorf("roaming value: %v", err)
+			}
+			printValues(c.Stdout(), pix, net, roaming, mp.Steps(), "user")
 		}
+		return nil
 	}
-	sett := walker.Settlement(pix, net, lambda, mp.Steps())
-	E, V := walker.Expected(pix, net, sett, mp.Steps())
-	E *= earth.Radius / 1000
-	V *= earth.Radius / 1000
 
-	fmt.Printf("steps\tlambda\tE(x)\tvar(x)\tsettlement\n")
-	fmt.Printf("%d\t%.6f\t%.3f\t%.3f\t%.6f\n", int(mp.Steps()), lambda, E, V, sett)
+	for _, s := range tr.States() {
+		roaming := mp.Roaming(s)
+		printValues(c.Stdout(), pix, net, roaming, mp.Steps(), s)
+	}
 	return nil
 }
 
@@ -105,4 +112,12 @@ func openModel(name string) (*model.Model, error) {
 		return nil, fmt.Errorf("on file %q: %v", name, err)
 	}
 	return mp, nil
+}
+
+func printValues(w io.Writer, pix *earth.Pixelation, net earth.Network, roaming float64, steps int, state string) {
+	lambda := walker.Lambda(pix, net, roaming, steps)
+	E, V := walker.Expected(pix, net, roaming, steps)
+	E *= earth.Radius / 1000
+	V *= earth.Radius / 1000
+	fmt.Fprintf(w, "%s\t%d\t%.3f\t%.3f\t%.3f\t%.6f\n", state, steps, lambda, E, V, roaming)
 }

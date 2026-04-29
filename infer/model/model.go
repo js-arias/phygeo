@@ -380,7 +380,7 @@ var header = []string{
 //	sett	land:lands	fixed	1
 //	sett	land:ocean	fixed	0
 //	sett	land:oceanic plateaus	fixed	0.0001
-//	walk	lambda	1	100	+Inf
+//	walk	land:roaming	0.05	1
 //	walk	steps	fixed	120
 func Read(f io.Reader) (*Model, error) {
 	tsv := csv.NewReader(f)
@@ -476,6 +476,8 @@ func getType(s string) Type {
 		return Mov
 	case string(Sett):
 		return Sett
+	case string(Trait):
+		return Trait
 	}
 	return ""
 }
@@ -531,6 +533,9 @@ func (mp *Model) WriteAsComment(w io.Writer) error {
 	}
 
 	bw := bufio.NewWriter(w)
+	if _, err := bw.WriteString("## phygeo model parameters\n"); err != nil {
+		return err
+	}
 	for {
 		line, err := buf.ReadString('\n')
 		if err != nil {
@@ -538,6 +543,9 @@ func (mp *Model) WriteAsComment(w io.Writer) error {
 		}
 		if errors.Is(err, io.EOF) {
 			break
+		}
+		if line[0] == '#' {
+			continue
 		}
 		if _, err := bw.WriteString("## " + line); err != nil {
 			return err

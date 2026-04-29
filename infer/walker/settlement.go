@@ -11,6 +11,24 @@ import (
 	"github.com/js-arias/earth/stat/dist"
 )
 
+// Lambda returns the lambda value
+// that produce an equivalent spherical normal distribution.
+func Lambda(pix *earth.Pixelation, net earth.Network, roaming float64, steps int) float64 {
+	dist := walkProb(pix, net, steps, 1-roaming)[0]
+	min := 1.0
+	max := 10_000.0
+	var best float64
+	for st := 100.0; st >= 0.1; st /= 10 {
+		best = bestLambda(dist, min, max, st, pix)
+		min = best - st
+		if min < 0 {
+			min = 0
+		}
+		max = best + st
+	}
+	return best
+}
+
 // Settlement returns the settlement probability
 // that produce an equivalent distribution
 // of the spherical normal with a given lambda value
@@ -41,9 +59,9 @@ func Settlement(pix *earth.Pixelation, net earth.Network, lambda float64, steps 
 // and the variance
 // (in radians^2)
 // of a random walk,
-// for settlement value.
-func Expected(pix *earth.Pixelation, net earth.Network, sett float64, steps int) (exp, v float64) {
-	dist := walkProb(pix, net, steps, sett)
+// for a roaming  value.
+func Expected(pix *earth.Pixelation, net earth.Network, roaming float64, steps int) (exp, v float64) {
+	dist := walkProb(pix, net, steps, 1-roaming)
 	var sumE, sumV float64
 	for px, p := range dist {
 		d := earth.ToRad(float64(pix.ID(px).Ring()) * pix.Step())
@@ -86,6 +104,21 @@ func getBest(first, min, max, step float64, pix *earth.Pixelation, net earth.Net
 		d := math.Abs(first - wp)
 		if d < dist {
 			dist = d
+			best = v
+		}
+	}
+	return best
+}
+
+func bestLambda(sett, min, max, step float64, pix *earth.Pixelation) float64 {
+	best := min
+	diff := 2.0
+	for v := min; v <= max; v += step {
+		sn := dist.NewNormal(v, pix)
+		first := sn.Prob(0)
+		d := math.Abs(first - sett)
+		if d < diff {
+			diff = d
 			best = v
 		}
 	}

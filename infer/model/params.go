@@ -12,9 +12,12 @@ import (
 	"github.com/js-arias/phygeo/trait"
 )
 
-// Lambda returns the lambda parameter for the random walk.
-func (mp *Model) Lambda() float64 {
-	return mp.Val("lambda", Walk)
+// Roaming returns the roam parameter
+// for a given trait state.
+func (mp *Model) Roaming(state string) float64 {
+	state = strings.ToLower(strings.Join(strings.Fields(state), " "))
+	pn := state + ":roaming"
+	return mp.Val(pn, Walk)
 }
 
 // Steps returns the steps per million year for the random walk.

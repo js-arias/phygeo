@@ -15,19 +15,23 @@ import (
 
 // Default creates a new model with the default values.
 func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
+	if t == nil {
+		// traits should be defined for a model
+		panic("undefined traits")
+	}
+
 	mp := New()
 
-	// Default value of lambda is 100.
-	// Lambda is by default a parameter.
-	mp.Add("lambda", Walk, 1, 100)
-
+	// Default roaming value for each trait is 0.05
+	// (roughly equivalent to lambda 100).
+	// It is by default a parameter equal for all traits.
+	for _, n := range t.States() {
+		pn := n + ":roaming"
+		mp.Add(pn, Walk, 1, 0.05)
+		mp.SetMax(pn, Walk, 1)
+	}
 	// Default number of steps is the number of pixels in the equator
 	mp.Add("steps", Walk, 0, float64(pix.Equator()))
-
-	if t == nil {
-		// skip traits if they are undefined
-		return mp
-	}
 
 	// trait-landscape combinations
 	tl := make(map[string]bool)
@@ -47,7 +51,7 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 	// By default all movement weights are set equal
 	// (with 1.0)
 	// but as different parameters,
-	kv := 3
+	kv := 10
 	for i, n := range names {
 		mp.Add(n, Mov, kv+i, 1)
 		mp.SetMax(n, Mov, 1)

@@ -27,7 +27,7 @@ import (
 var Command = &command.Command{
 	Usage: `ml
 	[--cpu <number>]
-	[--mult <number>] [--current]
+	[--current]
 	[--delta <number>] [--eval <number>]
 	[--iter <number>]
 	[-o|--output <prefix>]
@@ -45,11 +45,6 @@ required that at least one movement weight will be fixed at 1.0. The resulting
 values will be stored in a file called "model-ml-<tree>.tab". If the flag -o
 or --output is defined, the indicated value will be used as prefix of the
 output file model.
-
-As lambda values are usually larger compared to other parameters, its
-convergence. To reduce that problem, the search parameter is small (closer to
-1.0) and internally multiplied by 100. Use the flag --mult to define a
-different multiplier value.
 
 By default, the result of a search iteration is considered significant if the
 likelihood improvement is above 1e-4. Use the flag --delta to define a
@@ -79,7 +74,6 @@ var current bool
 var numCPU int
 var numEval int
 var numIter int
-var multLambda float64
 var deltaFlag float64
 var output string
 var modelFile string
@@ -89,7 +83,6 @@ func setFlags(c *command.Command) {
 	c.Flags().IntVar(&numCPU, "cpu", runtime.NumCPU(), "")
 	c.Flags().IntVar(&numEval, "eval", 5, "")
 	c.Flags().IntVar(&numIter, "iter", 5, "")
-	c.Flags().Float64Var(&multLambda, "mult", 100, "")
 	c.Flags().Float64Var(&deltaFlag, "delta", 1e-4, "")
 	c.Flags().StringVar(&modelFile, "model", "", "")
 	c.Flags().StringVar(&output, "output", "", "")
@@ -193,8 +186,8 @@ func run(c *command.Command, args []string) error {
 			st := fm.Settlement(tr, keys)
 			landProb := make([]walker.Model, len(states))
 			for i, c := range states {
-				sett := walker.Settlement(landscape.Pixelation(), net, fm.Lambda(), int(mp.Steps()))
-				lp := walker.New(landscape, net, mv, st, sett, c, i, keys)
+				roaming := fm.Roaming(c)
+				lp := walker.New(landscape, net, mv, st, roaming, c, i, keys)
 				landProb[i] = lp
 			}
 
@@ -243,9 +236,6 @@ func run(c *command.Command, args []string) error {
 					}
 					if current {
 						v := mp.Val(pn, tp)
-						if tp == model.Walk && pn == "lambda" {
-							v /= multLambda
-						}
 						initX[paramIDs[id]] = v
 						if it == 0 {
 							continue
@@ -339,21 +329,13 @@ func fromParamToModel(x []float64, mp *model.Model, paramIDs map[int]int) (*mode
 			// parameters outside the boundaries are rejected
 			mx := fm.Max(pn, tp)
 			if v > mx {
-				if v-mx > deltaFlag {
-					return nil, false
-				}
-				// if the value is inside the delta
-				// we set the value with the maximum
-				v = mx
+				return nil, false
 			}
 			if v <= 0 {
 				return nil, false
 			}
 			fm.Update(pn, tp, v)
 		}
-	}
-	if id := fm.ID("lambda", model.Walk); id != 0 {
-		fm.Update("lambda", model.Walk, x[paramIDs[id]]*multLambda)
 	}
 	return fm, true
 }
@@ -381,12 +363,7 @@ func (lp *logProgress) Record(loc *optimize.Location, op optimize.Operation, sta
 	lp.best = loc.F
 
 	fmt.Fprintf(lp.w, "# %s -%.6f [", lp.name, loc.F)
-
-	lambdaID := lp.mp.ID("lambda", model.Walk)
 	for i, v := range loc.X {
-		if lambdaID != 0 && lp.paramIDs[lambdaID] == i {
-			v *= multLambda
-		}
 		if i > 0 {
 			fmt.Fprintf(lp.w, " ")
 		}
