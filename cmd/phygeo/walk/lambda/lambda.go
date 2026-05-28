@@ -26,13 +26,13 @@ var Command = &command.Command{
 	Short: "report the lambda equivalent value",
 	Long: `
 Command lambda writes the approximate lambda for an spherical normal in an
-homogeneous landscape for a given roaming value.
+homogeneous landscape for a given wanderlust value.
 
 The first argument of the command is the name of the project file.
 
-The second argument is optional, it is the value of roaming value (i.e., the
-probability to move out of the pixel per each step. If not defined, the value
-will be taken from the model definition.
+The second argument is optional, it is the value of wanderlust value (i.e.,
+the probability to move out of the pixel per each step. If not defined, the
+value will be taken from the model definition.
 
 The flag --model is required, and is used to set the name of the model
 definition. The model is used to define the parameters of the random walk.
@@ -81,21 +81,21 @@ func run(c *command.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(c.Stdout(), "state\tsteps\tlambda\tE(x)\tvar(x)\troaming\n")
+	fmt.Fprintf(c.Stdout(), "state\tsteps\tlambda\tE(x)\tvar(x)\twanderlust\n")
 	if len(args) >= 2 {
 		for _, a := range args[1:] {
-			roaming, err := strconv.ParseFloat(a, 64)
+			wanderlust, err := strconv.ParseFloat(a, 64)
 			if err != nil {
-				return fmt.Errorf("roaming value: %v", err)
+				return fmt.Errorf("wanderlust value: %v", err)
 			}
-			printValues(c.Stdout(), pix, net, roaming, mp.Steps(), "user")
+			printValues(c.Stdout(), pix, net, wanderlust, mp.Steps(), "user")
 		}
 		return nil
 	}
 
 	for _, s := range tr.States() {
-		roaming := mp.Roaming(s)
-		printValues(c.Stdout(), pix, net, roaming, mp.Steps(), s)
+		wanderlust := mp.Wanderlust(s)
+		printValues(c.Stdout(), pix, net, wanderlust, mp.Steps(), s)
 	}
 	return nil
 }
@@ -114,10 +114,10 @@ func openModel(name string) (*model.Model, error) {
 	return mp, nil
 }
 
-func printValues(w io.Writer, pix *earth.Pixelation, net earth.Network, roaming float64, steps int, state string) {
-	lambda := walker.Lambda(pix, net, roaming, steps)
-	E, V := walker.Expected(pix, net, roaming, steps)
+func printValues(w io.Writer, pix *earth.Pixelation, net earth.Network, wanderlust float64, steps int, state string) {
+	lambda := walker.Lambda(pix, net, wanderlust, steps)
+	E, V := walker.Expected(pix, net, wanderlust, steps)
 	E *= earth.Radius / 1000
 	V *= earth.Radius / 1000
-	fmt.Fprintf(w, "%s\t%d\t%.3f\t%.3f\t%.3f\t%.6f\n", state, steps, lambda, E, V, roaming)
+	fmt.Fprintf(w, "%s\t%d\t%.3f\t%.3f\t%.3f\t%.6f\n", state, steps, lambda, E, V, wanderlust)
 }

@@ -36,7 +36,7 @@ func TestCopy(t *testing.T) {
 
 func newMP() *model.Model {
 	mp := model.New()
-	mp.Add("lambda", model.Walk, 1, 100)
+	mp.Add("wanderlust", model.Walk, 1, 0.05)
 	mp.Add("steps", model.Walk, 0, 120)
 	mp.Add("land:ocean", model.Mov, 3, 1)
 	mp.Add("land:oceanic plateaus", model.Mov, 3, 1)

@@ -186,8 +186,8 @@ func run(c *command.Command, args []string) error {
 			st := fm.Settlement(tr, keys)
 			landProb := make([]walker.Model, len(states))
 			for i, c := range states {
-				roaming := fm.Roaming(c)
-				lp := walker.New(landscape, net, mv, st, roaming, c, i, keys)
+				wanderlust := fm.Wanderlust(c)
+				lp := walker.New(landscape, net, mv, st, wanderlust, c, i, keys)
 				landProb[i] = lp
 			}
 

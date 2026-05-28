@@ -12,11 +12,11 @@ import (
 	"github.com/js-arias/phygeo/trait"
 )
 
-// Roaming returns the roam parameter
+// Wanderlust returns the wanderlust parameter
 // for a given trait state.
-func (mp *Model) Roaming(state string) float64 {
+func (mp *Model) Wanderlust(state string) float64 {
 	state = strings.ToLower(strings.Join(strings.Fields(state), " "))
-	pn := state + ":roaming"
+	pn := state + ":wanderlust"
 	return mp.Val(pn, Walk)
 }
 

@@ -13,8 +13,8 @@ import (
 
 // Lambda returns the lambda value
 // that produce an equivalent spherical normal distribution.
-func Lambda(pix *earth.Pixelation, net earth.Network, roaming float64, steps int) float64 {
-	dist := walkProb(pix, net, steps, 1-roaming)[0]
+func Lambda(pix *earth.Pixelation, net earth.Network, wanderlust float64, steps int) float64 {
+	dist := walkProb(pix, net, steps, 1-wanderlust)[0]
 	min := 1.0
 	max := 10_000.0
 	var best float64
@@ -59,9 +59,9 @@ func Settlement(pix *earth.Pixelation, net earth.Network, lambda float64, steps 
 // and the variance
 // (in radians^2)
 // of a random walk,
-// for a roaming  value.
-func Expected(pix *earth.Pixelation, net earth.Network, roaming float64, steps int) (exp, v float64) {
-	dist := walkProb(pix, net, steps, 1-roaming)
+// for a wanderlust value.
+func Expected(pix *earth.Pixelation, net earth.Network, wanderlust float64, steps int) (exp, v float64) {
+	dist := walkProb(pix, net, steps, 1-wanderlust)
 	var sumE, sumV float64
 	for px, p := range dist {
 		d := earth.ToRad(float64(pix.ID(px).Ring()) * pix.Step())

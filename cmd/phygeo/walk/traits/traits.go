@@ -39,6 +39,20 @@ created with the name 'traits.tab'. A different file name can be defined with
 the flag --file or -f. If this flag is used, and there is a trait file already
 defined, then the new file will be created, and used as traits file
 (previously defined traits will be kept).
+
+A trait file is a tab-delimited file with at least two columns:
+
+	- taxon for the name of the taxon
+	- trait for the identifier of the trait
+
+Here is an example file:
+
+	taxon	trait
+	Acer campbellii	temperate
+	Acer campbellii	tropical
+	Acer erythranthum	tropical
+	Acer platanoides	temperate
+	Acer saccharinum	temperate
 	`,
 	SetFlags: setFlags,
 	Run:      run,

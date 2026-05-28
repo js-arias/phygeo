@@ -22,11 +22,11 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 
 	mp := New()
 
-	// Default roaming value for each trait is 0.05
+	// Default wanderlust value for each trait is 0.05
 	// (roughly equivalent to lambda 100).
 	// It is by default a parameter equal for all traits.
 	for _, n := range t.States() {
-		pn := n + ":roaming"
+		pn := n + ":wanderlust"
 		mp.Add(pn, Walk, 1, 0.05)
 		mp.SetMax(pn, Walk, 1)
 	}

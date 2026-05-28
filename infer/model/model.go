@@ -380,7 +380,7 @@ var header = []string{
 //	sett	land:lands	fixed	1
 //	sett	land:ocean	fixed	0
 //	sett	land:oceanic plateaus	fixed	0.0001
-//	walk	land:roaming	0.05	1
+//	walk	land:wanderlust	0.05	1
 //	walk	steps	fixed	120
 func Read(f io.Reader) (*Model, error) {
 	tsv := csv.NewReader(f)

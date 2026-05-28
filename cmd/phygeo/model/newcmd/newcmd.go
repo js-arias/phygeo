@@ -22,7 +22,7 @@ var Command = &command.Command{
 Command new reads a PhyGeo project and build a new default model parameters
 for inferences using random walks or diffusion.
 
-The first argument of the command is the name of the project file-
+The first argument of the command is the name of the project file.
 
 The second argument is the name of the file that will store the new model.
 
