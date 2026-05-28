@@ -252,7 +252,7 @@ func run(c *command.Command, args []string) error {
 
 			result, err := optimize.Minimize(problem, initX, opts, nil)
 			if err != nil {
-				return fmt.Errorf("when searching %q: %v", tn, err)
+				return fmt.Errorf("when searching %q: %v [initial parameters %v]", tn, err, initX)
 			}
 			if result.Location.F < bestLike {
 				bestLike = result.F
