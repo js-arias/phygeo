@@ -22,6 +22,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `lambda --model <model-file>
+	--name <parameter name>
 	<project> [<value>]`,
 	Short: "report the lambda equivalent value",
 	Long: `
@@ -37,6 +38,9 @@ value will be taken from the model definition.
 The flag --model is required, and is used to set the name of the model
 definition. The model is used to define the parameters of the random walk.
 
+The flag --name is required, and is used to set the landscape in which the
+particle will move. 
+
 The output indicates the lambda value, as well as the expected value (in
 kilometers per million years), and the variance (km^2 per million years).
 `,
@@ -45,9 +49,11 @@ kilometers per million years), and the variance (km^2 per million years).
 }
 
 var modelFile string
+var nameFlag string
 
 func setFlags(c *command.Command) {
 	c.Flags().StringVar(&modelFile, "model", "", "")
+	c.Flags().StringVar(&nameFlag, "name", "", "")
 }
 
 func run(c *command.Command, args []string) error {
@@ -56,6 +62,9 @@ func run(c *command.Command, args []string) error {
 	}
 	if modelFile == "" {
 		return c.UsageError("--model flag should be defined")
+	}
+	if nameFlag == "" {
+		return c.UsageError("--name flag should be defined")
 	}
 
 	p, err := project.Read(args[0])
@@ -88,14 +97,13 @@ func run(c *command.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("wanderlust value: %v", err)
 			}
-			printValues(c.Stdout(), pix, net, wanderlust, mp.Steps(), "user")
+			printValues(c.Stdout(), pix, net, mp, "user", wanderlust)
 		}
 		return nil
 	}
 
 	for _, s := range tr.States() {
-		wanderlust := mp.Wanderlust(s)
-		printValues(c.Stdout(), pix, net, wanderlust, mp.Steps(), s)
+		printValues(c.Stdout(), pix, net, mp, s, -1)
 	}
 	return nil
 }
@@ -114,10 +122,20 @@ func openModel(name string) (*model.Model, error) {
 	return mp, nil
 }
 
-func printValues(w io.Writer, pix *earth.Pixelation, net earth.Network, wanderlust float64, steps int, state string) {
-	lambda := walker.Lambda(pix, net, wanderlust, steps)
-	E, V := walker.Expected(pix, net, wanderlust, steps)
+func printValues(w io.Writer, pix *earth.Pixelation, net earth.Network, mp *model.Model, state string, wanderlust float64) {
+	if wanderlust <= 0 {
+		wanderlust = mp.Wanderlust(state)
+	}
+	sett := 1.0
+	mov := 1.0
+	if state != "user" {
+		sett = mp.Val(state+":"+nameFlag, model.Sett)
+		mov = mp.Val(state+":"+nameFlag, model.Mov)
+	}
+
+	lambda := walker.Lambda(pix, net, wanderlust, sett, mov, mp.Steps())
+	E, V := walker.Expected(pix, net, wanderlust, sett, mov, mp.Steps())
 	E *= earth.Radius / 1000
 	V *= earth.Radius / 1000
-	fmt.Fprintf(w, "%s\t%d\t%.3f\t%.3f\t%.3f\t%.6f\n", state, steps, lambda, E, V, wanderlust)
+	fmt.Fprintf(w, "%s\t%d\t%.3f\t%.3f\t%.3f\t%.6f\n", state, mp.Steps(), lambda, E, V, wanderlust)
 }
