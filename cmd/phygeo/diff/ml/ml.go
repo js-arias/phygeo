@@ -23,7 +23,7 @@ import (
 
 var Command = &command.Command{
 	Usage: `ml [--stem <age>]
-	[--lambda <value>ep <value>] [--stop <value>]
+	[--lambda <value>] [--step <value>] [--stop <value>]
 	[--cpu <number>] <project-file>`,
 	Short: "search the maximum likelihood estimate",
 	Long: `
