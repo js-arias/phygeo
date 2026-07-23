@@ -5,6 +5,7 @@
 package walker
 
 import (
+	"math"
 	"sync"
 
 	"github.com/js-arias/earth"
@@ -91,10 +92,11 @@ func (w *walkModel) prepare(age int64) StageProb {
 	}
 
 	prob := w.buildPixProb(w, age)
-	prior, sett := w.buildPrior(age)
+	prior, logPrior, sett := w.buildPrior(age)
 	stageProb := StageProb{
 		Move:       prob,
 		Prior:      prior,
+		LogPrior:   logPrior,
 		Settlement: sett,
 	}
 	w.stages[age] = stageProb
@@ -189,10 +191,11 @@ func buildBouckaert(w *walkModel, age int64) [][]PixProb {
 	return pp
 }
 
-func (w *walkModel) buildPrior(age int64) (prior, settlement []float64) {
+func (w *walkModel) buildPrior(age int64) (prior, logPrior, settlement []float64) {
 	landscape := w.tp.Stage(age)
 
 	prior = make([]float64, w.tp.Pixelation().Len())
+	logPrior = make([]float64, w.tp.Pixelation().Len())
 	settlement = make([]float64, w.tp.Pixelation().Len())
 	var sum float64
 	for px := range prior {
@@ -204,6 +207,7 @@ func (w *walkModel) buildPrior(age int64) (prior, settlement []float64) {
 	}
 	for px, p := range prior {
 		prior[px] = p / sum
+		logPrior[px] = math.Log(prior[px])
 	}
-	return prior, settlement
+	return prior, logPrior, settlement
 }

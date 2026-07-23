@@ -17,6 +17,10 @@ type StageProb struct {
 	// Prior contains the prior probability of a pixel in a pixelation
 	Prior []float64
 
+	// LogPrior contains the natural log of the prior probability
+	// of a pixel in a pixelation
+	LogPrior []float64
+
 	// Settlement contains the settlement weight of a pixel
 	// in a pixelation
 	Settlement []float64

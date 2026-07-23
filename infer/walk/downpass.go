@@ -93,13 +93,12 @@ func (n *node) conditional(t *Tree) {
 		for tr := range rs.logLike {
 			stage := t.landProb[tr].StageProb(age)
 			for px := range rs.logLike[tr] {
-				pp := stage.Prior[px]
-				if pp == 0 {
+				if stage.Prior[px] == 0 {
 					// remove un-settable pixels
 					rs.logLike[tr][px] = math.Inf(-1)
 					continue
 				}
-				rs.logLike[tr][px] += math.Log(pp)
+				rs.logLike[tr][px] += stage.LogPrior[px]
 			}
 		}
 	}
