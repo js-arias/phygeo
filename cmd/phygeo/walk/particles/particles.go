@@ -63,6 +63,12 @@ stage, and the full path.
 
 By default, all available CPUs will be used in the processing. Set the --cpu
 flag to use a different number of CPUs.
+
+When running, the command will create several temporal directories in the
+current path. The program deletes these directories automatically, but in case
+of crash, it is possible that the clean-up is not complete. In such cases the
+directories should be deleted manually. They can be recognized as all have the
+prefix "temp-up".
 	`,
 	SetFlags: setFlags,
 	Run:      run,

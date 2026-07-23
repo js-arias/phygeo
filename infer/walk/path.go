@@ -116,7 +116,7 @@ func mapSim(c chan pathChanType, sz, traits int) {
 	}()
 
 	for cc := range c {
-		dir, err := os.MkdirTemp("", "tmp-up")
+		dir, err := os.MkdirTemp("./", "tmp-up")
 		if err != nil {
 			panic(err)
 		}
