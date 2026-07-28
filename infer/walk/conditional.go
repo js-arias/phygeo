@@ -98,9 +98,18 @@ func catConditional(w []walker.Model, prev, curr [][]float64, age int64, steps i
 			stage := stages[i]
 			for px := range curr[i] {
 				var sum float64
+
+				// movement
 				for _, nx := range stage.Move[px] {
 					sum += nx.Prob * prev[i][nx.ID]
 				}
+
+				// settlement and transition
+				trans := stage.Trans[px]
+				for j, p := range trans {
+					sum += p * prev[j][px]
+				}
+
 				curr[i][px] = sum
 			}
 		}

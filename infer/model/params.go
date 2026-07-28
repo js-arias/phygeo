@@ -50,6 +50,27 @@ func (mp *Model) Settlement(t *trait.Data, keys *pixkey.PixKey) *trait.Matrix {
 	return mp.movSettMat(t, keys, Sett)
 }
 
+// Transition returns the trait transition matrices
+// for each landscape.
+func (mp *Model) Trans(t *trait.Data, keys *pixkey.PixKey) *trait.Trans {
+	tm := trait.NewTrans(t, keys)
+	for _, p := range mp.vars {
+		if p.tp != Trait {
+			continue
+		}
+		s := strings.Split(p.name, ":")
+		if len(s) < 2 {
+			continue
+		}
+		tn := strings.Split(s[0], ">")
+		if len(tn) < 2 {
+			continue
+		}
+		tm.Add(tn[0], tn[1], s[1], p.val)
+	}
+	return tm
+}
+
 // IsScaled returns true if at least one of the fixed values
 // for movement is set to 1.0
 func (mp *Model) IsScaled() bool {

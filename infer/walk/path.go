@@ -149,18 +149,45 @@ func mapSim(c chan pathChanType, sz, traits int) {
 				loc := cc.particles[id].locs[step]
 				stage := stages[loc.trait]
 				move := stage.Move[loc.pixel]
-				var sum float64
+				trans := stage.Trans[loc.pixel]
+
+				var mv, tr, sum float64
 				for _, nx := range move {
-					sum += nx.Prob * stepCond[loc.trait][nx.ID]
+					p := nx.Prob * stepCond[loc.trait][nx.ID]
+					sum += p
+					mv += p
 				}
+				for i, p := range trans {
+					p *= stepCond[i][loc.pixel]
+					sum += p
+					tr += p
+				}
+
+				mvProb := mv / sum
+
 				for {
-					nxPix := rand.IntN(len(move))
-					nx := move[nxPix]
-					p := nx.Prob * stepCond[loc.trait][nx.ID] / sum
+					// we move
+					if rand.Float64() < mvProb {
+						nxPix := rand.IntN(len(move))
+						nx := move[nxPix]
+						p := nx.Prob * stepCond[loc.trait][nx.ID] / mv
+						if rand.Float64() < p {
+							cc.particles[id].locs[step+1] = pointLocation{
+								pixel: nx.ID,
+								trait: loc.trait,
+							}
+							break
+						}
+						continue
+					}
+
+					// we settle down
+					nxTrait := rand.IntN(len(trans))
+					p := trans[nxTrait] * stepCond[nxTrait][loc.pixel] / tr
 					if rand.Float64() < p {
 						cc.particles[id].locs[step+1] = pointLocation{
-							pixel: nx.ID,
-							trait: loc.trait,
+							pixel: loc.pixel,
+							trait: nxTrait,
 						}
 						break
 					}
@@ -198,10 +225,20 @@ func catConditionalWrite(dir string, w []walker.Model, prev, curr [][]float64, a
 			stage := stages[i]
 			for px := range curr[i] {
 				var sum float64
+
+				// movement
 				for _, nx := range stage.Move[px] {
 					sum += nx.Prob * prev[i][nx.ID]
 				}
+
+				// settlement and transition
+				trans := stage.Trans[px]
+				for j, p := range trans {
+					sum += p * prev[j][px]
+				}
+
 				curr[i][px] = sum
+
 			}
 		}
 

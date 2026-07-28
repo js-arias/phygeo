@@ -14,6 +14,10 @@ type StageProb struct {
 	// associated to a given pixel.
 	Move [][]PixProb
 
+	// Trans contains an slice of trait transition probabilities
+	// associated to a given pixel.
+	Trans [][]float64
+
 	// Prior contains the prior probability of a pixel in a pixelation
 	Prior []float64
 

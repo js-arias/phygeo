@@ -354,14 +354,16 @@ var header = []string{
 // The TSV must contains the following fields:
 //   - type, the type of the variable.
 //   - name, the name of the variable.
-//     A rate parameter
-//     (different from "cats") is in the form
-//     "<distribution>"
-//     Movement and settlement variables are in the form
+//     Movement,
+//     settlement,
+//     and wanderlust variables are in the form
 //     "<trait>:<landscape-feature>".
 //     Traits variables are in the form
-//     "<trait1>:<trait2>"
-//     which indicates a trait1 -> trait2 transition.
+//     "<trait1>><trait2>:<landscape-feature>"
+//     which indicates a trait1 -> trait2 transition
+//     (for example: "land>water:coastal"
+//     is the transition from land to water
+//     when a particle is over a costal landscape feature).
 //   - param, the ID for a parameter.
 //     Parameters with the same ID will have the save value.
 //     If not a parameters is set as "fixed".
@@ -374,13 +376,26 @@ var header = []string{
 //
 //	# phygeo model parameters
 //	type	name	param	value	max
-//	mov	land:lands	fixed	1
+//	mov	land:lands	fixed	1	
 //	mov	land:ocean	3	1	1
 //	mov	land:oceanic plateaus	3	1	1
-//	sett	land:lands	fixed	1
-//	sett	land:ocean	fixed	0
-//	sett	land:oceanic plateaus	fixed	0.0001
-//	walk	land:wanderlust	0.05	1
+//	mov	water:lands	fixed	0	
+//	mov	water:ocean	fixed	1	
+//	mov	water:oceanic plateaus	fixed	1	
+//	sett	land:lands	fixed	1	
+//	sett	land:ocean	fixed	0	
+//	sett	land:oceanic plateaus	fixed	0.0001	
+//	sett	water:lands	fixed	0	
+//	sett	water:ocean	fixed	0	
+//	sett	water:oceanic plateaus	fixed	1	
+//	trait	land>water:lands	fixed	0	
+//	trait	land>water:ocean	fixed	0
+//	trait	land>water:oceanic plateaus	10	0.01	1
+//	trait	water>land:lands	fixed	0	
+//	trait	water>land:ocean	fixed	0
+//	trait	water>land:oceanic plateaus	10	0.01	1
+//	walk	land:wanderlust	1	0.05	1
+//	walk	water:wanderlust	2	0.05	1
 //	walk	steps	fixed	120
 func Read(f io.Reader) (*Model, error) {
 	tsv := csv.NewReader(f)
