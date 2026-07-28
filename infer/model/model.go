@@ -376,22 +376,22 @@ var header = []string{
 //
 //	# phygeo model parameters
 //	type	name	param	value	max
-//	mov	land:lands	fixed	1	
+//	mov	land:lands	fixed	1
 //	mov	land:ocean	3	1	1
 //	mov	land:oceanic plateaus	3	1	1
-//	mov	water:lands	fixed	0	
-//	mov	water:ocean	fixed	1	
-//	mov	water:oceanic plateaus	fixed	1	
-//	sett	land:lands	fixed	1	
-//	sett	land:ocean	fixed	0	
-//	sett	land:oceanic plateaus	fixed	0.0001	
-//	sett	water:lands	fixed	0	
-//	sett	water:ocean	fixed	0	
-//	sett	water:oceanic plateaus	fixed	1	
-//	trait	land>water:lands	fixed	0	
+//	mov	water:lands	fixed	0
+//	mov	water:ocean	fixed	1
+//	mov	water:oceanic plateaus	fixed	1
+//	sett	land:lands	fixed	1
+//	sett	land:ocean	fixed	0
+//	sett	land:oceanic plateaus	fixed	0.0001
+//	sett	water:lands	fixed	0
+//	sett	water:ocean	fixed	0
+//	sett	water:oceanic plateaus	fixed	1
+//	trait	land>water:lands	fixed	0
 //	trait	land>water:ocean	fixed	0
 //	trait	land>water:oceanic plateaus	10	0.01	1
-//	trait	water>land:lands	fixed	0	
+//	trait	water>land:lands	fixed	0
 //	trait	water>land:ocean	fixed	0
 //	trait	water>land:oceanic plateaus	10	0.01	1
 //	walk	land:wanderlust	1	0.05	1
@@ -517,12 +517,20 @@ func (mp *Model) TSV(w io.Writer) error {
 				string(tp),
 				n,
 				"fixed",
-				strconv.FormatFloat(p.val, 'g', 6, 64),
+				strconv.FormatFloat(p.val, 'g', 8, 64),
 				"",
 			}
 			if p.id > 0 {
+				v := p.val
+				if math.Abs(v-0) < 1e-8 {
+					v = 0.00000001
+				}
+				if math.Abs(v-1) < 1e-8 {
+					v = 0.99999999
+				}
 				row[2] = strconv.Itoa(p.id)
-				row[4] = strconv.FormatFloat(p.max, 'g', 6, 64)
+				row[3] = strconv.FormatFloat(v, 'f', 8, 64)
+				row[4] = strconv.FormatFloat(p.max, 'f', 8, 64)
 			}
 			if err := tsv.Write(row); err != nil {
 				return fmt.Errorf("while writing data: %v", err)

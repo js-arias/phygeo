@@ -31,25 +31,22 @@ type walkModel struct {
 	state string
 	id    int //state ID
 	key   *pixkey.PixKey
-
-	buildPixProb func(w *walkModel, age int64) ([][]PixProb, [][]float64)
 }
 
 // New creates a new landscape model
 // using the default PhyGeo model.
 func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, trans *trait.Trans, wanderlust float64, state string, stateID int, keys *pixkey.PixKey) Model {
 	return &walkModel{
-		stages:       make(map[int64]StageProb),
-		tp:           landscape,
-		net:          net,
-		movement:     movement,
-		settlement:   settlement,
-		trans:        trans,
-		wanderlust:   wanderlust,
-		state:        state,
-		id:           stateID,
-		key:          keys,
-		buildPixProb: defPixProb,
+		stages:     make(map[int64]StageProb),
+		tp:         landscape,
+		net:        net,
+		movement:   movement,
+		settlement: settlement,
+		trans:      trans,
+		wanderlust: wanderlust,
+		state:      state,
+		id:         stateID,
+		key:        keys,
 	}
 }
 
@@ -75,22 +72,19 @@ func (w *walkModel) prepare(age int64) StageProb {
 		return s
 	}
 
-	prob, trans := w.buildPixProb(w, age)
-	prior, logPrior, sett := w.buildPrior(age)
-	stageProb := StageProb{
-		Move:       prob,
-		Trans:      trans,
-		Prior:      prior,
-		LogPrior:   logPrior,
-		Settlement: sett,
-	}
+	stageProb := w.stageProb(age)
 	w.stages[age] = stageProb
 	return stageProb
 }
 
-func defPixProb(w *walkModel, age int64) ([][]PixProb, [][]float64) {
+func (w *walkModel) stageProb(age int64) StageProb {
 	landscape := w.tp.Stage(age)
 	moveProb := w.wanderlust
+
+	prior := make([]float64, w.tp.Pixelation().Len())
+	logPrior := make([]float64, w.tp.Pixelation().Len())
+	settlement := make([]float64, w.tp.Pixelation().Len())
+	var sumPrior float64
 
 	pp := make([][]PixProb, w.tp.Pixelation().Len())
 	trans := make([][]float64, w.tp.Pixelation().Len())
@@ -121,33 +115,28 @@ func defPixProb(w *walkModel, age int64) ([][]PixProb, [][]float64) {
 
 		// settlement
 		s := landscape[px]
-		settProb *= w.settlement.Weight(w.state, w.key.Label(s))
+		p := w.settlement.Weight(w.state, w.key.Label(s))
+		settProb *= p
 		tr := w.trans.Transition(w.state, w.key.Label(s))
 		for i := range tr {
 			tr[i] *= settProb
 		}
 		trans[px] = tr
-	}
-	return pp, trans
-}
 
-func (w *walkModel) buildPrior(age int64) (prior, logPrior, settlement []float64) {
-	landscape := w.tp.Stage(age)
-
-	prior = make([]float64, w.tp.Pixelation().Len())
-	logPrior = make([]float64, w.tp.Pixelation().Len())
-	settlement = make([]float64, w.tp.Pixelation().Len())
-	var sum float64
-	for px := range prior {
-		s := landscape[px]
-		p := w.settlement.Weight(w.state, w.key.Label(s))
-		prior[px] = p
 		settlement[px] = p
-		sum += p
+		sumPrior += p
 	}
-	for px, p := range prior {
-		prior[px] = p / sum
+
+	for px := range prior {
+		prior[px] = settlement[px] / sumPrior
 		logPrior[px] = math.Log(prior[px])
 	}
-	return prior, logPrior, settlement
+
+	return StageProb{
+		Move:       pp,
+		Trans:      trans,
+		Prior:      prior,
+		LogPrior:   logPrior,
+		Settlement: settlement,
+	}
 }
