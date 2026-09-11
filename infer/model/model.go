@@ -525,9 +525,6 @@ func (mp *Model) TSV(w io.Writer) error {
 				if math.Abs(v-0) < 1e-8 {
 					v = 0.00000001
 				}
-				if math.Abs(v-1) < 1e-8 {
-					v = 0.99999999
-				}
 				row[2] = strconv.Itoa(p.id)
 				row[3] = strconv.FormatFloat(v, 'f', 8, 64)
 				row[4] = strconv.FormatFloat(p.max, 'f', 8, 64)

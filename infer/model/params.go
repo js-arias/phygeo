@@ -20,6 +20,15 @@ func (mp *Model) Wanderlust(state string) float64 {
 	return mp.Val(pn, Walk)
 }
 
+// MoveCost returns the movement cost fraction
+// (relative to wanderlust)
+// for a given trait state.
+func (mp *Model) MoveCost(state string) float64 {
+	state = strings.ToLower(strings.Join(strings.Fields(state), " "))
+	pn := state + ":move-cost"
+	return mp.Val(pn, Walk)
+}
+
 // Steps returns the steps per million year for the random walk.
 func (mp *Model) Steps() int {
 	steps := int(mp.Val("steps", Walk))

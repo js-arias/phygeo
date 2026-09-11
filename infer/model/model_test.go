@@ -6,6 +6,7 @@ package model_test
 
 import (
 	"bytes"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -20,6 +21,8 @@ func TestIO(t *testing.T) {
 	if err := mp.TSV(&buf); err != nil {
 		t.Fatalf("when writing TSV: %v", err)
 	}
+	t.Logf("file:\n%s\n", buf.String())
+
 	rp, err := model.Read(strings.NewReader(buf.String()))
 	if err != nil {
 		t.Fatalf("when reading TSV: %v", err)
@@ -38,16 +41,16 @@ func newMP() *model.Model {
 	mp := model.New()
 	mp.Add("land:wanderlust", model.Walk, 1, 0.05)
 	mp.Add("steps", model.Walk, 0, 120)
-	mp.Add("land:ocean", model.Mov, 3, 1)
-	mp.Add("land:oceanic plateaus", model.Mov, 3, 1)
-	mp.Add("land:lands", model.Mov, 0, 1)
+	mp.Add("land:ocean", model.Mov, 3, 1.0)
+	mp.Add("land:oceanic plateaus", model.Mov, 3, 1.0)
+	mp.Add("land:lands", model.Mov, 0, 1.0)
 	mp.Add("land:ocean", model.Sett, 0, 0)
 	mp.Add("land:oceanic plateaus", model.Sett, 0, 0.0001)
 	mp.Add("land:lands", model.Sett, 0, 1)
 
 	mp.Add("water:wanderlust", model.Walk, 2, 0.05)
-	mp.Add("water:ocean", model.Mov, 4, 1)
-	mp.Add("water:oceanic plateaus", model.Mov, 4, 1)
+	mp.Add("water:ocean", model.Mov, 4, 1.0)
+	mp.Add("water:oceanic plateaus", model.Mov, 4, 1.0)
 	mp.Add("water:lands", model.Mov, 0, 0)
 	mp.Add("water:ocean", model.Sett, 0, 0)
 	mp.Add("water:oceanic plateaus", model.Sett, 0, 1)
@@ -94,7 +97,7 @@ func testModel(t testing.TB, mp, want *model.Model) {
 
 			vg := mp.Val(n, tp)
 			vw := want.Val(n, tp)
-			if vg != vw {
+			if math.Abs(vg-vw) > 0.000001 {
 				t.Errorf("Value: variable %q, type %q: got %.6f, want %.6f", n, tp, vg, vw)
 			}
 

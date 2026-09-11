@@ -144,7 +144,11 @@ func run(c *command.Command, args []string) error {
 	landProb := make([]walker.Model, len(states))
 	for i, c := range states {
 		wanderlust := mp.Wanderlust(c)
-		lp := walker.New(landscape, net, mv, st, trans, wanderlust, c, i, keys)
+		moveCost := mp.MoveCost(c)
+		lp, err := walker.New(landscape, net, mv, st, trans, wanderlust, moveCost, c, i, keys)
+		if err != nil {
+			return err
+		}
 		landProb[i] = lp
 	}
 

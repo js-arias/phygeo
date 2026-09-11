@@ -5,6 +5,7 @@
 package walker
 
 import (
+	"errors"
 	"math"
 	"sync"
 
@@ -27,6 +28,7 @@ type walkModel struct {
 	trans      *trait.Trans
 
 	wanderlust float64
+	moveCost   float64
 
 	state string
 	id    int //state ID
@@ -35,7 +37,14 @@ type walkModel struct {
 
 // New creates a new landscape model
 // using the default PhyGeo model.
-func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, trans *trait.Trans, wanderlust float64, state string, stateID int, keys *pixkey.PixKey) Model {
+// It returns an error
+// if the sum of wanderlust and movement cost
+// is greater than one.
+func New(landscape *model.TimePix, net earth.Network, movement, settlement *trait.Matrix, trans *trait.Trans, wanderlust, moveCost float64, state string, stateID int, keys *pixkey.PixKey) (Model, error) {
+	mc := wanderlust * moveCost
+	if wanderlust+mc > 1 {
+		return nil, errors.New("model: invalid wanderlust and move cost parameters")
+	}
 	return &walkModel{
 		stages:     make(map[int64]StageProb),
 		tp:         landscape,
@@ -44,10 +53,11 @@ func New(landscape *model.TimePix, net earth.Network, movement, settlement *trai
 		settlement: settlement,
 		trans:      trans,
 		wanderlust: wanderlust,
+		moveCost:   mc,
 		state:      state,
 		id:         stateID,
 		key:        keys,
-	}
+	}, nil
 }
 
 func (w *walkModel) StageProb(age int64) StageProb {
@@ -79,7 +89,6 @@ func (w *walkModel) prepare(age int64) StageProb {
 
 func (w *walkModel) stageProb(age int64) StageProb {
 	landscape := w.tp.Stage(age)
-	moveProb := w.wanderlust
 
 	prior := make([]float64, w.tp.Pixelation().Len())
 	logPrior := make([]float64, w.tp.Pixelation().Len())
@@ -91,25 +100,24 @@ func (w *walkModel) stageProb(age int64) StageProb {
 	for px := range pp {
 		n := w.net[px]
 		prob := make([]PixProb, 0, len(n)-1)
-		settProb := 1 - moveProb
-		var moveWeight float64
+
+		// movement
+
+		// we penalize movement
+		// moving too fast is deadly
+		settProb := 1 - w.moveCost
+		mv := w.wanderlust / float64(len(n)-1)
 		for _, x := range n {
 			if x == px {
 				continue
 			}
 			v := landscape[x]
-			moveWeight += w.movement.Weight(w.state, w.key.Label(v))
-		}
-		for _, x := range n {
-			if x == px {
-				continue
-			}
-			v := landscape[x]
-			p := moveProb * w.movement.Weight(w.state, w.key.Label(v)) / moveWeight
+			p := mv * w.movement.Weight(w.state, w.key.Label(v))
 			prob = append(prob, PixProb{
 				ID:   x,
 				Prob: p,
 			})
+			settProb -= p
 		}
 		pp[px] = prob
 

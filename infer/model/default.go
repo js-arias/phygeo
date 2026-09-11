@@ -27,8 +27,14 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 	// (roughly equivalent to lambda 100).
 	// It is by default a parameter equal for all traits.
 	for _, n := range t.States() {
+		// wanderlust
 		pn := n + ":wanderlust"
 		mp.Add(pn, Walk, 1, 0.05)
+		mp.SetMax(pn, Walk, 1)
+
+		// movement cost
+		pn = n + ":move-cost"
+		mp.Add(pn, Walk, 0, 0.1)
 		mp.SetMax(pn, Walk, 1)
 	}
 	// Default number of steps is the number of pixels in the equator
@@ -54,15 +60,15 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 	// but as different parameters,
 	kv := 10
 	for i, n := range names {
-		mp.Add(n, Mov, kv+i, 1)
-		mp.SetMax(n, Mov, 1)
+		mp.Add(n, Mov, kv+i, 1.0)
+		mp.SetMax(n, Mov, 1.0)
 	}
 
 	// By default all settlement weights are set equal
 	// (with 1.0)
 	// and fixed.
 	for _, n := range names {
-		mp.Add(n, Sett, 0, 1)
+		mp.Add(n, Sett, 0, 1.0)
 	}
 
 	// trait transitions per landscape
@@ -70,17 +76,17 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 	for _, k := range keys.Keys() {
 		kn := keys.Label(k)
 		for _, f := range t.States() {
-			for _, t := range t.States() {
-				if f == t {
+			for _, to := range t.States() {
+				if f == to {
 					continue
 				}
-				tn := f + ">" + t + ":" + kn
+				tn := f + ">" + to + ":" + kn
 				tt[tn] = true
 			}
 		}
 	}
 	names = make([]string, 0, len(tt))
-	for n := range tl {
+	for n := range tt {
 		names = append(names, n)
 	}
 	slices.Sort(names)
@@ -91,7 +97,7 @@ func Default(pix *earth.Pixelation, t *trait.Data, keys *pixkey.PixKey) *Model {
 	rate := 0.01 / float64(len(t.States())-1)
 	for _, n := range names {
 		mp.Add(n, Trait, kv, rate)
-		mp.SetMax(n, Trait, 1)
+		mp.SetMax(n, Trait, 1.0)
 	}
 
 	return mp
