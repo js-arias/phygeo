@@ -226,7 +226,8 @@ func run(c *command.Command, args []string) error {
 		}
 		bestLike := math.Inf(1)
 		bestParam := make([]float64, len(paramIDs))
-		for it := 0; it < numIter; it++ {
+		it := 0
+		for it < numIter {
 			fmt.Fprintf(c.Stdout(), "# iteration %d of %d\n", it, numIter)
 			initX := make([]float64, len(paramIDs))
 			for _, tp := range mp.Types() {
@@ -257,12 +258,17 @@ func run(c *command.Command, args []string) error {
 
 			result, err := optimize.Minimize(problem, initX, opts, nil)
 			if err != nil {
-				return fmt.Errorf("when searching %q: %v [initial parameters %v]", tn, err, initX)
+				fmt.Fprintf(c.Stderr(), "when searching %q: %v [initial parameters %v]\n", tn, err, initX)
+				if current && it == 0 {
+					it++
+				}
+				continue
 			}
 			if result.Location.F < bestLike {
 				bestLike = result.F
 				copy(bestParam, result.X)
 			}
+			it++
 		}
 		best, ok := fromParamToModel(bestParam, mp, paramIDs)
 		if !ok {
